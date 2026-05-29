@@ -114,7 +114,7 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 			if (ply.lastInSpeed and CurTime() - ply.lastInSpeed < 0.3) or force_sprint then
 				ply.isSprintingState = true
 				if (ply.CurrentSpeed or 0) <= slow_walk_speed * 1.5 then
-					ply.sprintDebuff = CurTime() + 0.5
+					ply.sprintDebuff = CurTime() + 0.3
 				end
 			end
 			ply.lastInSpeed = CurTime()
