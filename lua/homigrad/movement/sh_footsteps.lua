@@ -18,12 +18,19 @@ local hg_coolcamera = ConVarExists("hg_coolcamera") and GetConVar("hg_coolcamera
 		local ent = hg.GetCurrentCharacter(ply)
 		
 		local sprint = hg.KeyDown(ply, IN_SPEED)
-		ply.lastStepTime = CurTime() + 0.7 * (sprint and 1.5 or 1) * (1 / math_max(len, sprint and 200 or 150)) * 100
+		local speed_mul = 1
+		if ply.hg_isSprinting then
+			speed_mul = 1.5
+		elseif ply.hg_isJogging then
+			speed_mul = 1.15
+		end
+		
+		ply.lastStepTime = CurTime() + 0.7 * speed_mul * (1 / math_max(len, sprint and 200 or 150)) * 100
 
 		if ply.PlayerClassName == "furry" then
 			local wep = ply:GetActiveWeapon()
 			if sprint and hg.KeyDown(ply, IN_WALK) and IsValid(wep) and wep:GetClass() == "weapon_hands_sh" then
-				ply.lastStepTime = CurTime() + 0.4 * (sprint and 1.5 or 1) * (1 / math_max(len, sprint and 200 or 150)) * 100
+				ply.lastStepTime = CurTime() + 0.4 * speed_mul * (1 / math_max(len, sprint and 200 or 150)) * 100
 			end
 		end
 

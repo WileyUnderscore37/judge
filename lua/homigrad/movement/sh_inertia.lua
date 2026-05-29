@@ -103,7 +103,31 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 			return
 		end
 
-		local runnin = ply:KeyDown(IN_SPEED) and not ply:Crouching() and ply:KeyDown(IN_FORWARD)
+		local in_speed = ply:KeyDown(IN_SPEED)
+		local speed_pressed = in_speed and not ply.was_in_speed
+		ply.was_in_speed = in_speed
+
+		local slow_walk_speed = ply:GetSlowWalkSpeed()
+		local force_sprint = (org.berserk and org.berserk >= 0.01) or (org.noradrenaline and org.noradrenaline >= 0.01) or (org.stamina and org.stamina[1] and org.stamina[1] < 100)
+
+		if speed_pressed then
+			if (ply.lastInSpeed and CurTime() - ply.lastInSpeed < 0.3) or force_sprint then
+				ply.isSprintingState = true
+				if (ply.CurrentSpeed or 0) <= slow_walk_speed * 1.5 then
+					ply.sprintDebuff = CurTime() + 0.3
+				end
+			end
+			ply.lastInSpeed = CurTime()
+		end
+
+		if not in_speed then
+			ply.isSprintingState = false
+		end
+
+		local runnin_held = in_speed and not ply:Crouching() and ply:KeyDown(IN_FORWARD)
+		ply.hg_isSprinting = runnin_held and (ply.isSprintingState or force_sprint)
+		ply.hg_isJogging = runnin_held and not ply.hg_isSprinting
+		local runnin = ply.hg_isSprinting or ply.hg_isJogging
 
 		--[[if runnin then
 			mv:SetSideSpeed(0) --meh
@@ -124,7 +148,6 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 		local slow_walking = ply:KeyDown(IN_WALK)
 		local aiming = ply:KeyDown(IN_ATTACK2) and wep and IsValid(wep) and ishgweapon(wep)
 		local walk_speed = ply:GetWalkSpeed()
-		local slow_walk_speed = ply:GetSlowWalkSpeed()
 		local crouch_walk_speed = ply:GetCrouchedWalkSpeed()
 		local weightmul = hg.CalculateWeight(ply, 140)
 		local rag = hg.GetCurrentCharacter(ply)
@@ -199,7 +222,7 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 		-- ply.InertiaBlend = 15 * weightmul * ply.CurrentFrictionMul
 		local inertia_blend_mul = 1
 
-		if(velLen <= slow_walk_speed)then
+		if(velLen <= (ply:GetSlowWalkSpeed() or 100))then
 			inertia_blend_mul = 1
 		end
 
@@ -220,7 +243,8 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 
 		hook.Run("HG_MovementCalc", vel, velLen, weightmul, ply, cmd, mv)
 
-		local mul = {(ply.move or ply.CurrentSpeed) / ply:GetRunSpeed()}
+		local target_run_speed = ply.hg_isJogging and (ply:GetRunSpeed() * 0.7) or ply:GetRunSpeed()
+		local mul = {(ply.move or ply.CurrentSpeed) / target_run_speed}
 
 		hook.Run("HG_MovementCalc_2", mul, ply, cmd, mv)
 
@@ -232,15 +256,19 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 
 		mul = mul * (ply:GetNWBool("TauntStopMoving", false) and 0.01 or 1)
 
-		if(runnin and velLen >= 10)then
-			ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, (ply.move or ply:GetRunSpeed()) * mul, delta_time * ply.SpeedGainMul)
+		if(ply.hg_isSprinting and velLen >= 10)then
+			local sprint_mul = 1
+			if ply.sprintDebuff and ply.sprintDebuff > CurTime() then sprint_mul = 0.5 end
+			ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, (ply.move or ply:GetRunSpeed()) * mul * sprint_mul, delta_time * ply.SpeedGainMul)
+		elseif(ply.hg_isJogging and velLen >= 10)then
+			ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, (ply.move or (ply:GetRunSpeed() * 0.7)) * mul, delta_time * ply.SpeedGainMul)
 		else
 			if(ply:Crouching())then
 				ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, crouch_walk_speed * mul, delta_time * ply.SpeedLoseMul)
 			elseif(slow_walking)then
-				ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, slow_walk_speed * mul, delta_time * ply.SpeedLoseMul)
+				ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, (ply:GetSlowWalkSpeed() or 100) * mul, delta_time * ply.SpeedLoseMul)
 			elseif(aiming)then
-				ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, slow_walk_speed * mul, delta_time * ply.SpeedLoseMul)
+				ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, (ply:GetSlowWalkSpeed() or 100) * mul, delta_time * ply.SpeedLoseMul)
 			else
 				ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, walk_speed * mul, delta_time * ply.SpeedLoseMul)
 			end
@@ -267,10 +295,10 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 			change = ply.LastChangeVelocity
 		end
 
-		local change_mul = math.abs(ply.CurrentSpeed - slow_walk_speed)
+		local change_mul = math.abs(ply.CurrentSpeed - (ply:GetSlowWalkSpeed() or 100))
 
 		ply.LastChangeVelocity = change
-		ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, slow_walk_speed * mul, delta_time * change * change_mul * ply.SpeedSharpLoseMul * 0.25 * 200)
+		ply.CurrentSpeed = math.Approach(ply.CurrentSpeed, (ply:GetSlowWalkSpeed() or 100) * mul, delta_time * change * change_mul * ply.SpeedSharpLoseMul * 0.25 * 200)
 		ply.LastVelocity = vel
 		ply.LastVelocityLen = velLen
 		--//
@@ -374,7 +402,8 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 			end
 		--//
 
-		local move = ply:GetRunSpeed() * 1.1
+		local target_run_speed = ply.hg_isJogging and (ply:GetRunSpeed() * 0.6) or ply:GetRunSpeed()
+		local move = target_run_speed * 1.1
 		k = 1 * weightmul
 		k = k * math.Clamp(consmul, 0.7, 1)
 		k = k * math.Clamp((org.temperature and (1 - (org.temperature - 38) * 0.25) or 1), 0.5, 1)
@@ -407,7 +436,7 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 
 		local ent = IsValid(ply:GetNetVar("carryent")) and ply:GetNetVar("carryent") or IsValid(ply:GetNetVar("carryent2")) and ply:GetNetVar("carryent2")
 
-		if SERVER and inertia_len > 5 and runnin then
+		if SERVER and inertia_len > 5 and (ply.hg_isSprinting or ply.hg_isJogging) then
 			local mul = math.Clamp(inertia_len / 200, 0.5, 1) * 5 * (ply:Crouching() and 0.01 or 1)
 			if ply == rag then
 				if org.pelvis == 1 then
@@ -563,3 +592,11 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 		ply.OldCrouched = cmd:KeyDown(IN_DUCK)
 	end)
 --//
+
+if CLIENT then
+	hook.Add("hg_AdjustMouseSensitivity", "HG_Sprint_Sens", function(ply)
+		if ply.hg_isSprinting then
+			return 0.3 -- lower sensitivity to 30% when sprinting
+		end
+	end)
+end
