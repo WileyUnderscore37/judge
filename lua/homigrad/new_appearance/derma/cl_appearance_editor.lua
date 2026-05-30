@@ -892,7 +892,7 @@ function PANEL:PostInit()
     bodyMatSelector:SetText("Jacket")
     function bodyMatSelector:Think()
         if funpos3x then
-            bodyMatSelector:SetPos(sizeX * 0.5 - funpos3x, sizeY * 0.2)
+            bodyMatSelector:SetPos(sizeX * 0.75 - funpos3x, sizeY * 0.2)
         end
     end
     function bodyMatSelector:Paint(w,h)
@@ -900,7 +900,7 @@ function PANEL:PostInit()
         surface.SetDrawColor(colors.scrollbarBorder)
         surface.DrawOutlinedRect(0,0,w,h,1)
     end
-    bodyMatSelector:SetPos(sizeX * 0.5, sizeY * 0.5)
+    bodyMatSelector:SetPos(sizeX * 0.75, sizeY * 0.5)
     function bodyMatSelector:DoClick()
         main.modelPosID = "Torso"
         bodyMatSelectorMenu = DermaMenu()
@@ -936,7 +936,7 @@ function PANEL:PostInit()
     legsMatSelector:SetText("Pants")
     function legsMatSelector:Think()
         if funpos3x then
-            legsMatSelector:SetPos(sizeX * 0.5 - funpos3x, sizeY * 0.2 + ScreenScale(32))
+            legsMatSelector:SetPos(sizeX * 0.75 - funpos3x, sizeY * 0.2 + ScreenScale(32))
         end
     end
     function legsMatSelector:Paint(w,h)
@@ -944,7 +944,7 @@ function PANEL:PostInit()
         surface.SetDrawColor(colors.scrollbarBorder)
         surface.DrawOutlinedRect(0,0,w,h,1)
     end
-    legsMatSelector:SetPos(sizeX * 0.5, sizeY * 0.5)
+    legsMatSelector:SetPos(sizeX * 0.75, sizeY * 0.5)
     function legsMatSelector:DoClick()
         main.modelPosID = "Legs"
         legsMatSelectorMenu = DermaMenu()
@@ -974,7 +974,7 @@ function PANEL:PostInit()
     bootsMatSelector:SetText("Boots")
     function bootsMatSelector:Think()
         if funpos3x then
-            bootsMatSelector:SetPos(sizeX * 0.5 - funpos3x, sizeY * 0.2 + ScreenScale(64))
+            bootsMatSelector:SetPos(sizeX * 0.75 - funpos3x, sizeY * 0.2 + ScreenScale(64))
         end
     end
     function bootsMatSelector:Paint(w,h)
@@ -982,7 +982,7 @@ function PANEL:PostInit()
         surface.SetDrawColor(colors.scrollbarBorder)
         surface.DrawOutlinedRect(0,0,w,h,1)
     end
-    bootsMatSelector:SetPos(sizeX * 0.5, sizeY * 0.5)
+    bootsMatSelector:SetPos(sizeX * 0.75, sizeY * 0.5)
     function bootsMatSelector:DoClick()
         main.modelPosID = "Boots"
         bootsMatSelectorMenu = DermaMenu()
@@ -1012,7 +1012,7 @@ function PANEL:PostInit()
     glovesSelector:SetText("Gloves")
     function glovesSelector:Think()
         if funpos3x then
-            glovesSelector:SetPos(sizeX * 0.5 - funpos3x, sizeY * 0.2 + ScreenScale(96))
+            glovesSelector:SetPos(sizeX * 0.75 - funpos3x, sizeY * 0.2 + ScreenScale(96))
         end
     end
     function glovesSelector:Paint(w,h)
@@ -1020,7 +1020,7 @@ function PANEL:PostInit()
         surface.SetDrawColor(colors.scrollbarBorder)
         surface.DrawOutlinedRect(0,0,w,h,1)
     end
-    glovesSelector:SetPos(sizeX * 0.5, sizeY * 0.5)
+    glovesSelector:SetPos(sizeX * 0.75, sizeY * 0.5)
     function glovesSelector:DoClick()
         main.modelPosID = "Hands"
         glovesSelectorMenu = DermaMenu()
@@ -1044,7 +1044,7 @@ function PANEL:PostInit()
     faceMatSelector:SetText("Facemap")
     function faceMatSelector:Think()
         if funpos3x then
-            faceMatSelector:SetPos(sizeX * 0.5 - funpos3x, sizeY * 0.2 + ScreenScale(96 + 32))
+            faceMatSelector:SetPos(sizeX * 0.75 - funpos3x, sizeY * 0.2 + ScreenScale(96 + 32))
         end
     end
     function faceMatSelector:Paint(w,h)
@@ -1052,7 +1052,7 @@ function PANEL:PostInit()
         surface.SetDrawColor(colors.scrollbarBorder)
         surface.DrawOutlinedRect(0,0,w,h,1)
     end
-    faceMatSelector:SetPos(sizeX * 0.5, sizeY * 0.5)
+    faceMatSelector:SetPos(sizeX * 0.75, sizeY * 0.5)
     function faceMatSelector:DoClick()
         main.modelPosID = "Face"
         faceMatSelectorMenu = DermaMenu()
@@ -1073,6 +1073,9 @@ function PANEL:PostInit()
     function self:Close()
         CloseAllAccessoryMenus()
         if oldClose then oldClose(self) end
+        if MainMenu and IsValid(MainMenu) then
+            MainMenu:Close()
+        end
     end
     self:CallbackAppearance()
 end
