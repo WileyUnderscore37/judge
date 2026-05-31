@@ -60,7 +60,7 @@ hg.getRandomSpasm = getRandomSpasm
 
 local function applySpasm(rag, stype)
 	if not IsValid(rag) then return end
-	local dur = stype == "extend" and extendDur or stype == "rigor" and rigorDur or flexionDur
+	local dur = stype == "extend" and extendDur or stype == "rigor" and rigorDur or stype == "fencing" and {6, 12} or stype == "decorticate" and {10, 20} or flexionDur
 	dur = math_rand(dur[1], dur[2])
 	
 	rag.spasm, rag.spasmType, rag.spasmDur, rag.spasmForce = true, stype, dur, FORCE
@@ -139,39 +139,127 @@ end
 hg.applyFencingToPlayer = applyFencingToPlayer
 
 local function processFencing(rag, fade)
-	local org = rag.organism
-	local force = 350 * fade
-	local pulse = 0.85 + math_sin(CurTime() * 4) * 0.15
-
-	if org.spine2 < hg.organism.fake_spine2 and org.spine3 < hg.organism.fake_spine3 then
-		for i = 1, #fencingArmBones do
-			local d = fencingArmBones[i]
-			local bone, targetBone = rag:LookupBone(d[1]), rag:LookupBone(d[2])
-			if not bone or not targetBone then continue end
-			local phys = rag:GetPhysicsObjectNum(rag:TranslateBoneToPhysBone(bone))
-			if not IsValid(phys) then continue end
-			local bonePos, targetPos = rag:GetBonePosition(bone), rag:GetBonePosition(targetBone)
-			local dir = (targetPos - bonePos):GetNormalized()
-			phys:ApplyForceCenter((dir * force * d[3] * pulse) + VectorRand(-15, 15) * fade)
-		end
+	local boneSpine2 = rag:LookupBone("ValveBiped.Bip01_Spine2")
+	if not boneSpine2 then return end
+	local spine2 = rag:GetPhysicsObjectNum(rag:TranslateBoneToPhysBone(boneSpine2))
+	if not IsValid(spine2) then return end
+	
+	local spineAng = spine2:GetAngles()
+	local spinePos = spine2:GetPos()
+	
+	local t = math_clamp((fade - 0.1) / 0.9, 0, 1)
+	
+	local chestPos = spinePos + spineAng:Forward() * 5 + spineAng:Up() * 10
+	local pelvisPos = spinePos - spineAng:Forward() * 10 + spineAng:Up() * 5
+	local extendPos = spinePos + spineAng:Forward() * 15 + spineAng:Up() * 20
+	
+	local targetPosChest = LerpVector(t, pelvisPos, chestPos)
+	local targetPosExt = LerpVector(t, pelvisPos, extendPos)
+	local shake = VectorRand(-5, 5) * t
+	targetPosChest = targetPosChest + shake
+	targetPosExt = targetPosExt + shake
+	
+	local mul = 800 * t
+	local damp = 40
+	
+	local legAng = spine2:GetAngles()
+	legAng:RotateAroundAxis(legAng:Up(), 180) 
+	
+	hg.ShadowControl(rag, 8, 0.001, legAng, mul, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 9, 0.001, legAng, mul, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 11, 0.001, legAng, mul, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 12, 0.001, legAng, mul, damp, vector_origin, 0, 0)
+	
+	if rag:EntIndex() % 2 == 0 then
+		hg.ShadowControl(rag, 5, 0.001, nil, 0, 0, targetPosChest - spineAng:Right() * 6, mul * 2, damp)
+		hg.ShadowControl(rag, 4, 0.001, nil, 0, 0, targetPosChest - spineAng:Right() * 8, mul * 1.5, damp)
+		
+		hg.ShadowControl(rag, 7, 0.001, nil, 0, 0, targetPosExt + spineAng:Right() * 6, mul * 2, damp)
+		hg.ShadowControl(rag, 6, 0.001, nil, 0, 0, targetPosExt + spineAng:Right() * 8, mul * 1.5, damp)
+	else
+		hg.ShadowControl(rag, 5, 0.001, nil, 0, 0, targetPosExt - spineAng:Right() * 6, mul * 2, damp)
+		hg.ShadowControl(rag, 4, 0.001, nil, 0, 0, targetPosExt - spineAng:Right() * 8, mul * 1.5, damp)
+		
+		hg.ShadowControl(rag, 7, 0.001, nil, 0, 0, targetPosChest + spineAng:Right() * 6, mul * 2, damp)
+		hg.ShadowControl(rag, 6, 0.001, nil, 0, 0, targetPosChest + spineAng:Right() * 8, mul * 1.5, damp)
 	end
 	
-	if org.spine2 < hg.organism.fake_spine2 and org.spine3 < hg.organism.fake_spine3 and org.spine1 < hg.organism.fake_spine1 then
-		for i = 1, #fencingLegBones do
-			local d = fencingLegBones[i]
-			local bone, targetBone = rag:LookupBone(d[1]), rag:LookupBone(d[2])
-			if not bone or not targetBone then continue end
-			local phys = rag:GetPhysicsObjectNum(rag:TranslateBoneToPhysBone(bone))
-			if not IsValid(phys) then continue end
-			local bonePos, targetPos = rag:GetBonePosition(bone), rag:GetBonePosition(targetBone)
-			local dir = (targetPos - bonePos):GetNormalized()
-			phys:ApplyForceCenter((dir * force * d[3] * pulse) + VectorRand(-10, 10) * fade)
-		end
+	hg.ShadowControl(rag, 2, 0.001, spineAng, mul * 0.5, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 3, 0.001, spineAng, mul * 0.5, damp, vector_origin, 0, 0)
+end
+
+local function applyDecorticateToPlayer(ply, org)
+	if not IsValid(ply) or not ply:Alive() then return end
+	if org.decorticate then return end 
+	
+	local dur = math_rand(10, 20) 
+	org.decorticate = true
+	org.decorticateEnd = CurTime() + dur
+	org.decorticateDur = dur
+	
+
+	if ply.FakeRagdoll and IsValid(ply.FakeRagdoll) then
+		local rag = ply.FakeRagdoll
+		rag.decorticate = true
+		rag.decorticateEnd = org.decorticateEnd
+		rag.decorticateDur = dur
 	end
+end
+
+hg.applyDecorticateToPlayer = applyDecorticateToPlayer
+
+local function processDecorticate(rag, fade)
+	local org = rag.organism
+	local boneSpine2 = rag:LookupBone("ValveBiped.Bip01_Spine2")
+	if not boneSpine2 then return end
+	local spine2 = rag:GetPhysicsObjectNum(rag:TranslateBoneToPhysBone(boneSpine2))
+	if not IsValid(spine2) then return end
+	
+	local spineAng = spine2:GetAngles()
+	local spinePos = spine2:GetPos()
+	
+	local t = math_clamp((fade - 0.1) / 0.9, 0, 1)
+	
+	local dur = org and org.decorticateDur or rag.spasmDur or 15
+	local timeElapsed = dur * (1 - fade)
+	local easeIn = math_clamp(timeElapsed / 2.5, 0, 1)
+	t = t * easeIn
+	
+	local chestPos = spinePos + spineAng:Forward() * 5 + spineAng:Up() * 10
+	local pelvisPos = spinePos - spineAng:Forward() * 10 + spineAng:Up() * 5
+	
+	local targetPos = LerpVector(t, pelvisPos, chestPos)
+	local shake = VectorRand(-2, 2) * t
+	targetPos = targetPos + shake
+	
+	local mul = (org and org.pulse and (600 * org.pulse / 70) or 400) * t
+	local damp = 40
+	
+	local legAng = spine2:GetAngles()
+	legAng:Add(AngleRand(-3, 3) * t)
+	legAng:RotateAroundAxis(legAng:Up(), 180) 
+	
+	hg.ShadowControl(rag, 8, 0.001, legAng, mul, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 9, 0.001, legAng, mul, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 11, 0.001, legAng, mul, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 12, 0.001, legAng, mul, damp, vector_origin, 0, 0)
+	
+	hg.ShadowControl(rag, 5, 0.001, nil, 0, 0, targetPos - spineAng:Right() * 6, mul * 2, damp)
+	hg.ShadowControl(rag, 7, 0.001, nil, 0, 0, targetPos + spineAng:Right() * 6, mul * 2, damp)
+	
+	hg.ShadowControl(rag, 4, 0.001, nil, 0, 0, targetPos - spineAng:Right() * 8, mul * 1.5, damp)
+	hg.ShadowControl(rag, 6, 0.001, nil, 0, 0, targetPos + spineAng:Right() * 8, mul * 1.5, damp)
+	
+	hg.ShadowControl(rag, 2, 0.001, spineAng, mul * 0.5, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 3, 0.001, spineAng, mul * 0.5, damp, vector_origin, 0, 0)
 end
 
 local function clearFencing(rag)
 	rag.fencing, rag.fencingEnd, rag.fencingDur = nil, nil, nil
+end
+
+local function clearDecorticate(rag)
+	rag.decorticate, rag.decorticateEnd, rag.decorticateDur = nil, nil, nil
 end
 
 local function clearSpasm(rag)
@@ -191,8 +279,14 @@ hook.Add("Should Fake Up", "BrainfuckFencing", function(ply)
 	if org and org.fencing and org.fencingEnd and CurTime() < org.fencingEnd then
 		return false
 	end
+	if org and org.decorticate and org.decorticateEnd and CurTime() < org.decorticateEnd then
+		return false
+	end
 	local rag = ply.FakeRagdoll
 	if IsValid(rag) and rag.fencing and rag.fencingEnd and CurTime() < rag.fencingEnd then
+		return false
+	end
+	if IsValid(rag) and rag.decorticate and rag.decorticateEnd and CurTime() < rag.decorticateEnd then
 		return false
 	end
 end)
@@ -210,7 +304,7 @@ hook.Add("RagdollDeath", "BrainfuckStart", function(ply, rag)
 		local headshot = hadBrainDamage or hadSkullDamage or hadHeadDamage
 		
 		if headshot and math_random() < CHANCE then
-			local stype = "rigor"--getRandomSpasm()
+			local stype = "fencing"
 			applySpasm(rag, stype)
 			if rag.organism then rag.organism.spasm, rag.organism.spasmType = true, stype end
 		end
@@ -222,7 +316,7 @@ hook.Add("Org Think", "BrainfuckThink", function(owner)
 	local org = owner.organism or owner
 	
 	if org.fencing and org.fencingEnd then
-		local rag = owner.FakeRagdoll
+		local rag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
 		if IsValid(rag) then
 			if CurTime() > org.fencingEnd then
 				clearFencing(rag)
@@ -234,7 +328,20 @@ hook.Add("Org Think", "BrainfuckThink", function(owner)
 		end
 	end
 	
-	local deathRag = owner.FakeRagdoll
+	if org.decorticate and org.decorticateEnd then
+		local rag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
+		if IsValid(rag) then
+			if CurTime() > org.decorticateEnd then
+				clearDecorticate(rag)
+				org.decorticate, org.decorticateEnd, org.decorticateDur = nil, nil, nil
+			else
+				local fade = math_clamp((org.decorticateEnd - CurTime()) / (org.decorticateDur or 5), 0.1, 1)
+				processDecorticate(rag, fade)
+			end
+		end
+	end
+	
+	local deathRag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
 	if IsValid(deathRag) and deathRag.spasm and deathRag.spasmEnd then
 		if CurTime() > deathRag.spasmEnd then
 			clearSpasm(deathRag)
@@ -244,7 +351,8 @@ hook.Add("Org Think", "BrainfuckThink", function(owner)
 
 			if stype == "extend" then processExtend(deathRag, fade)
 			elseif stype == "rigor" then processRigor(deathRag, fade)
-			elseif stype == "flexion" then processFlexion(deathRag, fade) end
+			elseif stype == "flexion" then processFlexion(deathRag, fade)
+			elseif stype == "fencing" then processFencing(deathRag, fade) end
 		end
 	end
 end)
@@ -254,6 +362,20 @@ hook.Add("Org Clear", "BrainfuckClear", function(org)
 	if IsValid(org.owner) then 
 		clearSpasm(org.owner)
 		clearFencing(org.owner)
+		clearDecorticate(org.owner)
 	end
 	org.fencing, org.fencingEnd = nil, nil
+	org.decorticate, org.decorticateEnd = nil, nil
+end)
+
+hook.Add("HomigradDamage", "DecorticateTrigger", function(ply, dmgInfo, hitgroup, ent, harm, hitBoxs, inputHole)
+	local org = ply.organism
+	if not org then return end
+	
+	local brain = org.brain or 0
+	if brain >= 0.20 and (dmgInfo:IsDamageType(DMG_CLUB) or dmgInfo:IsDamageType(DMG_BULLET) or dmgInfo:IsDamageType(DMG_BUCKSHOT)) then
+		if not org.fencing and not org.decorticate and math_random() < CHANCE then
+			hg.applyDecorticateToPlayer(ply, org)
+		end
+	end
 end)

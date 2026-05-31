@@ -100,6 +100,14 @@ if SERVER then
 						--CreateVFire(parent, pos, normal, newFeed, spreader)
 					end
 				end
+			elseif not ignited then
+				for i, obj in ipairs(ents_FindInSphere(pos, 32)) do
+					if IsValid(obj) and obj:GetClass() == "vfire" then
+						tbl[2] = CurTime()
+						tbl[3] = obj:GetOwner() or obj
+						break
+					end
+				end
 			end
 		end
 

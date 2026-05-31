@@ -198,6 +198,32 @@ input_list.larmartery = function(org, bone, dmg, dmgInfo, boneindex, dir, hit) r
 input_list.rlegartery = function(org, bone, dmg, dmgInfo, boneindex, dir, hit) return hitArtery("rlegartery", org, dmg, dmgInfo, boneindex, dir, hit) end
 input_list.llegartery = function(org, bone, dmg, dmgInfo, boneindex, dir, hit) return hitArtery("llegartery", org, dmg, dmgInfo, boneindex, dir, hit) end
 input_list.spineartery = function(org, bone, dmg, dmgInfo, boneindex, dir, hit) return 0 end--hitArtery("spineartery", org, dmg, dmgInfo, boneindex, dir, hit) end
+input_list.eyeL = function(org, bone, dmg, dmgInfo)
+	local oldDmg = org.eyeL or 0
+	dmg = dmg * 3
+	org.eyeL = math.min((org.eyeL or 0) + dmg, 1)
+
+	hg.AddHarmToAttacker(dmgInfo, dmg * 5, "Left eye damage harm")
+	org.painadd = org.painadd + dmg * 20
+	org.shock = org.shock + dmg * 10
+	
+	dmgInfo:ScaleDamage(0.8)
+	return 0
+end
+
+input_list.eyeR = function(org, bone, dmg, dmgInfo)
+	local oldDmg = org.eyeR or 0
+	dmg = dmg * 3
+	org.eyeR = math.min((org.eyeR or 0) + dmg, 1)
+
+	hg.AddHarmToAttacker(dmgInfo, dmg * 5, "Right eye damage harm")
+	org.painadd = org.painadd + dmg * 20
+	org.shock = org.shock + dmg * 10
+	
+	dmgInfo:ScaleDamage(0.8)
+	return 0
+end
+
 input_list.lungsL = function(org, bone, dmg, dmgInfo)
 	local prot = math.max(0.3 - org.lungsL[1],0)
 	local oldval = org.lungsL[1]

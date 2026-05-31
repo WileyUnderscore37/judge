@@ -15,6 +15,8 @@ hook.Add("Org Clear", "Main", function(org)
 	module.metabolism[1](org)
 	module.random_events[1](org)
 	org.brain = 0
+	org.eyeL = 0
+	org.eyeR = 0
 	org.consciousness = 1
 	org.disorientation = 0
 	org.jaw = 0
@@ -159,6 +161,8 @@ local function send_organism(org, ply)
 	sendtable.larmamputated = org.larmamputated
 	sendtable.headamputated = org.headamputated
 	sendtable.lungsfunction = org.lungsfunction
+	sendtable.eyeL = org.eyeL
+	sendtable.eyeR = org.eyeR
 	sendtable.consciousness = org.consciousness
 	sendtable.assimilated = org.assimilated
 	sendtable.berserk = org.berserk
@@ -205,6 +209,8 @@ local function send_bareinfo(org)
 	sendtable.timeValue = org.timeValue
 	sendtable.superfighter = org.superfighter
 	sendtable.lungsfunction = org.lungsfunction
+	sendtable.eyeL = org.eyeL
+	sendtable.eyeR = org.eyeR
 	sendtable.lleg = org.lleg
 	sendtable.rleg = org.rleg
 	sendtable.rarm = org.rarm
@@ -349,6 +355,18 @@ hook.Add("Org Think", "Main", function(owner, org, timeValue)
 
 	if isPly or org.fakePlayer then
 		module.lungs[2](owner, org, timeValue)
+	end
+
+	local eyeL = org.eyeL or 0
+	local eyeR = org.eyeR or 0
+	if eyeL < 1 and eyeR < 1 then
+		org.blindness = nil
+	elseif eyeL >= 1 and eyeR < 1 then
+		org.blindness = 2
+	elseif eyeR >= 1 and eyeL < 1 then
+		org.blindness = 1
+	elseif eyeL >= 1 and eyeR >= 1 then
+		org.blindness = 0
 	end
 
 	if isPly then
@@ -497,6 +515,8 @@ hook.Add("Org Think", "Main", function(owner, org, timeValue)
 		if org.intestines < 1 then org.intestines = math.Approach(org.intestines, 0, naturalHeal) end
 		if org.lungsR[1] < 1 then org.lungsR[1] = math.Approach(org.lungsR[1], 0, naturalHeal) end
 		if org.lungsL[1] < 1 then org.lungsL[1] = math.Approach(org.lungsL[1], 0, naturalHeal) end
+		if (org.eyeL or 0) < 1 then org.eyeL = math.Approach(org.eyeL or 0, 0, naturalHeal) end
+		if (org.eyeR or 0) < 1 then org.eyeR = math.Approach(org.eyeR or 0, 0, naturalHeal) end
 	end
 
 	if org.otrub and isPly and org.owner:Alive() then
@@ -618,8 +638,10 @@ hook.Add("Org Think", "regenerationberserk", function(owner, org, timeValue)
 	org.stomach = math.max(org.stomach - regen, 0)
 	org.lungsR[1] = math.max(org.lungsR[1] - regen, 0)
 	org.lungsL[1] = math.max(org.lungsL[1] - regen, 0)
-	org.lungsR[2] = math.max(org.lungsR[2] - regen, 0)
-	org.lungsL[2] = math.max(org.lungsL[2] - regen, 0)
+	org.lungsR[2] = math.max((org.lungsR[2] or 0) - regen, 0)
+	org.lungsL[2] = math.max((org.lungsL[2] or 0) - regen, 0)
+	org.eyeL = math.max((org.eyeL or 0) - regen, 0)
+	org.eyeR = math.max((org.eyeR or 0) - regen, 0)
 	org.brain = math.max(org.brain - regen, 0)
 
 	org.hungry = 0
@@ -645,8 +667,10 @@ hook.Add("Org Think", "regenerationnoradrenaline", function(owner, org, timeValu
 
 	org.lungsR[1] = math.max(org.lungsR[1] - regen, 0)
 	org.lungsL[1] = math.max(org.lungsL[1] - regen, 0)
-	org.lungsR[2] = math.max(org.lungsR[2] - regen, 0)
-	org.lungsL[2] = math.max(org.lungsL[2] - regen, 0)
+	org.lungsR[2] = math.max((org.lungsR[2] or 0) - regen, 0)
+	org.lungsL[2] = math.max((org.lungsL[2] or 0) - regen, 0)
+	org.eyeL = math.max((org.eyeL or 0) - regen, 0)
+	org.eyeR = math.max((org.eyeR or 0) - regen, 0)
 
 	org.hungry = 0
 

@@ -112,8 +112,8 @@ zb.Experience.Bands = {
 local SHTable = zb.Experience
 
 function zb.Experience.GetAwards( self )
-    local skill = self.skill
-    local exp = self.exp
+    local skill = self.skill or 0
+    local exp = self.exp or 0
     --print(skill,exp)
     --print(MedalTab.skill[1])
     local Medal = nil

@@ -311,6 +311,15 @@ input_list.skull = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricoch
 
 	org.brain = math.min(org.brain + (rnd and dmg * 0.05 or 0), 1)
 
+	if math.random(1, 4) == 1 then
+		local eye_dmg = dmg * math.Rand(0.8, 1.5)
+		if math.random(1, 2) == 1 then
+			if hg.organism.input_list.eyeL then hg.organism.input_list.eyeL(org, bone, eye_dmg, dmgInfo) end
+		else
+			if hg.organism.input_list.eyeR then hg.organism.input_list.eyeR(org, bone, eye_dmg, dmgInfo) end
+		end
+	end
+
 	if (org.skull - oldDmg) > 0.6 then
 		org.brain = math.min(org.brain + 0.1, 1)
 	end

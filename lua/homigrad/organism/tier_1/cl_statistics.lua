@@ -152,6 +152,8 @@ local list = {
 	0, 
 	{"lungsL", 1, true}, 
 	{"lungsR", 1, true}, 
+	{"eyeL", 1, true},
+	{"eyeR", 1, true},
 	{{"lungsL.penetrated", "lungsL", 2}, 1,true},
 	{{"lungsR.penetrated", "lungsR", 2}, 1,true},
 	{"trachea", 1, true}, 
