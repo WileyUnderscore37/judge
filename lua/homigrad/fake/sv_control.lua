@@ -87,9 +87,13 @@ local shadowControl = hg.ShadowControl
 hook.Add("Fake", "Contorl", function(ply, ragdoll)
 	ragdoll.cooldownLH = 0
 	ragdoll.cooldownRH = 0
+	if ply.otrubCollapseStart then
+		ragdoll.otrubCollapseStart = ply.otrubCollapseStart
+	end
 end)
 
 hook.Add("HG_OnOtrub", "OtrubCollapseStart", function(ply)
+	ply.otrubCollapseStart = CurTime()
 	local ragdoll = ply.FakeRagdoll
 	if IsValid(ragdoll) then
 		ragdoll.otrubCollapseStart = CurTime()
@@ -97,9 +101,27 @@ hook.Add("HG_OnOtrub", "OtrubCollapseStart", function(ply)
 end)
 
 hook.Add("HG_OnWakeOtrub", "OtrubCollapseEnd", function(ply)
+	ply.otrubCollapseStart = nil
 	local ragdoll = ply.FakeRagdoll
 	if IsValid(ragdoll) then
 		ragdoll.otrubCollapseStart = nil
+	end
+end)
+
+local function triggerOtrubCollapse(ply)
+	if not IsValid(ply) or not ply:IsPlayer() then return end
+	if ply.otrubCollapseStart and CurTime() - ply.otrubCollapseStart < 1.5 then return end
+	ply.otrubCollapseStart = CurTime()
+	local ragdoll = ply.FakeRagdoll
+	if IsValid(ragdoll) then
+		ragdoll.otrubCollapseStart = CurTime()
+	end
+end
+
+hook.Add("EntityTakeDamage", "OtrubCollapseDmg", function(ent, dmgInfo)
+	if not IsValid(ent) or not ent:IsPlayer() then return end
+	if dmgInfo:IsDamageType(DMG_CRUSH + DMG_FALL + DMG_CLUB) and ent:Alive() then
+		triggerOtrubCollapse(ent)
 	end
 end)
 
@@ -328,7 +350,7 @@ hook.Add("Think", "Fake", function()
 		lhand = ragdoll:GetPhysicsObjectNum(realPhysNum(ragdoll,5))
 		ang = spine:GetAngles()
 
-		if org.otrub and org.alive and IsValid(spine) and ragdoll.otrubCollapseStart and (CurTime() - ragdoll.otrubCollapseStart) < 1.5 then
+		if org.alive and IsValid(spine) and ragdoll.otrubCollapseStart and (CurTime() - ragdoll.otrubCollapseStart) < 1.5 then
 			inmove = true
 
 			local t = (CurTime() - ragdoll.otrubCollapseStart) / 1.5
