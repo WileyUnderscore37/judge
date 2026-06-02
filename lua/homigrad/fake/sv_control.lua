@@ -89,6 +89,20 @@ hook.Add("Fake", "Contorl", function(ply, ragdoll)
 	ragdoll.cooldownRH = 0
 end)
 
+hook.Add("HG_OnOtrub", "OtrubCollapseStart", function(ply)
+	local ragdoll = ply.FakeRagdoll
+	if IsValid(ragdoll) then
+		ragdoll.otrubCollapseStart = CurTime()
+	end
+end)
+
+hook.Add("HG_OnWakeOtrub", "OtrubCollapseEnd", function(ply)
+	local ragdoll = ply.FakeRagdoll
+	if IsValid(ragdoll) then
+		ragdoll.otrubCollapseStart = nil
+	end
+end)
+
 local att, trace, ent
 
 local tr = {
@@ -313,6 +327,64 @@ hook.Add("Think", "Fake", function()
 		rhand = ragdoll:GetPhysicsObjectNum(realPhysNum(ragdoll,7))
 		lhand = ragdoll:GetPhysicsObjectNum(realPhysNum(ragdoll,5))
 		ang = spine:GetAngles()
+
+		if org.otrub and org.alive and IsValid(spine) and ragdoll.otrubCollapseStart and (CurTime() - ragdoll.otrubCollapseStart) < 1.5 then
+			inmove = true
+
+			local t = (CurTime() - ragdoll.otrubCollapseStart) / 1.5
+			local strength = 1 - t
+
+			local otrub_ss = 0.4
+			local otrub_maxang = 15 * strength
+			local otrub_maxangdamp = 8 * strength
+			local otrub_maxspeed = 15 * strength
+			local otrub_maxspeeddamp = 8 * strength
+
+			local jitterA = AngleRand(-2, 2)
+			local jitterV = VectorRand() * 2
+
+			local sPos = spine:GetPos()
+			local sAng = spine:GetAngles()
+			local fetalPos = sPos + sAng:Up() * -10 + sAng:Forward() * 10 + jitterV
+			local armHoldPos = sPos + sAng:Up() * 15 + sAng:Forward() * 5 + jitterV
+
+			shadowControl(ragdoll, 1, otrub_ss, Angle(sAng.p + 30, sAng.y, 0) + jitterA, otrub_maxang, otrub_maxangdamp)
+			shadowControl(ragdoll, 10, otrub_ss, Angle(sAng.p + 40, sAng.y, 0) + jitterA, otrub_maxang, otrub_maxangdamp)
+
+			shadowControl(ragdoll, 8, otrub_ss, nil, nil, nil, fetalPos, otrub_maxspeed, otrub_maxspeeddamp)
+			shadowControl(ragdoll, 11, otrub_ss, nil, nil, nil, fetalPos, otrub_maxspeed, otrub_maxspeeddamp)
+			shadowControl(ragdoll, 9, otrub_ss, nil, nil, nil, fetalPos, otrub_maxspeed, otrub_maxspeeddamp)
+			shadowControl(ragdoll, 12, otrub_ss, nil, nil, nil, fetalPos, otrub_maxspeed, otrub_maxspeeddamp)
+			shadowControl(ragdoll, 13, otrub_ss, nil, nil, nil, fetalPos, otrub_maxspeed, otrub_maxspeeddamp)
+			shadowControl(ragdoll, 14, otrub_ss, nil, nil, nil, fetalPos, otrub_maxspeed, otrub_maxspeeddamp)
+
+			if (org.larm or 0) > 0 or org.larmdislocation then
+				shadowControl(ragdoll, 3, otrub_ss, nil, nil, nil, armHoldPos, otrub_maxspeed, otrub_maxspeeddamp)
+				shadowControl(ragdoll, 4, otrub_ss, nil, nil, nil, armHoldPos, otrub_maxspeed, otrub_maxspeeddamp)
+				shadowControl(ragdoll, 5, otrub_ss, nil, nil, nil, armHoldPos, otrub_maxspeed, otrub_maxspeeddamp)
+			end
+			if (org.rarm or 0) > 0 or org.rarmdislocation then
+				shadowControl(ragdoll, 2, otrub_ss, nil, nil, nil, armHoldPos, otrub_maxspeed, otrub_maxspeeddamp)
+				shadowControl(ragdoll, 6, otrub_ss, nil, nil, nil, armHoldPos, otrub_maxspeed, otrub_maxspeeddamp)
+				shadowControl(ragdoll, 7, otrub_ss, nil, nil, nil, armHoldPos, otrub_maxspeed, otrub_maxspeeddamp)
+			end
+
+			if ply.organism.wounds and not table.IsEmpty(ply.organism.wounds) then
+				local wounds = ply.organism.wounds
+				local wound = wounds[table.maxn(wounds) - 1] or wounds[table.maxn(wounds)]
+				if wound and ragdoll:LookupBone(wound[4]) then
+					local wPos = LocalToWorld(wound[2], wound[3], ragdoll:GetBonePosition(ragdoll:LookupBone(wound[4])))
+					if not left_arm[wound[4]] then
+						shadowControl(ragdoll, 3, otrub_ss, nil, nil, nil, wPos - (wPos - lhand:GetPos()):GetNormalized() * 2, otrub_maxspeed, otrub_maxspeeddamp)
+						shadowControl(ragdoll, 5, otrub_ss, nil, nil, nil, wPos - (wPos - lhand:GetPos()):GetNormalized() * 2, otrub_maxspeed, otrub_maxspeeddamp)
+					end
+					if not right_arm[wound[4]] then
+						shadowControl(ragdoll, 2, otrub_ss, nil, nil, nil, wPos - (wPos - rhand:GetPos()):GetNormalized() * 2, otrub_maxspeed, otrub_maxspeeddamp)
+						shadowControl(ragdoll, 7, otrub_ss, nil, nil, nil, wPos - (wPos - rhand:GetPos()):GetNormalized() * 2, otrub_maxspeed, otrub_maxspeeddamp)
+					end
+				end
+			end
+		end
 
 		local angles2 = -(-angles)
 		angles2:RotateAroundAxis(angles2:Right(),30)
