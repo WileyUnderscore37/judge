@@ -6,6 +6,12 @@ local CHANCE, FORCE, VIBRATION = 0.95, 1200, 150
 local extendDur, rigorDur, flexionDur = {4, 10}, {10, 20}, {6, 12}
 local RIGOR_DAMP, FLEXION_FORCE = 8, 400
 
+local REACTION_DELAY_MIN, REACTION_DELAY_MAX = 1, 2
+local REACTION_EASE_IN = 1.5
+local SHAKE_FREQ_FENCING, SHAKE_FREQ_DECORT, SHAKE_FREQ_LAZARUS, SHAKE_FREQ_CUSHING = 4, 3, 3.2, 3.5
+local SHAKE_AMP_FENCING, SHAKE_AMP_DECORT, SHAKE_AMP_LAZARUS, SHAKE_AMP_CUSHING = 1.2, 0.5, 0.5, 0.5
+local SHAKE_ANG_AMP = 0.8
+
 local spasmTypes = {[1] = {35, "extend"}, [2] = {25, "rigor"}, [3] = {15,"flexion"}} --;; Че хотите добавляйте изменяйте
 
 local extendBones = {
@@ -120,17 +126,21 @@ end
 --;; when furfag
 local function applyFencingToPlayer(ply, org)
 	if not IsValid(ply) or not ply:Alive() then return end
-	if org.fencing then return end 
-	
-	local dur = math_rand(3, 8) 
+	if org.fencing then return end
+
+	local dur = math_rand(3, 8)
+	local delay = math_rand(REACTION_DELAY_MIN * 10, REACTION_DELAY_MAX * 10) / 10
 	org.fencing = true
-	org.fencingEnd = CurTime() + dur
+	org.fencingStart = CurTime() + delay
+	org.fencingEnd = org.fencingStart + dur
 	org.fencingDur = dur
-	
+	org.fencingDelay = delay
+
 
 	if ply.FakeRagdoll and IsValid(ply.FakeRagdoll) then
 		local rag = ply.FakeRagdoll
 		rag.fencing = true
+		rag.fencingStart = org.fencingStart
 		rag.fencingEnd = org.fencingEnd
 		rag.fencingDur = dur
 	end
@@ -138,24 +148,28 @@ end
 
 hg.applyFencingToPlayer = applyFencingToPlayer
 
-local function processFencing(rag, fade)
+local function processFencing(rag, fade, ease)
 	local boneSpine2 = rag:LookupBone("ValveBiped.Bip01_Spine2")
 	if not boneSpine2 then return end
 	local spine2 = rag:GetPhysicsObjectNum(rag:TranslateBoneToPhysBone(boneSpine2))
 	if not IsValid(spine2) then return end
-	
+
 	local spineAng = spine2:GetAngles()
 	local spinePos = spine2:GetPos()
-	
-	local t = math_clamp((fade - 0.1) / 0.9, 0, 1)
-	
+
+	local t = math_clamp((fade - 0.1) / 0.9, 0, 1) * (ease or 1)
+
 	local chestPos = spinePos + spineAng:Forward() * 5 + spineAng:Up() * 10
 	local restPos = spinePos + spineAng:Up() * 5
 	local extendPos = spinePos + spineAng:Forward() * 15 + spineAng:Up() * 20
 
 	local targetPosChest = LerpVector(t, restPos, chestPos)
 	local targetPosExt = LerpVector(t, restPos, extendPos)
-	local shake = VectorRand(-5, 5) * t
+	local shake = Vector(
+		math.sin(CurTime() * SHAKE_FREQ_FENCING) * SHAKE_AMP_FENCING,
+		math.sin(CurTime() * (SHAKE_FREQ_FENCING + 0.7)) * SHAKE_AMP_FENCING,
+		math.sin(CurTime() * (SHAKE_FREQ_FENCING + 1.3)) * SHAKE_AMP_FENCING
+	) * t
 	targetPosChest = targetPosChest + shake
 	targetPosExt = targetPosExt + shake
 	
@@ -195,14 +209,18 @@ local function applyDecorticateToPlayer(ply, org)
 	if org.decorticate then return end
 
 	local dur = math_rand(10, 20)
+	local delay = math_rand(REACTION_DELAY_MIN * 10, REACTION_DELAY_MAX * 10) / 10
 	org.decorticate = true
-	org.decorticateEnd = CurTime() + dur
+	org.decorticateStart = CurTime() + delay
+	org.decorticateEnd = org.decorticateStart + dur
 	org.decorticateDur = dur
+	org.decorticateDelay = delay
 
 
 	if ply.FakeRagdoll and IsValid(ply.FakeRagdoll) then
 		local rag = ply.FakeRagdoll
 		rag.decorticate = true
+		rag.decorticateStart = org.decorticateStart
 		rag.decorticateEnd = org.decorticateEnd
 		rag.decorticateDur = dur
 	end
@@ -215,14 +233,18 @@ local function applyLazarusToPlayer(ply, org)
 	if org.lazarus then return end
 
 	local dur = math_rand(8, 18)
+	local delay = math_rand(REACTION_DELAY_MIN * 10, REACTION_DELAY_MAX * 10) / 10
 	org.lazarus = true
-	org.lazarusEnd = CurTime() + dur
+	org.lazarusStart = CurTime() + delay
+	org.lazarusEnd = org.lazarusStart + dur
 	org.lazarusDur = dur
+	org.lazarusDelay = delay
 
 
 	if ply.FakeRagdoll and IsValid(ply.FakeRagdoll) then
 		local rag = ply.FakeRagdoll
 		rag.lazarus = true
+		rag.lazarusStart = org.lazarusStart
 		rag.lazarusEnd = org.lazarusEnd
 		rag.lazarusDur = dur
 	end
@@ -235,14 +257,18 @@ local function applyCushingToPlayer(ply, org)
 	if org.cushing then return end
 
 	local dur = math_rand(6, 14)
+	local delay = math_rand(REACTION_DELAY_MIN * 10, REACTION_DELAY_MAX * 10) / 10
 	org.cushing = true
-	org.cushingEnd = CurTime() + dur
+	org.cushingStart = CurTime() + delay
+	org.cushingEnd = org.cushingStart + dur
 	org.cushingDur = dur
+	org.cushingDelay = delay
 
 
 	if ply.FakeRagdoll and IsValid(ply.FakeRagdoll) then
 		local rag = ply.FakeRagdoll
 		rag.cushing = true
+		rag.cushingStart = org.cushingStart
 		rag.cushingEnd = org.cushingEnd
 		rag.cushingDur = dur
 	end
@@ -250,36 +276,44 @@ end
 
 hg.applyCushingToPlayer = applyCushingToPlayer
 
-local function processDecorticate(rag, fade)
+local function processDecorticate(rag, fade, ease)
 	local org = rag.organism
 	local boneSpine2 = rag:LookupBone("ValveBiped.Bip01_Spine2")
 	if not boneSpine2 then return end
 	local spine2 = rag:GetPhysicsObjectNum(rag:TranslateBoneToPhysBone(boneSpine2))
 	if not IsValid(spine2) then return end
-	
+
 	local spineAng = spine2:GetAngles()
 	local spinePos = spine2:GetPos()
-	
-	local t = math_clamp((fade - 0.1) / 0.9, 0, 1)
-	
+
+	local t = math_clamp((fade - 0.1) / 0.9, 0, 1) * (ease or 1)
+
 	local dur = org and org.decorticateDur or rag.spasmDur or 15
 	local timeElapsed = dur * (1 - fade)
 	local easeIn = math_clamp(timeElapsed / 2.5, 0, 1)
 	t = t * easeIn
-	
+
 	local chestPos = spinePos + spineAng:Forward() * 5 + spineAng:Up() * 10
 	local restPos = spinePos + spineAng:Up() * 5
 
 	local targetPos = LerpVector(t, restPos, chestPos)
-	local shake = VectorRand(-2, 2) * t
+	local shake = Vector(
+		math.sin(CurTime() * SHAKE_FREQ_DECORT) * SHAKE_AMP_DECORT,
+		math.sin(CurTime() * (SHAKE_FREQ_DECORT + 0.7)) * SHAKE_AMP_DECORT,
+		math.sin(CurTime() * (SHAKE_FREQ_DECORT + 1.3)) * SHAKE_AMP_DECORT
+	) * t
 	targetPos = targetPos + shake
-	
+
 	local mul = (org and org.pulse and (600 * org.pulse / 70) or 400) * t
 	local damp = 40
-	
+
 	local legAng = spine2:GetAngles()
-	legAng:Add(AngleRand(-3, 3) * t)
-	legAng:RotateAroundAxis(legAng:Up(), 180) 
+	legAng:Add(Angle(
+		math.sin(CurTime() * 3) * SHAKE_ANG_AMP * t,
+		math.sin(CurTime() * 2.5) * SHAKE_ANG_AMP * t,
+		math.sin(CurTime() * 2.8) * SHAKE_ANG_AMP * t
+	))
+	legAng:RotateAroundAxis(legAng:Up(), 180)
 	
 	hg.ShadowControl(rag, 8, 0.001, legAng, mul, damp, vector_origin, 0, 0)
 	hg.ShadowControl(rag, 9, 0.001, legAng, mul, damp, vector_origin, 0, 0)
@@ -296,7 +330,7 @@ local function processDecorticate(rag, fade)
 	hg.ShadowControl(rag, 3, 0.001, spineAng, mul * 0.5, damp, vector_origin, 0, 0)
 end
 
-local function processLazarus(rag, fade)
+local function processLazarus(rag, fade, ease)
 	local boneSpine2 = rag:LookupBone("ValveBiped.Bip01_Spine2")
 	if not boneSpine2 then return end
 	local spine2 = rag:GetPhysicsObjectNum(rag:TranslateBoneToPhysBone(boneSpine2))
@@ -305,7 +339,7 @@ local function processLazarus(rag, fade)
 	local spineAng = spine2:GetAngles()
 	local spinePos = spine2:GetPos()
 
-	local t = math_clamp((fade - 0.1) / 0.9, 0, 1)
+	local t = math_clamp((fade - 0.1) / 0.9, 0, 1) * (ease or 1)
 	local legEase = t * t * (3 - 2 * t)
 
 	local cycleRate = 0.5
@@ -324,7 +358,11 @@ local function processLazarus(rag, fade)
 	local crossedPos = spinePos + spineAng:Forward() * 3 + spineAng:Up() * 8
 
 	local armPos = LerpVector(lift, crossedPos, upPos)
-	local shake = VectorRand(-2, 2) * t
+	local shake = Vector(
+		math.sin(CurTime() * SHAKE_FREQ_LAZARUS) * SHAKE_AMP_LAZARUS,
+		math.sin(CurTime() * (SHAKE_FREQ_LAZARUS + 0.7)) * SHAKE_AMP_LAZARUS,
+		math.sin(CurTime() * (SHAKE_FREQ_LAZARUS + 1.3)) * SHAKE_AMP_LAZARUS
+	) * t
 	armPos = armPos + shake
 
 	local mul = (900 * lift + 120) * t
@@ -341,7 +379,7 @@ local function processLazarus(rag, fade)
 	hg.ShadowControl(rag, 3, 0.001, spineAng, armMul * 0.3, damp, vector_origin, 0, 0)
 end
 
-local function processCushing(rag, fade)
+local function processCushing(rag, fade, ease)
 	local boneSpine2 = rag:LookupBone("ValveBiped.Bip01_Spine2")
 	if not boneSpine2 then return end
 	local spine2 = rag:GetPhysicsObjectNum(rag:TranslateBoneToPhysBone(boneSpine2))
@@ -350,14 +388,18 @@ local function processCushing(rag, fade)
 	local spineAng = spine2:GetAngles()
 	local spinePos = spine2:GetPos()
 
-	local t = math_clamp((fade - 0.05) / 0.95, 0, 1)
+	local t = math_clamp((fade - 0.05) / 0.95, 0, 1) * (ease or 1)
 	local legEase = t * t * (3 - 2 * t)
 
 	local archAng = Angle(spineAng.pitch + 30 * t, spineAng.yaw, spineAng.roll)
 	local legAng = Angle(spineAng.pitch + 18 * t, spineAng.yaw + 180, spineAng.roll)
 
 	local armPos = spinePos + archAng:Up() * 15
-	local shake = VectorRand(-2, 2) * t
+	local shake = Vector(
+		math.sin(CurTime() * SHAKE_FREQ_CUSHING) * SHAKE_AMP_CUSHING,
+		math.sin(CurTime() * (SHAKE_FREQ_CUSHING + 0.7)) * SHAKE_AMP_CUSHING,
+		math.sin(CurTime() * (SHAKE_FREQ_CUSHING + 1.3)) * SHAKE_AMP_CUSHING
+	) * t
 	armPos = armPos + shake
 
 	local mul = (1200 * t + 200) * t
@@ -380,19 +422,19 @@ local function processCushing(rag, fade)
 end
 
 local function clearFencing(rag)
-	rag.fencing, rag.fencingEnd, rag.fencingDur = nil, nil, nil
+	rag.fencing, rag.fencingEnd, rag.fencingDur, rag.fencingStart, rag.fencingDelay = nil, nil, nil, nil, nil
 end
 
 local function clearDecorticate(rag)
-	rag.decorticate, rag.decorticateEnd, rag.decorticateDur = nil, nil, nil
+	rag.decorticate, rag.decorticateEnd, rag.decorticateDur, rag.decorticateStart, rag.decorticateDelay = nil, nil, nil, nil, nil
 end
 
 local function clearLazarus(rag)
-	rag.lazarus, rag.lazarusEnd, rag.lazarusDur = nil, nil, nil
+	rag.lazarus, rag.lazarusEnd, rag.lazarusDur, rag.lazarusStart, rag.lazarusDelay = nil, nil, nil, nil, nil
 end
 
 local function clearCushing(rag)
-	rag.cushing, rag.cushingEnd, rag.cushingDur = nil, nil, nil
+	rag.cushing, rag.cushingEnd, rag.cushingDur, rag.cushingStart, rag.cushingDelay = nil, nil, nil, nil, nil
 end
 
 local function clearSpasm(rag)
@@ -470,23 +512,33 @@ hook.Add("Org Think", "BrainfuckThink", function(owner)
 		if IsValid(rag) then
 			if CurTime() > org.fencingEnd then
 				clearFencing(rag)
-				org.fencing, org.fencingEnd, org.fencingDur = nil, nil, nil
+				org.fencing, org.fencingEnd, org.fencingDur, org.fencingStart, org.fencingDelay = nil, nil, nil, nil, nil
 			else
-				local fade = math_clamp((org.fencingEnd - CurTime()) / (org.fencingDur or 5), 0.1, 1)
-				processFencing(rag, fade)
+				local start = org.fencingStart or (org.fencingEnd - (org.fencingDur or 5))
+				if CurTime() >= start then
+					local easeRaw = math_clamp((CurTime() - start) / REACTION_EASE_IN, 0, 1)
+					local ease = easeRaw * easeRaw * (3 - 2 * easeRaw)
+					local fade = math_clamp((org.fencingEnd - CurTime()) / (org.fencingDur or 5), 0.1, 1)
+					processFencing(rag, fade, ease)
+				end
 			end
 		end
 	end
-	
+
 	if org.decorticate and org.decorticateEnd then
 		local rag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
 		if IsValid(rag) then
 			if CurTime() > org.decorticateEnd then
 				clearDecorticate(rag)
-				org.decorticate, org.decorticateEnd, org.decorticateDur = nil, nil, nil
+				org.decorticate, org.decorticateEnd, org.decorticateDur, org.decorticateStart, org.decorticateDelay = nil, nil, nil, nil, nil
 			else
-				local fade = math_clamp((org.decorticateEnd - CurTime()) / (org.decorticateDur or 5), 0.1, 1)
-				processDecorticate(rag, fade)
+				local start = org.decorticateStart or (org.decorticateEnd - (org.decorticateDur or 5))
+				if CurTime() >= start then
+					local easeRaw = math_clamp((CurTime() - start) / REACTION_EASE_IN, 0, 1)
+					local ease = easeRaw * easeRaw * (3 - 2 * easeRaw)
+					local fade = math_clamp((org.decorticateEnd - CurTime()) / (org.decorticateDur or 5), 0.1, 1)
+					processDecorticate(rag, fade, ease)
+				end
 			end
 		end
 	end
@@ -496,10 +548,15 @@ hook.Add("Org Think", "BrainfuckThink", function(owner)
 		if IsValid(rag) then
 			if CurTime() > org.lazarusEnd then
 				clearLazarus(rag)
-				org.lazarus, org.lazarusEnd, org.lazarusDur = nil, nil, nil
+				org.lazarus, org.lazarusEnd, org.lazarusDur, org.lazarusStart, org.lazarusDelay = nil, nil, nil, nil, nil
 			else
-				local fade = math_clamp((org.lazarusEnd - CurTime()) / (org.lazarusDur or 5), 0.1, 1)
-				processLazarus(rag, fade)
+				local start = org.lazarusStart or (org.lazarusEnd - (org.lazarusDur or 5))
+				if CurTime() >= start then
+					local easeRaw = math_clamp((CurTime() - start) / REACTION_EASE_IN, 0, 1)
+					local ease = easeRaw * easeRaw * (3 - 2 * easeRaw)
+					local fade = math_clamp((org.lazarusEnd - CurTime()) / (org.lazarusDur or 5), 0.1, 1)
+					processLazarus(rag, fade, ease)
+				end
 			end
 		end
 	end
@@ -509,10 +566,15 @@ hook.Add("Org Think", "BrainfuckThink", function(owner)
 		if IsValid(rag) then
 			if CurTime() > org.cushingEnd then
 				clearCushing(rag)
-				org.cushing, org.cushingEnd, org.cushingDur = nil, nil, nil
+				org.cushing, org.cushingEnd, org.cushingDur, org.cushingStart, org.cushingDelay = nil, nil, nil, nil, nil
 			else
-				local fade = math_clamp((org.cushingEnd - CurTime()) / (org.cushingDur or 5), 0.1, 1)
-				processCushing(rag, fade)
+				local start = org.cushingStart or (org.cushingEnd - (org.cushingDur or 5))
+				if CurTime() >= start then
+					local easeRaw = math_clamp((CurTime() - start) / REACTION_EASE_IN, 0, 1)
+					local ease = easeRaw * easeRaw * (3 - 2 * easeRaw)
+					local fade = math_clamp((org.cushingEnd - CurTime()) / (org.cushingDur or 5), 0.1, 1)
+					processCushing(rag, fade, ease)
+				end
 			end
 		end
 	end
@@ -542,10 +604,10 @@ hook.Add("Org Clear", "BrainfuckClear", function(org)
 		clearLazarus(org.owner)
 		clearCushing(org.owner)
 	end
-	org.fencing, org.fencingEnd = nil, nil
-	org.decorticate, org.decorticateEnd = nil, nil
-	org.lazarus, org.lazarusEnd = nil, nil
-	org.cushing, org.cushingEnd = nil, nil
+	org.fencing, org.fencingEnd, org.fencingStart, org.fencingDelay = nil, nil, nil, nil
+	org.decorticate, org.decorticateEnd, org.decorticateStart, org.decorticateDelay = nil, nil, nil, nil
+	org.lazarus, org.lazarusEnd, org.lazarusStart, org.lazarusDelay = nil, nil, nil, nil
+	org.cushing, org.cushingEnd, org.cushingStart, org.cushingDelay = nil, nil, nil, nil
 end)
 
 hook.Add("HomigradDamage", "DecorticateTrigger", function(ply, dmgInfo, hitgroup, ent, harm, hitBoxs, inputHole)

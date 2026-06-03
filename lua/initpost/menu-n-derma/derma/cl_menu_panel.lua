@@ -938,6 +938,10 @@ function PANEL:PlayDisconnectCutscene()
     end)
 end
 
+function PANEL:ResetCurrentPanel()
+    curent_panel = nil
+end
+
 function PANEL:AddSelect( pParent, strTitle, tbl )
     local id = #self.Buttons + 1
     self.Buttons[id] = vgui.Create( "DLabel", pParent )
