@@ -251,6 +251,9 @@ local lobotomy_mats = {
 	[8] = Material("overlays/tallflash3.png")
 }
 
+local consciousnessTypeBeatVolume = 0.18
+local dying2Volume = 0.2
+
 local function stopthings()
 	PainLerp = 0
 	O2Lerp = 0
@@ -274,6 +277,11 @@ local function stopthings()
 	if IsValid(NoiseStation2) then
 		NoiseStation2:Stop()
 		NoiseStation2 = nil
+	end
+
+	if IsValid(NoiseStation2Dying) then
+		NoiseStation2Dying:Stop()
+		NoiseStation2Dying = nil
 	end
 
 	if IsValid(BrainTraumaStation) then
@@ -645,13 +653,32 @@ hook.Add("Post Post Processing", "ItHurts", function()
 					end
 				end)
 			end
+
+			if !IsValid(NoiseStation2Dying) or NoiseStation2Dying:GetState() != GMOD_CHANNEL_PLAYING then
+				sound.PlayFile("sound/rem_dying2.mp3", "noblock noplay", function(station)
+					if IsValid(station) then
+						station:SetVolume(0)
+						station:Play()
+						NoiseStation2Dying = station
+						station:EnableLooping(true)
+					end
+				end)
+			end
 			
 			if IsValid(NoiseStation2) then
-				NoiseStation2:SetVolume(math.Clamp((o2 - 50) / 100 + (brain > 0.3 and (brain - 0.3) * 5 or 0), 0, 0.25))
+				NoiseStation2:SetVolume(math.Clamp((o2 - 50) / 100 + (brain > 0.3 and (brain - 0.3) * 5 or 0), 0, consciousnessTypeBeatVolume))
+			end
+
+			if IsValid(NoiseStation2Dying) then
+				NoiseStation2Dying:SetVolume(math.Clamp((o2 - 50) / 100 + (brain > 0.3 and (brain - 0.3) * 5 or 0), 0, dying2Volume))
 			end
 		else
 			if IsValid(NoiseStation2) then
 				NoiseStation2:SetVolume(0)
+			end
+
+			if IsValid(NoiseStation2Dying) then
+				NoiseStation2Dying:SetVolume(0)
 			end
 		end
 		
