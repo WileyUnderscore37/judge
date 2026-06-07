@@ -2,6 +2,15 @@ local max, min, Clamp, Approach = math.max, math.min, math.Clamp, math.Approach
 --local Organism = hg.organism
 hg.organism.module.pain = {}
 local module = hg.organism.module.pain
+local consciousness_otrub_threshold = 0.06
+local consciousness_fake_threshold = 0.35
+local shock_consciousness_target = 0.12
+local otrub_consciousness_target = 0.02
+local shock_consciousness_drain = 5
+local otrub_consciousness_drain = 3
+local consciousness_recovery_speed = 18
+local low_consciousness_recovery_speed = 28
+local otrub_consciousness_recovery_speed = 36
 module[1] = function(org)
 	org.shock = 0
 	org.pain = 0
@@ -77,8 +86,10 @@ module[2] = function(owner, org, timeValue)
 		org.shock = math.Approach(org.shock, 70, timeValue * 4)
 	end
 
-	if (org.shock > (30 * analgesiaMul)) or org.otrub then
-		org.consciousness = math.Approach(org.consciousness, 0.1, timeValue / 5)
+	if org.otrub then
+		org.consciousness = Approach(org.consciousness, otrub_consciousness_target, timeValue / otrub_consciousness_drain)
+	elseif org.shock > (30 * analgesiaMul) then
+		org.consciousness = Approach(org.consciousness, shock_consciousness_target, timeValue / shock_consciousness_drain)
 	end
 
 	if org.tranquilizer > 0 then
@@ -86,14 +97,21 @@ module[2] = function(owner, org, timeValue)
 		--org.shock = math.Approach(org.shock, 50, timeValue * org.tranquilizer * 5)
 		org.consciousness = math.Approach(org.consciousness, 0, timeValue / 30 * org.tranquilizer)
 	else
-		org.consciousness = math.Approach(org.consciousness, org.blood < 3000 and (org.blood - 2500) / 500 or 1, timeValue / 15)
+		local target = org.blood < 3000 and (org.blood - 2500) / 500 or 1
+		local recovery_speed = consciousness_recovery_speed
+		if org.otrub then
+			recovery_speed = otrub_consciousness_recovery_speed
+		elseif org.consciousness < consciousness_fake_threshold then
+			recovery_speed = low_consciousness_recovery_speed
+		end
+		org.consciousness = Approach(org.consciousness, target, timeValue / recovery_speed)
 	end
 
-	if org.consciousness < 0.1 then
+	if org.consciousness < consciousness_otrub_threshold then
 		org.needotrub = true
 	end
 
-	if org.consciousness < 0.4 then
+	if org.consciousness < consciousness_fake_threshold then
 		org.needfake = true
 	end
 

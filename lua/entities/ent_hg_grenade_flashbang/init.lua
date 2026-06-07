@@ -9,11 +9,11 @@ function ENT:InitAdd()
 end
 
 local burnDamageRadius = 20
-local explosionDamageRadius = 30
+local explosionDamageRadius = 50
 local disorientationRadius = 300
-local flashTimeMin = 1
-local flashTimeMax = 5
-local flashTimeDistance = 5200
+local flashTimeMin = 4
+local flashTimeMax = 6
+local flashTimeDistance = 5000
 function ENT:Explode()
     if self:PoopBomb() then
         self:EmitSound("weapons/p99/slideback.wav", 75)

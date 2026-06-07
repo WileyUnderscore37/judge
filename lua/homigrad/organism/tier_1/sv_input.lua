@@ -9,6 +9,11 @@ hg.organism.input_list = hg.organism.input_list or {}
 local vecZero, angZero = Vector(), Angle()
 local hook_Run = hook.Run
 local input_list = hg.organism.input_list
+local head_otrub_min_damage = 0.05
+local head_otrub_chance_mul = 1.25
+local head_otrub_max_chance = 0.35
+local head_consciousness_mul = 28
+local head_otrub_consciousness_cap = 0.04
 local function Trace_Bullet(box, hit, ricochet, org, organs, dmg, dmgInfo, dir)
 	dmg = dmgInfo:GetDamage() / 25
 	local organ = box[6] and organs[box[6]][box[7]]
@@ -1469,19 +1474,21 @@ local function velocityDamage(ent, data)
 
 		if hitgroup == HITGROUP_HEAD then
 			local hadhelmet = org.owner.armors and org.owner.armors["head"] != nil
+			local head_otrub_chance = math.Clamp((dmg - head_otrub_min_damage) * head_otrub_chance_mul, 0, head_otrub_max_chance)
 			
 			hg.organism.input_list.skull(org, bone, dmg * 6 * (hadhelmet and 0.2 or 1), dmgInfo)
 			
-			org.consciousness = math.Approach(org.consciousness, 0, dmg * 20 * (hadhelmet and 0.2 or 1))
+			org.consciousness = math.Approach(org.consciousness, 0, dmg * head_consciousness_mul * (hadhelmet and 0.2 or 1))
 			
 			local neck_not_broken = org.spine3 < 0.8
 			
 			//if dmg > 0.5 then
 				hg.organism.input_list.spine3(org, bone, dmg * (math.random(4) == 1 and 1 or 0) * 3 * (hadhelmet and 0.5 or 1), dmgInfo)
 			//end
-			if dmg * 10 > 0.5 and !hadhelmet then
-				org.otrub = true
+			if dmg > head_otrub_min_damage and !hadhelmet and math.Rand(0, 1) < head_otrub_chance then
+				org.needotrub = true
 				org.shock = org.shock + 10
+				org.consciousness = math.min(org.consciousness, head_otrub_consciousness_cap)
 			end
 
 			if neck_not_broken and org.spine3 >= 0.8 then

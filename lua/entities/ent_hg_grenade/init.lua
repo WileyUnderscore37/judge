@@ -11,9 +11,12 @@ local CUSTOM_EXPLOSION_PITCH_MIN = 110
 local CUSTOM_EXPLOSION_PITCH_MAX = 120
 local CUSTOM_EXPLOSION_VOLUME = 1
 local CUSTOM_EXPLOSION_LEVEL = 140
-local GRENADE_BLAST_RADIUS_MULT = 1.5
-local GRENADE_BLAST_DAMAGE = 20
-local GRENADE_DISORIENTATION_RADIUS = 12
+local GRENADE_BLAST_RADIUS_MULT = 2.2
+local GRENADE_BLAST_DAMAGE = 40
+local GRENADE_DISORIENTATION_RADIUS = 15
+local GRENADE_KNOCKBACK_FORCE = 16500
+local GRENADE_LIFT_FORCE = 35000
+local GRENADE_LIFT_FRAC = 0.85
 
 function ENT:InitAdd()
 end
@@ -297,9 +300,10 @@ function ENT:Explode()
 		local force = (enta:GetPos() - selfPos)
 		local len = force:Length()
 		force:Div(len)
-		local frac = math.Clamp((disorientation_dis - len) / disorientation_dis, 0.1, 1)  
-		local physics_frac = math.Clamp((dis - len) / dis, 0.5, 1)  
-		local forceadd = force * physics_frac * 50000  
+		local frac = math.Clamp((disorientation_dis - len) / disorientation_dis, 0.1, 1)
+		local physics_frac = math.Clamp((dis - len) / dis, 0.5, 1)
+		local forceadd = force * physics_frac * GRENADE_KNOCKBACK_FORCE
+		local liftForce = Vector(0, 0, GRENADE_LIFT_FORCE * physics_frac * GRENADE_LIFT_FRAC)
 
 		if enta.organism then
 			if IsValid(enta.organism.owner) and enta.organism.owner:IsPlayer() then
@@ -313,14 +317,14 @@ function ENT:Explode()
 
 
 		if enta:IsPlayer() then
-			hg.AddForceRag(enta, 0, forceadd * 0.5, 0.5)
-			hg.AddForceRag(enta, 1, forceadd * 0.5, 0.5)
+			hg.AddForceRag(enta, 0, (forceadd + liftForce) * 0.5, 0.5)
+			hg.AddForceRag(enta, 1, (forceadd + liftForce) * 0.5, 0.5)
 
 			hg.LightStunPlayer(enta)
 		end
 
 		if not IsValid(phys) then continue end
-		phys:ApplyForceCenter(forceadd)
+		phys:ApplyForceCenter(forceadd + liftForce)
 	end
 
 	if entsCount > 10 and not self.LegacyInDoorSound then
