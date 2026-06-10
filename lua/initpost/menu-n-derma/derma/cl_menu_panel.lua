@@ -6,7 +6,8 @@ local menu_music_flags = "noblock noplay"
 local menu_music_volume = 0.25
 local menu_music_station
 
-DISCORD_URL = "https://discord.gg/475EmEdTgH"
+local SOCIALS_DISCORD_URL = "https://discord.gg/QJzTM3D3AA"
+local SocialsDiscordIcon = Material("vgui/discordicon.png", "smooth")
 
 local function StopMainMenuMusic()
     if menu_music_station then
@@ -15,9 +16,9 @@ local function StopMainMenuMusic()
     end
 end
 
-local function StartMainMenuMusic(owner)
+local function StartMenuMusic(owner, path, volume)
     StopMainMenuMusic()
-    sound.PlayFile(menu_music_path, menu_music_flags, function(station)
+    sound.PlayFile(path or menu_music_path, menu_music_flags, function(station)
         if not station then return end
         if not IsValid(owner) or MainMenu ~= owner then
             station:Stop()
@@ -26,13 +27,250 @@ local function StartMainMenuMusic(owner)
 
         menu_music_station = station
         station:EnableLooping(true)
-        station:SetVolume(menu_music_volume)
+        station:SetVolume(volume or menu_music_volume)
         station:Play()
     end)
 end
 
+local function StartMainMenuMusic(owner)
+    StartMenuMusic(owner, menu_music_path, menu_music_volume)
+end
+
 local function MenuUnit(num)
     return math.floor(num * math.min(ScrW(), ScrH()) / 1000)
+end
+
+local function CreateSocialsFonts()
+    local scale = math.min(ScrW(), ScrH()) / 1000
+
+    surface.CreateFont("ZC_Socials_Title", {
+        font = "Verily Serif Mono",
+        size = math.max(24, math.floor(34 * scale)),
+        weight = 400,
+    })
+
+    surface.CreateFont("ZC_Socials_Text", {
+        font = "Verily Serif Mono",
+        size = math.max(14, math.floor(19 * scale)),
+        weight = 300,
+    })
+
+    surface.CreateFont("ZC_Socials_Small", {
+        font = "Verily Serif Mono",
+        size = math.max(12, math.floor(15 * scale)),
+        weight = 300,
+    })
+end
+hook.Add("OnScreenSizeChanged", "ZC_Socials_Fonts", CreateSocialsFonts)
+CreateSocialsFonts()
+
+local function DrawSocialsPage(luaMenu, ParentPanel)
+    StartMenuMusic(luaMenu, "sound/rem_track4.mp3", 0.25)
+
+    ParentPanel:SetAlpha(0)
+    ParentPanel.Paint = function(self, w, h)
+        if hg.DrawBlur then hg.DrawBlur(self, 5) end
+        draw.RoundedBox(0, 0, 0, w, h, Color(10, 10, 19, 235))
+        surface.SetDrawColor(18, 18, 18, 65)
+        surface.SetTexture(surface.GetTextureID("vgui/gradient-r"))
+        surface.DrawTexturedRect(0, 0, w, h)
+        surface.SetDrawColor(10, 10, 19, 235)
+        surface.SetTexture(surface.GetTextureID("vgui/gradient-l"))
+        surface.DrawTexturedRect(0, 0, w, h)
+        surface.SetDrawColor(100, 100, 100, 35)
+        surface.SetTexture(surface.GetTextureID("vgui/gradient-d"))
+        surface.DrawTexturedRect(0, 0, w, h)
+    end
+    ParentPanel:AlphaTo(255, 0.15, 0)
+
+    local title = vgui.Create("DLabel", ParentPanel)
+    title:SetFont("ZC_Socials_Title")
+    title:SetTextColor(Color(235, 235, 235))
+    title:SetText("CREDITS")
+    title:SizeToContents()
+    title:SetPos(ParentPanel:GetWide() / 2 - title:GetWide() / 2, MenuUnit(70))
+    title.OpenTime = CurTime()
+
+    local titleUnderline = vgui.Create("DPanel", ParentPanel)
+    titleUnderline:SetPos(title:GetX() + title:GetWide() / 2, title:GetY() + title:GetTall() + MenuUnit(8))
+    titleUnderline:SetSize(0, 1)
+    titleUnderline.TargetW = math.max(MenuUnit(90), title:GetWide() + MenuUnit(20))
+    titleUnderline.Paint = function(self, w, h)
+        surface.SetDrawColor(255, 255, 255, 180)
+        surface.DrawRect(0, 0, w, h)
+    end
+    titleUnderline.Think = function(self)
+        local curW = self:GetWide()
+        local newW = Lerp(FrameTime() * 4, curW, self.TargetW)
+        if math.abs(self.TargetW - newW) < 0.5 then
+            newW = self.TargetW
+            self:SetSize(newW, 1)
+            self:SetPos(title:GetX() + title:GetWide() / 2 - newW / 2, title:GetY() + title:GetTall() + MenuUnit(8))
+            self.Think = nil
+            return
+        end
+        self:SetSize(newW, 1)
+        self:SetPos(title:GetX() + title:GetWide() / 2 - newW / 2, title:GetY() + title:GetTall() + MenuUnit(8))
+    end
+
+    local credits = {
+        "Kazoo - Main Developer",
+        "Kliv - Other Developer",
+        "Uzelezz, Mannytko, Sadsalat, Deka, Zac90 and Mr. Point - ZTeam for making up Z-City",
+    }
+
+    local creditsPanel = vgui.Create("DPanel", ParentPanel)
+    creditsPanel:SetSize(math.floor(ParentPanel:GetWide() * 0.56), math.floor(ParentPanel:GetTall() * 0.28))
+    creditsPanel.TargetX = MenuUnit(90)
+    creditsPanel.TargetY = MenuUnit(150)
+    creditsPanel:SetPos(-creditsPanel:GetWide(), creditsPanel.TargetY)
+    creditsPanel:SetAlpha(0)
+    creditsPanel.Paint = function(self, w, h)
+        draw.RoundedBox(0, 0, 0, w, h, Color(15, 15, 20, 120))
+        surface.SetDrawColor(255, 255, 255, 110)
+        surface.DrawOutlinedRect(0, 0, w, h, 1)
+    end
+    creditsPanel.Think = function(self)
+        local x, y = self:GetPos()
+        local newX = Lerp(FrameTime() * 4, x, self.TargetX)
+        local newAlpha = Lerp(FrameTime() * 5, self:GetAlpha(), 255)
+        if math.abs(self.TargetX - newX) < 0.5 then
+            newX = self.TargetX
+        end
+        if math.abs(255 - newAlpha) < 1 then
+            newAlpha = 255
+        end
+        if newX == self.TargetX and newAlpha == 255 then
+            self:SetPos(self.TargetX, self.TargetY)
+            self:SetAlpha(255)
+            self.Think = nil
+            return
+        end
+        self:SetPos(newX, y)
+        self:SetAlpha(newAlpha)
+    end
+
+    local y = MenuUnit(24)
+    for _, text in ipairs(credits) do
+        local lbl = vgui.Create("DLabel", creditsPanel)
+        lbl:SetFont("ZC_Socials_Text")
+        lbl:SetTextColor(Color(220, 220, 220))
+        lbl:SetText(text)
+        lbl:SetWrap(true)
+        lbl:SetAutoStretchVertical(true)
+        lbl:SetSize(creditsPanel:GetWide() - MenuUnit(40), MenuUnit(64))
+        lbl:SetPos(MenuUnit(20), y)
+        y = y + lbl:GetTall() + MenuUnit(12)
+    end
+
+    local discordButton = vgui.Create("DButton", ParentPanel)
+    discordButton:SetSize(MenuUnit(160), MenuUnit(160))
+    discordButton.TargetX = ParentPanel:GetWide() - MenuUnit(250)
+    discordButton.TargetY = ParentPanel:GetTall() / 2 - MenuUnit(100)
+    discordButton:SetPos(ParentPanel:GetWide() + MenuUnit(80), discordButton.TargetY)
+    discordButton:SetText("")
+    discordButton:SetCursor("hand")
+    discordButton.HoverLerp = 0
+    discordButton:SetAlpha(0)
+    function discordButton:DoClick()
+        gui.OpenURL(SOCIALS_DISCORD_URL)
+    end
+    function discordButton:Think()
+        self.HoverLerp = LerpFT(0.2, self.HoverLerp or 0, self:IsHovered() and 1 or 0)
+        local x, y = self:GetPos()
+        self:SetPos(Lerp(FrameTime() * 4, x, self.TargetX), y)
+        self:SetAlpha(Lerp(FrameTime() * 5, self:GetAlpha(), 255))
+    end
+    function discordButton:Paint(w, h)
+        draw.RoundedBox(0, 0, 0, w, h, Color(18, 18, 24, 170))
+        surface.SetDrawColor(255, 255, 255, 120 + 80 * self.HoverLerp)
+        surface.DrawOutlinedRect(0, 0, w, h, 1)
+        surface.SetDrawColor(255, 255, 255, 255)
+        surface.SetMaterial(SocialsDiscordIcon)
+        local pad = MenuUnit(18)
+        surface.DrawTexturedRect(pad, pad, w - pad * 2, h - pad * 2)
+    end
+
+    local discordText = vgui.Create("DLabel", ParentPanel)
+    discordText:SetFont("ZC_Socials_Small")
+    discordText:SetTextColor(Color(200, 200, 200))
+    discordText:SetText("Open Discord")
+    discordText:SizeToContents()
+    discordText:SetAlpha(0)
+    discordText.Think = function(self)
+        self:SetPos(discordButton:GetX() + discordButton:GetWide() / 2 - self:GetWide() / 2, discordButton:GetY() + discordButton:GetTall() + MenuUnit(12))
+        self:SetAlpha(Lerp(FrameTime() * 5, self:GetAlpha(), 255))
+    end
+
+    local backBtn = vgui.Create("DLabel", ParentPanel)
+    backBtn:SetFont("ZCity_Small")
+    backBtn:SetTextColor(Color(225, 225, 225))
+    backBtn:SetText(string.rep("#", #"<- Return"))
+    backBtn:SetMouseInputEnabled(true)
+    backBtn:SizeToContents()
+    backBtn:SetTall(MenuUnit(42))
+    backBtn:SetPos(MenuUnit(15), ParentPanel:GetTall() - MenuUnit(62))
+    backBtn.OpenTime = CurTime()
+    backBtn.HoverLerp = 0
+    backBtn.LineLerp = 0
+    function backBtn:DoClick()
+        if not IsValid(ParentPanel) then return end
+        ParentPanel:AlphaTo(0, 0.2, 0, function()
+            if IsValid(ParentPanel) then ParentPanel:Remove() end
+        end)
+        if IsValid(luaMenu) then
+            for _, child in ipairs(luaMenu:GetChildren()) do
+                if child ~= ParentPanel then
+                    child:SetVisible(true)
+                    child:AlphaTo(255, 0.2, 0)
+                end
+            end
+            if luaMenu.panelparrent then
+                luaMenu.panelparrent = vgui.Create("DPanel", luaMenu)
+                luaMenu.panelparrent:SetPos(0, 0)
+                luaMenu.panelparrent:SetSize(ScrW(), ScrH())
+                luaMenu.panelparrent:MoveToFront()
+                luaMenu.panelparrent:SetMouseInputEnabled(false)
+                luaMenu.panelparrent.Paint = function() end
+            end
+            if luaMenu.ResetCurrentPanel then
+                luaMenu:ResetCurrentPanel()
+            end
+            StartMainMenuMusic(luaMenu)
+        end
+    end
+    function backBtn:Think()
+        local isHovered = self:IsHovered()
+        self.HoverLerp = LerpFT(0.2, self.HoverLerp or 0, isHovered and 1 or 0)
+        self.LineLerp = LerpFT(0.2, self.LineLerp or 0, isHovered and 1 or 0)
+        local elapsed = CurTime() - self.OpenTime
+        local charsToShow = math.floor(elapsed * 15)
+        local target = "<- Return"
+        local len = #target
+        if charsToShow > len then charsToShow = len end
+        local ntxt = ""
+        for i = 1, len do
+            ntxt = ntxt .. (i <= charsToShow and target:sub(i, i) or "#")
+        end
+        if self:GetText() ~= ntxt then
+            self:SetText(ntxt)
+            self:SizeToContents()
+        end
+    end
+    function backBtn:Paint(w, h)
+        local isHovered = self:IsHovered()
+        local flash = isHovered and (0.5 + 0.5 * math.sin(CurTime() * 10)) or 0
+        local textColor = Color(225, 225, 225)
+        local outlineColor = Color(0, 0, 0, 255)
+        if isHovered then
+            local v = flash * 255
+            textColor = Color(v, v, v, 255)
+            outlineColor = Color(255 - v, 255 - v, 255 - v, 255)
+        end
+        surface.SetFont(self:GetFont())
+        draw.SimpleTextOutlined(self:GetText(), self:GetFont(), 0, h / 2, textColor, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, 1, outlineColor)
+        return true
+    end
 end
 
 local Selects = {
@@ -194,6 +432,9 @@ local Selects = {
     },
     {Title = "Achievements", Func = function(luaMenu,pp) 
         hg.DrawAchievmentsMenu(pp)
+    end},
+    {Title = "Socials", Func = function(luaMenu, pp)
+        DrawSocialsPage(luaMenu, pp)
     end},
     {Title = "Settings", Func = function(luaMenu,pp) 
         hg.DrawSettings(pp) 
