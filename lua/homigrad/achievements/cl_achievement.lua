@@ -5,124 +5,143 @@ hg.achievements.achievements_data.created_achevements = {}
 
 hg.achievements.MenuPanel = hg.achievements.MenuPanel or nil
 
-local curent_panel_ach  
-concommand.Add("hg_achievements",function()
-    --hg.DrawAchievmentsMenu() doesn't work as for 15.02.2026 | from bogler with love 🥴
-    print('use esc menu')
+local curent_panel_ach
+
+concommand.Add("hg_achievements", function()
+    print("use esc menu")
 end)
 
 BlurBackground = BlurBackground or hg.DrawBlur
+
+local gradient_l = Material("vgui/gradient-l")
 local gradient_u = Material("vgui/gradient-u")
-gradient_r = Material("vgui/gradient-r")
+local gradient_r = Material("vgui/gradient-r")
+local gradient_d = Material("vgui/gradient-d")
 
-local function PaintButton(self,w,h)
-    surface.SetDrawColor(155, 0, 0, 108)
-    surface.SetMaterial(gradient_l)
-    surface.DrawTexturedRect( 0, 0, w, h )
+local ach_color_bg = Color(18, 18, 22, 235)
+local ach_color_bg_dim = Color(10, 10, 19, 235)
+local ach_color_bg_hover = Color(20, 20, 30, 235)
+local ach_color_text = Color(235, 235, 235)
+local ach_color_text_dim = Color(170, 170, 170)
+local ach_color_outline = Color(255, 255, 255, 170)
+local ach_color_outline_strong = Color(255, 255, 255, 235)
+local ach_menu_gradient_right = Color(18, 18, 18, 65)
+local ach_menu_gradient_left = Color(10, 10, 19, 235)
+local ach_menu_gradient_down = Color(100, 100, 100, 35)
+local ach_tex_gradient_d = surface.GetTextureID("vgui/gradient-d")
+local ach_tex_gradient_r = surface.GetTextureID("vgui/gradient-r")
+local ach_tex_gradient_l = surface.GetTextureID("vgui/gradient-l")
+
+local function MenuUnit(num)
+    return math.floor(num * math.min(ScrW(), ScrH()) / 1000)
 end
 
-local function createButton(frame, ach, text, func)
-    local button = vgui.Create("DButton", frame)
+local function CreateAchievementFonts()
+    local scale = math.min(ScrW(), ScrH()) / 1000
 
-    ach.img = isstring(ach.img) and Material(ach.img) or ach.img
-    
-    local localach = hg.achievements.GetLocalAchievements()
-    local desc = markup.Parse("<font=HomigradFontMedium>"..ach.description.."<font>", 500 )
-    
-    local x,y = frame:LocalToScreen(button:GetPos())
-    function button:Paint(w,h)
-		PaintButton(self,w,h)
-        local view = render.GetViewSetup(true)
-        local pos,ang = view.origin,view.angles
-        ang:RotateAroundAxis( ang:Up(), -90 )
-	    ang:RotateAroundAxis( ang:Forward(), 90 )
-        
-        self.lerpcolor = Lerp(FrameTime() * 10,self.lerpcolor or 0,self:IsHovered() and 255 or 0)
-       
-        local val = localach[ach.key] and localach[ach.key].value or ach.start_value
-        local amt = ScreenScale(1)
+    surface.CreateFont("HG_Achievement_Medium", {
+        font = "Verily Serif Mono",
+        size = math.max(18, math.floor(24 * scale)),
+        weight = 300,
+    })
 
-        surface.SetFont("HomigradFont") 
-        local txt = ach.name..(ach.showpercent and " | " or "")..(ach.showpercent and (val / ach.needed_value * 100).."%" or "")
-        local wt,ht = surface.GetTextSize(txt)
-        surface.SetTextColor(255,255,255)
-        surface.SetTextPos(w / 2 - (wt / 2), (ht / 2) * (1-(self.lerpcolor / 255)*5))
-        surface.DrawText(txt)
+    surface.CreateFont("HG_Achievement_Small", {
+        font = "Verily Serif Mono",
+        size = math.max(15, math.floor(20 * scale)),
+        weight = 300,
+    })
 
-        desc:Draw(w / 2,(h + desc:GetHeight()) - ((h/2) + desc:GetHeight()) * (self.lerpcolor / 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-
-        surface.SetDrawColor(255,255,255,10)
-        draw.NoTexture()
-        surface.DrawTexturedRectRotated(w - self.lerpcolor / 255 * 100 + 50,0,10,400,-30)
-        surface.DrawTexturedRectRotated(w - self.lerpcolor / 255 * 100 + 80,0,10,400,-30)
-    end
-
-    button:SetText("")
-    button:SetSize(0,ScreenScale(22))
-    button:Dock(TOP)
-    button:DockMargin(0,0,0,ScreenScale(2.5))
-    button.DoClick = function(self) func(self) end
-    return button
+    surface.CreateFont("HG_Achievement_Tiny", {
+        font = "Verily Serif Mono",
+        size = math.max(13, math.floor(16 * scale)),
+        weight = 300,
+    })
 end
+hook.Add("OnScreenSizeChanged", "HG_Achievement_Fonts", CreateAchievementFonts)
+CreateAchievementFonts()
 
-local function createButton_2(frame, ach, text, func, y)
-    local button = vgui.Create("DButton", frame)
+local function BuildMaskedText(text, startTime, speed)
+    text = tostring(text or "")
+    local charsToShow = math.floor(math.max(0, CurTime() - (startTime or CurTime())) * (speed or 20))
+    charsToShow = math.Clamp(charsToShow, 0, #text)
 
-    ach.img = isstring(ach.img) and Material(ach.img) or ach.img
-    
-    local localach = hg.achievements.GetLocalAchievements()
-    local desc = markup.Parse("<font=HomigradFontMedium>"..ach.description.."<font>", 500 )
-    
-    function button:Paint(w,h)
-        PaintButton(self,w,h)
-        local view = render.GetViewSetup(true)
-        local pos,ang = view.origin,view.angles
-        ang:RotateAroundAxis( ang:Up(), -90 )
-        ang:RotateAroundAxis( ang:Forward(), 90 )
-                
-        local val = localach[ach.key] and localach[ach.key].value or ach.start_value
-        local amt = ScreenScale(1)
-
-        surface.SetFont("HomigradFont") 
-        
-        self.HoverLerp = LerpFT(0.2, self.HoverLerp or 0, curent_panel_ach == ach and 1 or 0)
-        
-        local base = (curent_panel_ach == ach and string.upper(ach.name) or ach.name)..(ach.showpercent and " | " or "")..(ach.showpercent and (val / ach.needed_value * 100).."%" or "")
-        
-        local result = ""
-        for i = 1, #base do
-            result = result .. (i <= math.ceil(#base * self.HoverLerp) and string.upper(base:sub(i,i)) or base:sub(i,i))
+    local masked = {}
+    for i = 1, #text do
+        local char = text:sub(i, i)
+        if char == "\n" then
+            masked[i] = "\n"
+        else
+            masked[i] = i <= charsToShow and char or "#"
         end
-        
-        local wt,ht = surface.GetTextSize(result)
-        surface.SetTextColor(255,255,255)
-        surface.SetTextPos(3, (ht / 2))
-        surface.DrawText(result)
     end
 
-    button:SetText("")
-    button:SetSize(frame:GetWide(),ScreenScale(22))
+    return table.concat(masked)
+end
 
-    button:SetPos(0,y)
-    button.DoClick = function(self) 
+local function PaintGrayBox(w, h, fillColor, outlineColor)
+    surface.SetDrawColor(fillColor)
+    surface.DrawRect(0, 0, w, h)
+    surface.SetDrawColor(255, 255, 255, 12)
+    surface.SetMaterial(gradient_d)
+    surface.DrawTexturedRect(0, 0, w, h)
+    surface.SetDrawColor(outlineColor)
+    surface.DrawOutlinedRect(0, 0, w, h, 1)
+end
+
+local function PaintButton(self, w, h)
+    local fillColor = self:IsHovered() and ach_color_bg_hover or ach_color_bg_dim
+    PaintGrayBox(w, h, fillColor, self:IsHovered() and ach_color_outline_strong or ach_color_outline)
+end
+
+local function createButton_2(frame, ach, text, func)
+    local button = vgui.Create("DButton", frame)
+
+    ach.img = isstring(ach.img) and Material(ach.img) or ach.img
+    button.OpenTime = CurTime()
+    button:SetText("")
+    button:SetTall(ScreenScale(22))
+    button:Dock(TOP)
+    button:DockMargin(0, 0, 0, ScreenScale(2.5))
+    button:SetCursor("hand")
+
+    function button:Paint(w, h)
+        local isActive = curent_panel_ach == ach
+        self.HoverLerp = LerpFT(0.2, self.HoverLerp or 0, (isActive or self:IsHovered()) and 1 or 0)
+
+        local bg = isActive and ach_color_bg_hover or ach_color_bg_dim
+        PaintGrayBox(w, h, bg, self.HoverLerp > 0.2 and ach_color_outline_strong or ach_color_outline)
+
+        local localach = hg.achievements.GetLocalAchievements() or {}
+        local val = localach[ach.key] and localach[ach.key].value or ach.start_value
+        local percent = ach.showpercent and math.Round(val / math.max(ach.needed_value, 1) * 100, 1) .. "%" or ""
+        local base = ach.name .. (ach.showpercent and " | " .. percent or "")
+        local result = BuildMaskedText(base, self.OpenTime, 20)
+
+        surface.SetFont("HG_Achievement_Medium")
+        local wt, ht = surface.GetTextSize(result)
+        surface.SetTextColor(ach_color_text)
+        surface.SetTextPos(MenuUnit(10), h / 2 - ht / 2)
+        surface.DrawText(result)
+
+        if self.HoverLerp > 0.01 then
+            surface.SetDrawColor(255, 255, 255, 255 * self.HoverLerp)
+            surface.DrawRect(MenuUnit(10), h - 2, math.max(wt, MenuUnit(30)) * self.HoverLerp, 1)
+        end
+    end
+
+    button.DoClick = function(self)
         curent_panel_ach = ach
         func(self)
-		for i = 1, 3 do
-			surface.PlaySound("shitty/tap_depress.wav")
-		end
+        for i = 1, 3 do
+            surface.PlaySound("shitty/tap_depress.wav")
+        end
     end
+
     return button
 end
 
-local gradient_d = Material("vgui/gradient-d")
-local function PaintFrame(self,w,h)
-	BlurBackground(self)
-    surface.SetDrawColor(50, 0, 0, 155)
-    surface.SetMaterial(gradient_d)
-    surface.DrawTexturedRect( 0, 0, w, h )
-
-	surface.SetDrawColor( 150, 0, 0, 128)
-    surface.DrawOutlinedRect( 0, 0, w, h, 2.5 )
+local function PaintFrame(self, w, h)
+    PaintGrayBox(w, h, ach_color_bg, ach_color_outline)
 end
 
 function hg.DrawAchievmentsMenu(ParentPanel)
@@ -133,123 +152,212 @@ function hg.DrawAchievmentsMenu(ParentPanel)
         hg.achievements.MenuPanel = nil
     end
 
-    local frame
     if ParentPanel then
         ParentPanel:SetAlpha(0)
-        ParentPanel.Paint = function(self,w,h)
-            surface.SetDrawColor(28,28,28,255)
-            surface.DrawRect(0, 0, w, h)
-
-            surface.SetDrawColor(107, 107, 107,20)
-            for i = 1, (ybars + 1) do
-                surface.DrawRect((sw / ybars) * i - (CurTime() * 30 % (sw / ybars)), 0, ScreenScale(1), sh)
-            end
-
-            for i = 1, (xbars + 1) do
-                surface.DrawRect(0, (sh / xbars) * (i - 1) + (CurTime() * 30 % (sh / xbars)), sw, ScreenScale(1))
-            end
-
-            local border_size = ScreenScale(2)
-
-            surface.SetDrawColor(0, 0, 0)
-            surface.SetMaterial(gradient_l)
-            surface.DrawTexturedRect(0, 0, border_size, sh)
+        ParentPanel.Paint = function(self, w, h)
+            if hg.DrawBlur then hg.DrawBlur(self, 5) end
+            draw.RoundedBox(0, 0, 0, w, h, ach_menu_gradient_left)
+            surface.SetDrawColor(ach_menu_gradient_right)
+            surface.SetTexture(ach_tex_gradient_r)
+            surface.DrawTexturedRect(0, 0, w, h)
+            surface.SetDrawColor(ach_menu_gradient_left)
+            surface.SetTexture(ach_tex_gradient_l)
+            surface.DrawTexturedRect(0, 0, w, h)
+            surface.SetDrawColor(ach_menu_gradient_down)
+            surface.SetTexture(ach_tex_gradient_d)
+            surface.DrawTexturedRect(0, 0, w, h)
         end
-
     end
-    hg.DrawBlur(ParentPanel, 5)
-    ParentPanel:AlphaTo(255,0.15,0)
-    local frame = vgui.Create('DPanel', ParentPanel)
-    frame:SetSize(ParentPanel:GetWide()/2.5, ScreenScale(22)*8.25+ScreenScale(2.5))
-    frame:SetPos(5, ParentPanel:GetTall()/2 - frame:GetTall()/2)
-    frame.Paint = function()
+
+    if hg.DrawBlur then hg.DrawBlur(ParentPanel, 5) end
+    ParentPanel:AlphaTo(255, 0.15, 0)
+
+    local frame = vgui.Create("DPanel", ParentPanel)
+    frame:SetSize(ParentPanel:GetWide() / 2.5, ScreenScale(22) * 8.25 + ScreenScale(2.5))
+    frame.TargetX = 5
+    frame.TargetY = ParentPanel:GetTall() / 2 - frame:GetTall() / 2
+    frame:SetPos(frame.TargetX - MenuUnit(120), frame.TargetY)
+    frame:SetAlpha(0)
+    frame.Paint = PaintFrame
+    frame.Think = function(self)
+        local x, y = self:GetPos()
+        self:SetPos(Lerp(FrameTime() * 3.5, x, self.TargetX), Lerp(FrameTime() * 3.5, y, self.TargetY))
+        self:SetAlpha(Lerp(FrameTime() * 4.5, self:GetAlpha(), 255))
     end
 
     hg.achievements.MenuPanel = frame
 
-    local scroll = vgui.Create("DScrollPanel",frame)
-    scroll:SetSize(frame:GetWide(),frame:GetTall())
-    scroll:SetPos(0,0)
-
+    local scroll = vgui.Create("DScrollPanel", frame)
+    scroll:SetSize(frame:GetWide(), frame:GetTall())
+    scroll:SetPos(0, 0)
     frame.scroll = scroll
 
     local sbar = scroll:GetVBar()
-    sbar:SetWide(0)
+    sbar:SetWide(MenuUnit(4))
     sbar:SetHideButtons(true)
     function sbar:Paint(w, h)
-        draw.RoundedBox(0, 0, 0, w, h, Color(0, 0, 0, 100))
+        surface.SetDrawColor(255, 255, 255, 35)
+        surface.DrawRect(0, 0, w, h)
     end
     function sbar.btnGrip:Paint(w, h)
-        self.lerpcolor = Lerp(FrameTime() * 10, self.lerpcolor or 0.2,(self:IsHovered() and 0.8 or 0.6))
-        draw.RoundedBox(0, 0, 0, w, h, Color(100 * self.lerpcolor, 10, 10))
+        self.lerpcolor = Lerp(FrameTime() * 10, self.lerpcolor or 0.4, self:IsHovered() and 1 or 0.75)
+        draw.RoundedBox(1, 0, 0, w, h, Color(255 * self.lerpcolor, 255 * self.lerpcolor, 255 * self.lerpcolor, 180))
     end
 
     function frame:UpdateValues()
-        local scroll = self.scroll
-        scroll:Clear()
-        
-        local y = 0
-        for i,ach in pairs(hg.achievements.achievements_data.created_achevements) do
-            local bbb = createButton_2(scroll, ach, ach.name, function() end,y)
-            y = bbb:GetTall() + y + 3
-            scroll:AddItem(bbb)
-            curent_panel_ach = ach
+        local selectedKey = curent_panel_ach and curent_panel_ach.key
+        local firstAch
+
+        self.scroll:Clear()
+        curent_panel_ach = nil
+
+        for _, ach in pairs(hg.achievements.achievements_data.created_achevements) do
+            local bbb = createButton_2(self.scroll, ach, ach.name, function()
+                self.DetailRevealStart = CurTime()
+            end)
+            self.scroll:AddItem(bbb)
+            firstAch = firstAch or ach
+            if selectedKey and ach.key == selectedKey then
+                curent_panel_ach = ach
+            end
         end
 
+        curent_panel_ach = curent_panel_ach or firstAch
+        self.DetailRevealStart = CurTime()
     end
-    local y = 0
-    for i,ach in pairs(hg.achievements.achievements_data.created_achevements) do
-        local bbb = createButton_2(scroll, ach, ach.name, function() end,y)
-        y = bbb:GetTall() + y + 3
-        scroll:AddItem(bbb)
-        curent_panel_ach = ach
+
+    frame:UpdateValues()
+
+    local frame2 = vgui.Create("DPanel", ParentPanel)
+    frame2:SetSize(ParentPanel:GetWide() / 2, ScreenScale(22) * 8.25 + ScreenScale(2.5))
+    frame2.TargetY = ParentPanel:GetTall() / 2 - frame2:GetTall() / 2
+    frame2.TargetX = frame.TargetX + frame:GetWide()
+    frame2:SetPos(frame2.TargetX + MenuUnit(120), frame2.TargetY)
+    frame2:SetAlpha(0)
+    frame2.Think = function(self)
+        local x, y = self:GetPos()
+        self.TargetX = frame.TargetX + frame:GetWide()
+        self:SetPos(Lerp(FrameTime() * 3.5, x, self.TargetX), Lerp(FrameTime() * 3.5, y, self.TargetY))
+        self:SetAlpha(Lerp(FrameTime() * 4.5, self:GetAlpha(), 255))
     end
-    local frame2 = vgui.Create('DPanel', ParentPanel)
-    frame2:SetSize(ParentPanel:GetWide()/2, ScreenScale(22)*8.25+ScreenScale(2.5))
-    frame2:Center()
-    frame2:SetPos(frame:GetX()+frame:GetWide(),frame:GetY())
-    frame2.Paint = function(self,w,h)
-        surface.SetDrawColor(92,0,0,108)
-        surface.SetMaterial(gradient_d)
-        surface.DrawTexturedRect(0,0,w,h)
-        surface.SetDrawColor(40,36,36,255)
-        surface.DrawRect(0,h-h/6,w,h/6)
-        surface.SetDrawColor(22,21,21)
-        surface.DrawRect(0,h-3,w,3)
-        
+    frame2.Paint = function(self, w, h)
+        PaintGrayBox(w, h, ach_color_bg, ach_color_outline)
+
+        surface.SetDrawColor(255, 255, 255, 18)
+        surface.SetTexture(ach_tex_gradient_d)
+        surface.DrawTexturedRect(0, math.floor(h * 0.45), w, math.ceil(h * 0.55))
+        surface.SetDrawColor(255, 255, 255, 24)
+        surface.SetTexture(ach_tex_gradient_d)
+        surface.DrawTexturedRect(0, math.floor(h * 0.62), w, math.ceil(h * 0.38))
+        surface.SetDrawColor(255, 255, 255, 90)
+        surface.DrawRect(0, h - 2, w, 2)
+
         if curent_panel_ach then
-            self.HoverLerp = LerpFT(0.2,self.HoverLerp or 0,1)
-            
-            surface.SetDrawColor(255,255,255,255)
+            self.DetailRevealStart = frame.DetailRevealStart or self.DetailRevealStart or CurTime()
+            local iconSize = w / 5
+            local iconX = w / 2 - iconSize / 2
+            local iconY = h * 0.18
+            local lineY = h - h / 4.5
+
+            surface.SetDrawColor(255, 255, 255, 255)
             surface.SetMaterial(curent_panel_ach.img)
-            surface.DrawTexturedRect(w/2-w/10,h/2-w/5,w/5,w/5)
-            
-            surface.SetFont("ZCity_Small")
-            local name = curent_panel_ach.name
-            local res = ""
-            for i=1,#name do
-                res=res..(i<=math.ceil(#name*self.HoverLerp)and name:sub(i,i)or "")
-            end
-            local wt,ht=surface.GetTextSize(res)
-            surface.SetTextColor(255,255,255)
-            surface.SetTextPos(w/2-wt/2,h-h/6)
+            surface.DrawTexturedRect(iconX, iconY, iconSize, iconSize)
+
+            surface.SetDrawColor(255, 255, 255, 90)
+            surface.DrawRect(MenuUnit(14), lineY, w - MenuUnit(28), 1)
+
+            surface.SetFont("HG_Achievement_Medium")
+            local name = string.upper(curent_panel_ach.name or "")
+            local res = BuildMaskedText(name, self.DetailRevealStart, 18)
+            local wt, ht = surface.GetTextSize(res)
+            surface.SetTextColor(ach_color_text)
+            surface.SetTextPos(w / 2 - wt / 2, lineY + MenuUnit(10))
             surface.DrawText(res)
-            
-            surface.SetFont("ZCity_Tiny")
-            local desc = curent_panel_ach.description
-            local res2 = ""
-            for i=1,#desc do
-                res2=res2..(i<=math.ceil(#desc*self.HoverLerp)and desc:sub(i,i)or "")
-            end
-            local lines=string.Explode("\n",res2:gsub("\\n","\n"))
-            surface.SetTextColor(170,170,170)
-            local lnh=ht/2
-            for i,line in ipairs(lines) do
-                local wt,ht=surface.GetTextSize(line)
-                surface.SetTextPos(w/2-wt/2,h-h/12+(i-1)*lnh)
+
+            surface.SetFont("HG_Achievement_Tiny")
+            local desc = string.Replace(curent_panel_ach.description or "", "\\n", "\n")
+            local res2 = BuildMaskedText(desc, self.DetailRevealStart + 0.1, 28)
+            local lines = string.Explode("\n", res2)
+            surface.SetTextColor(ach_color_text_dim)
+            local lineHeight = math.max(ht / 2, MenuUnit(12))
+            for i, line in ipairs(lines) do
+                local lineW = surface.GetTextSize(line)
+                surface.SetTextPos(w / 2 - lineW / 2, lineY + MenuUnit(34) + (i - 1) * lineHeight)
                 surface.DrawText(line)
             end
         end
+    end
+
+    local backBtn = vgui.Create("DButton", ParentPanel)
+    backBtn:SetFont("HG_Achievement_Medium")
+    backBtn:SetText("")
+    backBtn:SetMouseInputEnabled(true)
+    backBtn:SetCursor("hand")
+    backBtn.TargetX = MenuUnit(15)
+    backBtn.TargetY = ParentPanel:GetTall() - MenuUnit(62)
+    backBtn:SetSize(math.max(MenuUnit(180), frame:GetWide() - MenuUnit(30)), MenuUnit(42))
+    backBtn:SetPos(backBtn.TargetX, backBtn.TargetY + MenuUnit(48))
+    backBtn:SetAlpha(0)
+    backBtn:MoveToFront()
+    backBtn.OpenTime = CurTime()
+    backBtn.HoverLerp = 0
+
+    function backBtn:DoClick()
+        if not IsValid(ParentPanel) then return end
+
+        local luaMenu = ParentPanel:GetParent()
+        ParentPanel:AlphaTo(0, 0.2, 0, function()
+            if IsValid(ParentPanel) then ParentPanel:Remove() end
+        end)
+
+        if not IsValid(luaMenu) then return end
+
+        for _, child in ipairs(luaMenu:GetChildren()) do
+            if child ~= ParentPanel then
+                child:SetVisible(true)
+                child:AlphaTo(255, 0.2, 0)
+            end
+        end
+
+        if luaMenu.panelparrent then
+            luaMenu.panelparrent = vgui.Create("DPanel", luaMenu)
+            luaMenu.panelparrent:SetPos(0, 0)
+            luaMenu.panelparrent:SetSize(ScrW(), ScrH())
+            luaMenu.panelparrent:MoveToFront()
+            luaMenu.panelparrent:SetMouseInputEnabled(false)
+            luaMenu.panelparrent.Paint = function() end
+        end
+
+        if luaMenu.ResetCurrentPanel then
+            luaMenu:ResetCurrentPanel()
+        else
+            ParentPanel:Remove()
+        end
+    end
+
+    function backBtn:Think()
+        local isHovered = self:IsHovered()
+        self.HoverLerp = LerpFT(0.2, self.HoverLerp or 0, isHovered and 1 or 0)
+        local x, y = self:GetPos()
+        self:SetPos(Lerp(FrameTime() * 3.5, x, self.TargetX), Lerp(FrameTime() * 3.5, y, self.TargetY))
+        self:SetAlpha(Lerp(FrameTime() * 4.5, self:GetAlpha(), 255))
+    end
+
+    function backBtn:Paint(w, h)
+        local flash = self:IsHovered() and (0.5 + 0.5 * math.sin(CurTime() * 10)) or 0
+        local label = BuildMaskedText("<- Return", self.OpenTime, 15)
+        local textColor = ach_color_text
+        local outlineColor = Color(0, 0, 0, 255)
+
+        if self:IsHovered() then
+            local v = flash * 255
+            textColor = Color(v, v, v, 255)
+            outlineColor = Color(255 - v, 255 - v, 255 - v, 255)
+        end
+
+        surface.SetFont(self:GetFont())
+        draw.SimpleTextOutlined(label, self:GetFont(), 0, h / 2, textColor, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, 1, outlineColor)
+        return true
     end
 end
 
@@ -266,54 +374,56 @@ function hg.achievements.GetLocalAchievements()
     return hg.achievements.achievements_data.player_achievements[tostring(LocalPlayer():SteamID())]
 end
 
-net.Receive("req_ach",function()
+net.Receive("req_ach", function()
     hg.achievements.achievements_data.created_achevements = net.ReadTable()
     hg.achievements.achievements_data.player_achievements[tostring(LocalPlayer():SteamID())] = net.ReadTable()
-    
+
     if IsValid(hg.achievements.MenuPanel) then
         hg.achievements.MenuPanel:UpdateValues()
     end
 end)
 
 hg.achievements.NewAchievements = hg.achievements.NewAchievements or {}
-local AchTable = hg.achievements.NewAchievements 
-net.Receive("hg_NewAchievement",function()
-    local Ach = {time = CurTime() + 7.5,name = net.ReadString(),img = net.ReadString()}
-    table.insert(AchTable,1,Ach)
-	surface.PlaySound("homigrad/vgui/achievement_earned.wav")
+local AchTable = hg.achievements.NewAchievements
+net.Receive("hg_NewAchievement", function()
+    local Ach = {time = CurTime() + 7.5, name = net.ReadString(), img = net.ReadString()}
+    table.insert(AchTable, 1, Ach)
+    surface.PlaySound("homigrad/vgui/achievement_earned.wav")
 end)
 
-local ach_clr1 , ach_clr2 = Color(200,25,25), Color(100,25,25)
-hook.Add("HUDPaint","hg_NewAchievement", function()
+local ach_clr1, ach_clr2 = Color(170, 170, 170), Color(70, 70, 78)
+hook.Add("HUDPaint", "hg_NewAchievement", function()
     local frametime = FrameTime() * 10
     for i = 1, #AchTable do
         local ach = AchTable[i]
         if not ach then continue end
-        local txt = "Achievement! "..ach.name
+
+        local txt = "Achievement! " .. ach.name
         ach.img = isstring(ach.img) and Material(ach.img) or ach.img
         local wt, _ = surface.GetTextSize(txt)
 
-        ach.Lerp = Lerp( frametime, ach.Lerp or 0, math.min( ach.time - CurTime(), 1 ) * i )
-        WSize, HSize = (ScrW() * 0.1) + (wt), ScrH() * 0.05
-        local HPos = ScrH() - ( HSize * ach.Lerp )
-        draw.RoundedBox( 0, 2, HPos + 2, WSize - 4, HSize - 4, ach_clr2 )
-		
-		surface.SetDrawColor(155, 0, 0, 255)
-		surface.SetMaterial(gradient_u)
-		surface.DrawTexturedRect( 0, HPos, WSize, HSize )
-	
-		surface.SetDrawColor( 150, 0, 0, 255)
-		surface.DrawOutlinedRect( 0, HPos, WSize, HSize, 2.5 )
+        ach.Lerp = Lerp(frametime, ach.Lerp or 0, math.min(ach.time - CurTime(), 1) * i)
+        WSize, HSize = (ScrW() * 0.1) + wt, ScrH() * 0.05
+        local HPos = ScrH() - (HSize * ach.Lerp)
+        draw.RoundedBox(0, 2, HPos + 2, WSize - 4, HSize - 4, ach_clr2)
+
+        surface.SetDrawColor(255, 255, 255, 40)
+        surface.SetMaterial(gradient_u)
+        surface.DrawTexturedRect(0, HPos, WSize, HSize)
+
+        surface.SetDrawColor(255, 255, 255, 180)
+        surface.DrawOutlinedRect(0, HPos, WSize, HSize, 2.5)
 
         surface.SetFont("HomigradFontMedium")
-        surface.SetTextColor(255,255,255)
-        surface.SetTextPos(HSize*1.25,(HPos + ( HSize/2 ) - ( HSize/4 )) )
+        surface.SetTextColor(255, 255, 255)
+        surface.SetTextPos(HSize * 1.25, (HPos + (HSize / 2) - (HSize / 4)))
         surface.DrawText(txt)
-        surface.SetDrawColor(255,255,255)
+        surface.SetDrawColor(255, 255, 255)
         surface.SetMaterial(ach.img)
-        surface.DrawTexturedRect(2,HPos+2,HSize-4,HSize-4)
-        if ach.time < CurTime() then 
-            table.remove(AchTable,i)
+        surface.DrawTexturedRect(2, HPos + 2, HSize - 4, HSize - 4)
+
+        if ach.time < CurTime() then
+            table.remove(AchTable, i)
         end
     end
 end)

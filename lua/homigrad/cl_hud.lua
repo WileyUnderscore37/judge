@@ -189,6 +189,8 @@ local colOption = Color(40, 0, 55, 152)
 local colWhite = Color(255, 255, 255, 255)
 local colWhiteTransparent = Color(176, 40, 40, 100)
 local colTransparent = Color(0, 0, 0, 0)
+local colRadialBase = Color(20, 20, 24, 220)
+local colRadialHover = Color(115, 115, 115, 215)
 local matHuy = Material("vgui/white")
 local vecXY = Vector(0, 0)
 local vecDown = Vector(0, 1)
@@ -324,7 +326,7 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 						math.randomseed(os.time())
 					end
 
-					draw.DrawText(opt, "HomigradFont", scrW / 2 + math.sin(a) * r * (i / count - 0.5 / count), scrH / 2 + math.cos(a) * r * (i / count - 0.5 / count), colWhite, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+					draw.DrawText(opt, "HG_font", scrW / 2 + math.sin(a) * r * (i / count - 0.5 / count), scrH / 2 + math.cos(a) * r * (i / count - 0.5 / count), colWhite, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 				end
 
 				continue
@@ -340,9 +342,9 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 				end
 			else
 				if option[7] and IsColor(option[7]) then --// Custom select color
-					surface.SetDrawColor(option[7]:Lerp(options_arg ~= nil and colOption or colBlack, 1 - optionSelected[num]))
+					surface.SetDrawColor(option[7]:Lerp(colRadialBase, 1 - optionSelected[num]))
 				else
-					surface.SetDrawColor(colWhiteTransparent:Lerp(options_arg ~= nil and colOption or colBlack, 1 - optionSelected[num]))
+					surface.SetDrawColor(colRadialHover:Lerp(colRadialBase, 1 - optionSelected[num]))
 				end
 			end
 
@@ -369,7 +371,7 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 					txt = hg.get_status_message(ply)
 					math.randomseed(os.time())
 				end
-				draw.DrawText(txt, "HomigradFont", scrW / 2 + math.sin(a) * r * 0.75, scrH / 2 + math.cos(a) * r * 0.75, colWhite, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+				draw.DrawText(txt, "HG_font", scrW / 2 + math.sin(a) * r * 0.75, scrH / 2 + math.cos(a) * r * 0.75, colWhite, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 			end
 		end
 		if !paining then
@@ -585,9 +587,9 @@ hook.Add("radialOptions", "7", function()
     end
 end)
 
-local font_size = 50
+local font_size = 28
 surface.CreateFont("HG_font", {
-	font = "Arial",
+	font = "Verily Serif Mono",
 	extended = false,
 	size = font_size,
 	weight = 500,
