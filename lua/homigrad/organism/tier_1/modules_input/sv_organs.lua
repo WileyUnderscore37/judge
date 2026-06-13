@@ -155,7 +155,9 @@ local arterySize = {
 }
 
 local arteryMessages ={
-	"Your carotid artery is gushing.",
+	"I can feel blood rushing from my neck...",
+	"My neck.. it's... pumping out blood.",
+	"I'm bleeding out of my neck!"
 }
 
 local function hitArtery(artery, org, dmg, dmgInfo, boneindex, dir, hit)

@@ -125,9 +125,11 @@ concommand.Add("-hmcd_holdbreath",function(ply)
 end)
 
 local lowoxy = {
-	"Your oxygen intake is low.",
-	"You are running out of oxygen.",
-	"You are struggling to breathe.",
+	"I'm gonna faint right now... There's not enough oxygen.",
+	"There's not enough oxygen... I can't hold much longer...",
+	"I really need some fresh air...",
+	"I'm gasping for air...",
+	"Need to breathe air... or I'm gonna faint right here..."
 }
 
 local not_enough_intake = {
@@ -135,13 +137,15 @@ local not_enough_intake = {
 	//"I gotta take a break...",
 	//"Need a break from this... to breathe...",
 	//"Resting sounds like a nice idea.",
-	"Your breathing is restricted.",
-	"You need more air.",
+	"I need to breathe...",
+	"I'm struggling to breathe...",
 }
 
 local drop_mask = {
-	"You cannot breathe in this mask.",
-	"Remove the mask now.",
+	"I can't breathe in this mask... I need to take it off.",
+	"Drop the mask, it's not worth it...",
+	"It's fucking disgusting... and I surely can't breathe in this...",
+	"Fucking stinks... Gotta take this mask off...",
 }
 
 local drugged = {
@@ -302,19 +306,19 @@ module[2] = function(owner, org, timeValue)
 
 	if org.isPly then
 		if org.pneumothorax > 0 then
-			org.owner:Notify("Air is building up in your chest.", true, "pneumothorax1",10)
+			org.owner:Notify("I can feel something filling my lungs.", true, "pneumothorax1",10) // delay of 10 seconds before typing that
 		else
 			org.owner:ResetNotification("pneumothorax1")
 		end
 
 		if org.pneumothorax > 0.3 then
-			org.owner:Notify("Your breathing is getting worse.", true, "pneumothorax2", 5)
+			org.owner:Notify("It's getting harder to breathe.", true, "pneumothorax2", 5)
 		else
 			org.owner:ResetNotification("pneumothorax2")
 		end
 
 		if org.pneumothorax > 0.5 then
-			org.owner:Notify("You can barely breathe.", true, "pneumothorax3", 5)
+			org.owner:Notify("I'm really struggling to breathe.", true, "pneumothorax3", 5)
 		else
 			org.owner:ResetNotification("pneumothorax3")
 		end
@@ -385,7 +389,7 @@ module[2] = function(owner, org, timeValue)
 
 	if org.isPly then
 		if org.brain > 0.1 and org.brain < 0.3 then
-			org.owner:Notify(math.random(2) == 1 and "Your brain is damaged." or "You are disoriented.", true, "brain", 5)
+			org.owner:Notify(math.random(2) == 1 and "My head hurts..." or "Where am I?", true, "brain", 5)
 		else
 			org.owner:ResetNotification("brain") 
 		end

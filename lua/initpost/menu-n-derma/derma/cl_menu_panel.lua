@@ -269,6 +269,9 @@ local Selects = {
     {Title = "Achievements", Func = function(luaMenu,pp) 
         hg.DrawAchievmentsMenu(pp)
     end},
+    {Title = "Information", Func = function(luaMenu,pp)
+        hg.DrawInformation(pp)
+    end},
     {Title = "Settings", Func = function(luaMenu,pp) 
         hg.DrawSettings(pp) 
     end},

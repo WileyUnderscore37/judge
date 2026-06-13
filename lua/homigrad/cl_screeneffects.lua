@@ -252,7 +252,9 @@ local lobotomy_mats = {
 }
 
 local consciousnessTypeBeatVolume = 0.18
-local dying2Volume = 0.2
+local dying2Volume = 0.4
+local painBeatOverlayPath = "sound/rem_pain.mp3"
+local painBeatOverlayVolumeMul = 1.25
 
 local function stopthings()
 	PainLerp = 0
@@ -282,6 +284,11 @@ local function stopthings()
 	if IsValid(NoiseStation2Dying) then
 		NoiseStation2Dying:Stop()
 		NoiseStation2Dying = nil
+	end
+
+	if IsValid(PainStationOverlay) then
+		PainStationOverlay:Stop()
+		PainStationOverlay = nil
 	end
 
 	if IsValid(BrainTraumaStation) then
@@ -339,6 +346,10 @@ hook.Add("Post Post Processing", "ItHurts", function()
 	if IsValid(PainStation) then
 		PainStation:SetVolume(0)
 	end
+
+	if IsValid(PainStationOverlay) then
+		PainStationOverlay:SetVolume(0)
+	end
 	
 	if !lply:Alive() and !IsValid(spect) then stopthings() return end
 	if !lply:Alive() and viewmode != 1 then stopthings() return end
@@ -388,6 +399,18 @@ hook.Add("Post Post Processing", "ItHurts", function()
 				station:Play()
 				station:SetTime(math.min(math.Rand(0, station:GetLength()), 139))
 				PainStation = station
+				station:EnableLooping(true)
+			end
+		end)
+	end
+
+	if !IsValid(PainStationOverlay) or PainStationOverlay:GetState() != GMOD_CHANNEL_PLAYING then
+		sound.PlayFile(painBeatOverlayPath, "noblock noplay", function(station)
+			if IsValid(station) then
+				station:SetVolume(0)
+				station:Play()
+				station:SetTime(IsValid(PainStation) and PainStation:GetTime() or 0)
+				PainStationOverlay = station
 				station:EnableLooping(true)
 			end
 		end)
@@ -525,6 +548,10 @@ hook.Add("Post Post Processing", "ItHurts", function()
 			if IsValid(PainStation) then
 				PainStation:SetVolume(math.Clamp(math.Remap(pain, 0, 120, 0, 2), 0, 2))
 			end
+
+			if IsValid(PainStationOverlay) then
+				PainStationOverlay:SetVolume(math.Clamp(math.Remap(pain, 0, 120, 0, 2), 0, 2) * painBeatOverlayVolumeMul)
+			end
 		//else
 		//	if IsValid(PainStation) then
 		//		PainStation:Stop()
@@ -643,7 +670,7 @@ hook.Add("Post Post Processing", "ItHurts", function()
 		
 		if o2 > 50 and !org.otrub then
 			if !IsValid(NoiseStation2) or NoiseStation2:GetState() != GMOD_CHANNEL_PLAYING then
-				sound.PlayFile("sound/zbattle/conscioustypebeat.ogg", "noblock noplay", function(station)
+				sound.PlayFile("sound/rem_dying1.mp3", "noblock noplay", function(station)
 					if IsValid(station) then
 						station:SetVolume(0)
 						station:Play()
@@ -684,7 +711,7 @@ hook.Add("Post Post Processing", "ItHurts", function()
 		
 		if o2 > 20 and org.otrub then
 			if !IsValid(NoiseStation) or NoiseStation:GetState() != GMOD_CHANNEL_PLAYING then
-				sound.PlayFile("sound/zbattle/unconscious_type_beat.ogg", "noblock noplay", function(station)
+				sound.PlayFile("sound/rem_dying1.mp3", "noblock noplay", function(station)
 					if IsValid(station) then
 						station:SetVolume(0)
 						station:Play()
