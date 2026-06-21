@@ -3050,7 +3050,7 @@ if CLIENT then
 
 	hook.Add("radialOptions", "hg-ammomenu", function()
 		local organism = LocalPlayer().organism or {}
-		if not organism.otrub and table.Count(LocalPlayer():GetAmmo()) > 0 and lply:KeyDown(IN_WALK) then
+		if not organism.otrub and table.Count(LocalPlayer():GetAmmo()) > 0 then
 			hg.radialOptions[#hg.radialOptions + 1] = {
 				function()
 					RunConsoleCommand("hg_ammomenu")

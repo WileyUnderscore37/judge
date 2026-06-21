@@ -5,6 +5,7 @@ local VectorRand = VectorRand
 local CHANCE, FORCE, VIBRATION = 0.12, 1200, 150
 local extendDur, rigorDur, flexionDur = {4, 10}, {10, 20}, {6, 12}
 local RIGOR_DAMP, FLEXION_FORCE = 8, 400
+local postureOrder = {"cushing", "lazarus", "decorticate", "fencing"}
 
 local REACTION_DELAY_MIN, REACTION_DELAY_MAX = 1, 2
 local REACTION_EASE_IN = 1.5
@@ -129,27 +130,11 @@ local function processFlexion(rag, fade)
 	end
 end
 
+local applyPostureToPlayer
+
 --;; when furfag
 local function applyFencingToPlayer(ply, org)
-	if not IsValid(ply) or not ply:Alive() then return end
-	if org.fencing then return end
-
-	local dur = math_rand(3, 8)
-	local delay = math_rand(REACTION_DELAY_MIN * 10, REACTION_DELAY_MAX * 10) / 10
-	org.fencing = true
-	org.fencingStart = CurTime() + delay
-	org.fencingEnd = org.fencingStart + dur
-	org.fencingDur = dur
-	org.fencingDelay = delay
-
-
-	if ply.FakeRagdoll and IsValid(ply.FakeRagdoll) then
-		local rag = ply.FakeRagdoll
-		rag.fencing = true
-		rag.fencingStart = org.fencingStart
-		rag.fencingEnd = org.fencingEnd
-		rag.fencingDur = dur
-	end
+	applyPostureToPlayer(ply, org, "fencing", 3, 8)
 end
 
 hg.applyFencingToPlayer = applyFencingToPlayer
@@ -211,73 +196,19 @@ local function processFencing(rag, fade, ease)
 end
 
 local function applyDecorticateToPlayer(ply, org)
-	if not IsValid(ply) or not ply:Alive() then return end
-	if org.decorticate then return end
-
-	local dur = math_rand(10, 20)
-	local delay = math_rand(REACTION_DELAY_MIN * 10, REACTION_DELAY_MAX * 10) / 10
-	org.decorticate = true
-	org.decorticateStart = CurTime() + delay
-	org.decorticateEnd = org.decorticateStart + dur
-	org.decorticateDur = dur
-	org.decorticateDelay = delay
-
-
-	if ply.FakeRagdoll and IsValid(ply.FakeRagdoll) then
-		local rag = ply.FakeRagdoll
-		rag.decorticate = true
-		rag.decorticateStart = org.decorticateStart
-		rag.decorticateEnd = org.decorticateEnd
-		rag.decorticateDur = dur
-	end
+	applyPostureToPlayer(ply, org, "decorticate", 10, 20)
 end
 
 hg.applyDecorticateToPlayer = applyDecorticateToPlayer
 
 local function applyLazarusToPlayer(ply, org)
-	if not IsValid(ply) or not ply:Alive() then return end
-	if org.lazarus then return end
-
-	local dur = math_rand(8, 18)
-	local delay = math_rand(REACTION_DELAY_MIN * 10, REACTION_DELAY_MAX * 10) / 10
-	org.lazarus = true
-	org.lazarusStart = CurTime() + delay
-	org.lazarusEnd = org.lazarusStart + dur
-	org.lazarusDur = dur
-	org.lazarusDelay = delay
-
-
-	if ply.FakeRagdoll and IsValid(ply.FakeRagdoll) then
-		local rag = ply.FakeRagdoll
-		rag.lazarus = true
-		rag.lazarusStart = org.lazarusStart
-		rag.lazarusEnd = org.lazarusEnd
-		rag.lazarusDur = dur
-	end
+	applyPostureToPlayer(ply, org, "lazarus", 8, 18)
 end
 
 hg.applyLazarusToPlayer = applyLazarusToPlayer
 
 local function applyCushingToPlayer(ply, org)
-	if not IsValid(ply) or not ply:Alive() then return end
-	if org.cushing then return end
-
-	local dur = math_rand(6, 14)
-	local delay = math_rand(REACTION_DELAY_MIN * 10, REACTION_DELAY_MAX * 10) / 10
-	org.cushing = true
-	org.cushingStart = CurTime() + delay
-	org.cushingEnd = org.cushingStart + dur
-	org.cushingDur = dur
-	org.cushingDelay = delay
-
-
-	if ply.FakeRagdoll and IsValid(ply.FakeRagdoll) then
-		local rag = ply.FakeRagdoll
-		rag.cushing = true
-		rag.cushingStart = org.cushingStart
-		rag.cushingEnd = org.cushingEnd
-		rag.cushingDur = dur
-	end
+	applyPostureToPlayer(ply, org, "cushing", 6, 14)
 end
 
 hg.applyCushingToPlayer = applyCushingToPlayer
@@ -427,20 +358,106 @@ local function processCushing(rag, fade, ease)
 	hg.ShadowControl(rag, 7, 0.001, nil, 0, 0, armPos + spineAng:Right() * 22, mul * 1.1, damp)
 end
 
+local function clearPostureState(target, posture)
+	if not target then return end
+	target[posture], target[posture .. "End"], target[posture .. "Dur"], target[posture .. "Start"], target[posture .. "Delay"] = nil, nil, nil, nil, nil
+end
+
+local function clearOtherPostures(org, rag, current)
+	for i = 1, #postureOrder do
+		local posture = postureOrder[i]
+		if posture == current then continue end
+		clearPostureState(org, posture)
+		if IsValid(rag) then
+			clearPostureState(rag, posture)
+		end
+	end
+end
+
+applyPostureToPlayer = function(ply, org, posture, minDur, maxDur)
+	if not IsValid(ply) or not ply:Alive() or not org then return end
+	if org[posture] then return end
+
+	local rag = ply.FakeRagdoll
+	if IsValid(rag) and rag[posture] then return end
+
+	clearOtherPostures(org, IsValid(rag) and rag or nil, posture)
+
+	local dur = math_rand(minDur, maxDur)
+	local delay = math_rand(REACTION_DELAY_MIN * 10, REACTION_DELAY_MAX * 10) / 10
+	org[posture] = true
+	org[posture .. "Start"] = CurTime() + delay
+	org[posture .. "End"] = org[posture .. "Start"] + dur
+	org[posture .. "Dur"] = dur
+	org[posture .. "Delay"] = delay
+
+	if IsValid(rag) then
+		rag[posture] = true
+		rag[posture .. "Start"] = org[posture .. "Start"]
+		rag[posture .. "End"] = org[posture .. "End"]
+		rag[posture .. "Dur"] = dur
+		rag[posture .. "Delay"] = delay
+	end
+end
+
+local function processActivePosture(owner, org)
+	local rag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
+	if not IsValid(rag) then return end
+
+	local time = CurTime()
+	local active
+
+	for i = 1, #postureOrder do
+		local posture = postureOrder[i]
+		local endTime = org[posture .. "End"]
+		if org[posture] and endTime then
+			if time > endTime then
+				clearPostureState(rag, posture)
+				clearPostureState(org, posture)
+			elseif not active then
+				active = posture
+			else
+				clearPostureState(rag, posture)
+				clearPostureState(org, posture)
+			end
+		end
+	end
+
+	if not active then return end
+
+	local dur = org[active .. "Dur"] or 5
+	local start = org[active .. "Start"] or (org[active .. "End"] - dur)
+	if time < start then return end
+
+	local easeRaw = math_clamp((time - start) / REACTION_EASE_IN, 0, 1)
+	local ease = easeRaw * easeRaw * (3 - 2 * easeRaw)
+	local fade = math_clamp((org[active .. "End"] - time) / dur, 0.1, 1)
+
+	if active == "fencing" then
+		processFencing(rag, fade, ease)
+	elseif active == "decorticate" then
+		processDecorticate(rag, fade, ease)
+	elseif active == "lazarus" then
+		processLazarus(rag, fade, ease)
+	elseif active == "cushing" then
+		processCushing(rag, fade, ease)
+	end
+end
+
 local function clearFencing(rag)
-	rag.fencing, rag.fencingEnd, rag.fencingDur, rag.fencingStart, rag.fencingDelay = nil, nil, nil, nil, nil
+	clearPostureState(rag, "fencing")
 end
 
 local function clearDecorticate(rag)
-	rag.decorticate, rag.decorticateEnd, rag.decorticateDur, rag.decorticateStart, rag.decorticateDelay = nil, nil, nil, nil, nil
+	clearPostureState(rag, "decorticate")
 end
 
 local function clearLazarus(rag)
-	rag.lazarus, rag.lazarusEnd, rag.lazarusDur, rag.lazarusStart, rag.lazarusDelay = nil, nil, nil, nil, nil
+	clearPostureState(rag, "lazarus")
 end
 
 local function clearCushing(rag)
-	rag.cushing, rag.cushingEnd, rag.cushingDur, rag.cushingStart, rag.cushingDelay = nil, nil, nil, nil, nil
+	clearPostureState(rag, "cushing")
 end
 
 local function clearSpasm(rag)
@@ -535,78 +552,7 @@ end)
 hook.Add("Org Think", "BrainfuckThink", function(owner)
 	if not IsValid(owner) then return end
 	local org = owner.organism or owner
-	
-	if org.fencing and org.fencingEnd then
-		local rag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
-		if IsValid(rag) then
-			if CurTime() > org.fencingEnd then
-				clearFencing(rag)
-				org.fencing, org.fencingEnd, org.fencingDur, org.fencingStart, org.fencingDelay = nil, nil, nil, nil, nil
-			else
-				local start = org.fencingStart or (org.fencingEnd - (org.fencingDur or 5))
-				if CurTime() >= start then
-					local easeRaw = math_clamp((CurTime() - start) / REACTION_EASE_IN, 0, 1)
-					local ease = easeRaw * easeRaw * (3 - 2 * easeRaw)
-					local fade = math_clamp((org.fencingEnd - CurTime()) / (org.fencingDur or 5), 0.1, 1)
-					processFencing(rag, fade, ease)
-				end
-			end
-		end
-	end
-
-	if org.decorticate and org.decorticateEnd then
-		local rag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
-		if IsValid(rag) then
-			if CurTime() > org.decorticateEnd then
-				clearDecorticate(rag)
-				org.decorticate, org.decorticateEnd, org.decorticateDur, org.decorticateStart, org.decorticateDelay = nil, nil, nil, nil, nil
-			else
-				local start = org.decorticateStart or (org.decorticateEnd - (org.decorticateDur or 5))
-				if CurTime() >= start then
-					local easeRaw = math_clamp((CurTime() - start) / REACTION_EASE_IN, 0, 1)
-					local ease = easeRaw * easeRaw * (3 - 2 * easeRaw)
-					local fade = math_clamp((org.decorticateEnd - CurTime()) / (org.decorticateDur or 5), 0.1, 1)
-					processDecorticate(rag, fade, ease)
-				end
-			end
-		end
-	end
-
-	if org.lazarus and org.lazarusEnd then
-		local rag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
-		if IsValid(rag) then
-			if CurTime() > org.lazarusEnd then
-				clearLazarus(rag)
-				org.lazarus, org.lazarusEnd, org.lazarusDur, org.lazarusStart, org.lazarusDelay = nil, nil, nil, nil, nil
-			else
-				local start = org.lazarusStart or (org.lazarusEnd - (org.lazarusDur or 5))
-				if CurTime() >= start then
-					local easeRaw = math_clamp((CurTime() - start) / REACTION_EASE_IN, 0, 1)
-					local ease = easeRaw * easeRaw * (3 - 2 * easeRaw)
-					local fade = math_clamp((org.lazarusEnd - CurTime()) / (org.lazarusDur or 5), 0.1, 1)
-					processLazarus(rag, fade, ease)
-				end
-			end
-		end
-	end
-
-	if org.cushing and org.cushingEnd then
-		local rag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
-		if IsValid(rag) then
-			if CurTime() > org.cushingEnd then
-				clearCushing(rag)
-				org.cushing, org.cushingEnd, org.cushingDur, org.cushingStart, org.cushingDelay = nil, nil, nil, nil, nil
-			else
-				local start = org.cushingStart or (org.cushingEnd - (org.cushingDur or 5))
-				if CurTime() >= start then
-					local easeRaw = math_clamp((CurTime() - start) / REACTION_EASE_IN, 0, 1)
-					local ease = easeRaw * easeRaw * (3 - 2 * easeRaw)
-					local fade = math_clamp((org.cushingEnd - CurTime()) / (org.cushingDur or 5), 0.1, 1)
-					processCushing(rag, fade, ease)
-				end
-			end
-		end
-	end
+	processActivePosture(owner, org)
 	
 	local deathRag = IsValid(owner.FakeRagdoll) and owner.FakeRagdoll or (owner:IsRagdoll() and owner or nil)
 	if IsValid(deathRag) and deathRag.spasm and deathRag.spasmEnd then
@@ -640,10 +586,10 @@ hook.Add("Org Clear", "BrainfuckClear", function(org)
 		clearLazarus(org.owner)
 		clearCushing(org.owner)
 	end
-	org.fencing, org.fencingEnd, org.fencingStart, org.fencingDelay = nil, nil, nil, nil
-	org.decorticate, org.decorticateEnd, org.decorticateStart, org.decorticateDelay = nil, nil, nil, nil
-	org.lazarus, org.lazarusEnd, org.lazarusStart, org.lazarusDelay = nil, nil, nil, nil
-	org.cushing, org.cushingEnd, org.cushingStart, org.cushingDelay = nil, nil, nil, nil
+	clearPostureState(org, "fencing")
+	clearPostureState(org, "decorticate")
+	clearPostureState(org, "lazarus")
+	clearPostureState(org, "cushing")
 	org._brainDeathBurstTriggered, org._brainDeathBurstStart, org._brainDeathBurstEnd, org._brainDeathBurstRag = nil, nil, nil, nil
 end)
 

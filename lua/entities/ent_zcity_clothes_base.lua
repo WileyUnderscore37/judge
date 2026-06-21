@@ -344,7 +344,7 @@ end
         local ply = LocalPlayer()
         local organism = ply.organism or {}
 
-        if ply:Alive() and !organism.otrub and hg.GetCurrentCharacter(ply) == ply and ply:KeyDown(IN_WALK) then
+        if ply:Alive() and !organism.otrub and hg.GetCurrentCharacter(ply) == ply then
             local Clothes = ply:GetNetVar("zc_clothes", {})
             if !Clothes or #Clothes < 1 then return end
             local tbl = {function()

@@ -18,6 +18,7 @@ colors.scrollbarBorder = Color(100,100,120,200)
 colors.previewBorder = Color(255,200,50,255)
 
 local presetsDir = "zcity/appearances/presets/"
+local SOUND_APPEARANCE_SUCCESS = "ui/rem_success.wav"
 
 local function SavePreset(strName, tblAppearance)
     file.CreateDir(presetsDir)
@@ -823,7 +824,7 @@ function PANEL:PostInit()
         net.SendToServer()
         main.SharedPreviewOriginal = table.Copy(main.AppearanceTable)
         savedAppearanceSnapshot = BuildComparableAppearanceTable(main.AppearanceTable)
-        surface.PlaySound("pwb2/weapons/iron.wav")
+        surface.PlaySound(SOUND_APPEARANCE_SUCCESS)
     end
 
     local function HasUnsavedChanges()

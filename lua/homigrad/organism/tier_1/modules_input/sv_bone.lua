@@ -121,6 +121,7 @@ local function legs(org, bone, dmg, dmgInfo, key, segment, boneindex, dir, hit, 
 
 		timer.Simple(0, function() hg.LightStunPlayer(org.owner,2) end)
 		playBoneFractureSound(org.owner)
+		if org.isPly and hg.QueuePainScream then hg.QueuePainScream(org.owner, 1.35) end
 		//broken
 	else
 		//org[key] = 0.5
@@ -138,6 +139,7 @@ local function legs(org, bone, dmg, dmgInfo, key, segment, boneindex, dir, hit, 
 
 		timer.Simple(0, function() hg.LightStunPlayer(org.owner,2) end)
 		playBoneFractureSound(org.owner)
+		if org.isPly and hg.QueuePainScream then hg.QueuePainScream(org.owner, 1) end
 		//dislocated
 	end
 
@@ -184,6 +186,7 @@ local function arms(org, bone, dmg, dmgInfo, key, segment, boneindex, dir, hit, 
 
 		--timer.Simple(0, function() hg.LightStunPlayer(org.owner,1) end)
 		playBoneFractureSound(org.owner)
+		if org.isPly and hg.QueuePainScream then hg.QueuePainScream(org.owner, 1.35) end
 		//broken
 	else
 		org[key.."dislocation"] = true
@@ -200,6 +203,7 @@ local function arms(org, bone, dmg, dmgInfo, key, segment, boneindex, dir, hit, 
 
 		--timer.Simple(0, function() hg.LightStunPlayer(org.owner,1) end)
 		playBoneFractureSound(org.owner)
+		if org.isPly and hg.QueuePainScream then hg.QueuePainScream(org.owner, 1) end
 		//dislocated
 	end
 
@@ -239,6 +243,7 @@ local function spine(org, bone, dmg, dmgInfo, number, boneindex, dir, hit, ricoc
 
 	if org[name] >= hg.organism[name2] and org.isPly then
 		playBoneFractureSound(org.owner)
+		if hg.QueuePainScream then hg.QueuePainScream(org.owner, 1.1) end
 		if org.owner:IsPlayer() then
 			org.owner:Notify(huyasd[name], true, name, 2)
 		end
@@ -284,7 +289,10 @@ input_list.jaw = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricochet
 		org.shock = org.shock + dmg * 40
 		org.avgpain = org.avgpain + dmg * 30
 
-		if oldDmg != 1 then playBoneFractureSound(org.owner) end
+		if oldDmg != 1 then
+			playBoneFractureSound(org.owner)
+			if org.isPly and hg.QueuePainScream then hg.QueuePainScream(org.owner, 1) end
+		end
 	end
 
 	org.shock = org.shock + dmg * 3
@@ -295,6 +303,7 @@ input_list.jaw = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricochet
 		
 		if !org.jawdislocation then
 			playBoneFractureSound(org.owner)
+			if org.isPly and hg.QueuePainScream then hg.QueuePainScream(org.owner, 0.85) end
 		end
 
 		org.jawdislocation = true
@@ -423,6 +432,7 @@ input_list.chest = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricoch
 			//org.owner:Notify(ribs[math.random(#ribs)], 5, "ribs", 4)
 
 			playBoneFractureSound(org.owner)
+			if hg.QueuePainScream then hg.QueuePainScream(org.owner, 0.8) end
 
 			return math.min(0, result)
 		end

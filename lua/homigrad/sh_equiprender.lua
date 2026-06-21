@@ -413,7 +413,7 @@ if CLIENT then
 			tbl["hg_brassknuckles"] = inventory["Weapons"]["hg_brassknuckles"]
 		end
 	
-		if not organism.otrub and table.Count(tbl) > 0 and lply:KeyDown(IN_WALK) then
+		if not organism.otrub and table.Count(tbl) > 0 then
 			hg.radialOptions = hg.radialOptions or {}
 			local newEntry = {equipmentMenu, "Drop Equipment"}
 			hg.radialOptions[#hg.radialOptions + 1] = newEntry

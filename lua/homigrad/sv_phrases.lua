@@ -384,18 +384,233 @@ end)
 hook.Add("PlayerDeath", "StopPhrOnDeath",function(ply)
 	local ent = hg.GetCurrentCharacter(ply)
 	ent:StopSound(ply.lastPhr or "")
+	hg.StopPainScream(ply, 0.05)
 	ply.phrCld = 0
+
+	local org = ply.organism
+	if org then
+		org.painScreamQueue = 0
+		org.painScreamUntil = 0
+		org.painScreamNext = 0
+	end
 end)
 
 hook.Add("HG_OnOtrub", "StopPhrOnOtrub", function( ply )
 	local ent = hg.GetCurrentCharacter(ply)
 	ent:StopSound(ply.lastPhr or "")
+	hg.StopPainScream(ply, 0.35)
 	ply.phrCld = 0
 end)
 
 local femaleCount = 10
 local maleCount = 14
 local clr = Color(204,48,0)
+local painScreamFolders = {
+	[false] = {
+		"male1",
+		"male2"
+	},
+	[true] = {
+		"female1",
+		"female2"
+	}
+}
+local painScreamRestartFade = 0.6
+local painScreamEndFade = 0.05
+local painScreamChance = 0.42
+
+function hg.AssignPainScreamFolder(ply)
+	if !IsValid(ply) or !ply:IsPlayer() then return end
+
+	local female = ThatPlyIsFemale(ply)
+
+	if ply.painScreamFolder and ply.painScreamFolderFemale == female then
+		return ply.painScreamFolder
+	end
+
+	local folders = painScreamFolders[female]
+	ply.painScreamFolderFemale = female
+	ply.painScreamFolder = folders[mRandom(#folders)]
+
+	return ply.painScreamFolder
+end
+
+hook.Add("PlayerSpawn", "HG_AssignPainScreamFolder", function(ply)
+	timer.Simple(0, function()
+		if !IsValid(ply) then return end
+
+		hg.StopPainScream(ply, 0)
+		hg.AssignPainScreamFolder(ply)
+	end)
+end)
+
+local function canPainScream(ply)
+	if !IsValid(ply) or !ply:IsPlayer() or !ply:Alive() then return false end
+
+	local org = ply.organism
+	if !org or org.otrub or ply:WaterLevel() >= 3 then return false end
+
+	return true
+end
+
+local function clearPainScream(ply, patch)
+	if !IsValid(ply) then return end
+	if patch and ply.painScreamPatch != patch then return end
+
+	ply.painScreamPatch = nil
+	ply.painScreamEnt = nil
+	ply.painScreamPhrase = nil
+end
+
+function hg.StopPainScream(ply, fade)
+	if !IsValid(ply) then return end
+
+	local patch = ply.painScreamPatch
+	local ent = ply.painScreamEnt
+	local phrase = ply.painScreamPhrase
+	fade = fade or 0
+	local stopSoundPhrase = phrase
+	local stopSoundEnt = ent
+
+	if patch then
+		if fade > 0 then
+			patch:ChangeVolume(0, fade)
+
+			timer.Simple(fade, function()
+				if not patch then return end
+
+				patch:Stop()
+				clearPainScream(ply, patch)
+			end)
+		else
+			patch:Stop()
+			clearPainScream(ply, patch)
+		end
+	end
+
+	if stopSoundPhrase and not patch then
+		local function stopOnEntities()
+			if IsValid(stopSoundEnt) then
+				stopSoundEnt:StopSound(stopSoundPhrase)
+			end
+
+			if IsValid(ply) then
+				local current = hg.GetCurrentCharacter(ply)
+				if IsValid(current) and current != stopSoundEnt then
+					current:StopSound(stopSoundPhrase)
+				end
+			end
+		end
+		stopOnEntities()
+	end
+end
+
+function hg.QueuePainScream(ply, amount)
+	if !canPainScream(ply) then return end
+
+	local org = ply.organism
+	amount = mClamp(amount or 0, 0, 2)
+
+	if amount <= 0 then return end
+
+	org.painScreamQueue = mClamp((org.painScreamQueue or 0) + amount, 0, 3)
+	org.painScreamUntil = CurTime() + 8
+end
+
+local function playPainScream(ply)
+	if !canPainScream(ply) then return false end
+	if mRandom(1, 100) > (mClamp(painScreamChance, 0, 1) * 100) then return true end
+
+	local folder = hg.AssignPainScreamFolder(ply)
+	local ent = hg.GetCurrentCharacter(ply)
+
+	if !folder or !IsValid(ent) then return false end
+
+	hg.StopPainScream(ply, painScreamRestartFade)
+
+	local prefix = string.match(folder, "^(female)") or string.match(folder, "^(male)") or folder
+	local phrase = "screams/" .. folder .. "/rem_" .. prefix .. "partial" .. mRandom(1, 4) .. ".mp3"
+	local rf = RecipientFilter()
+	rf:AddPAS(ent:GetPos())
+
+	local patch = CreateSound(ent, phrase, rf)
+	if !patch then return false end
+
+	local duration = SoundDuration(phrase)
+	if duration <= 0 then duration = 2 end
+
+	patch:SetSoundLevel(75)
+	patch:PlayEx(1, mClamp(ply.VoicePitch or 100, 92, 108))
+
+	ply.painScreamPatch = patch
+	ply.painScreamEnt = ent
+	ply.painScreamPhrase = phrase
+	ply.lastPhr = phrase
+	ply.phrCld = math.max(ply.phrCld or 0, CurTime() + math.min(duration, 1.25))
+
+	if painScreamEndFade > 0 and duration > painScreamEndFade + 0.05 then
+		timer.Simple(duration - painScreamEndFade, function()
+			if !IsValid(ply) then return end
+			if ply.painScreamPatch != patch then return end
+			if !ply:Alive() then
+				patch:Stop()
+				clearPainScream(ply, patch)
+				return
+			end
+			patch:ChangeVolume(0, painScreamEndFade)
+		end)
+	end
+
+	timer.Simple(duration + 0.1, function()
+		if !IsValid(ply) then return end
+		if ply.painScreamPatch != patch then return end
+		if !ply:Alive() then
+			patch:Stop()
+			clearPainScream(ply, patch)
+			return
+		end
+
+		patch:Stop()
+		clearPainScream(ply, patch)
+	end)
+
+	return true
+end
+
+hook.Add("HomigradDamage", "HG_PainScreamDamage", function(ply, dmgInfo)
+	if !canPainScream(ply) then return end
+
+	local dmg = dmgInfo:GetDamage()
+
+	if dmgInfo:IsDamageType(DMG_BULLET + DMG_BUCKSHOT) and dmg >= 8 then
+		hg.QueuePainScream(ply, mClamp(dmg / 20, 0.75, 1.35))
+	elseif dmgInfo:IsDamageType(DMG_BLAST) and dmg >= 10 then
+		hg.QueuePainScream(ply, mClamp(dmg / 16, 1, 1.75))
+	end
+end)
+
+hook.Add("Org Think", "HG_PainScreamThink", function(owner, org)
+	if !canPainScream(owner) then return end
+
+	local time = CurTime()
+
+	if (org.painScreamUntil or 0) < time then
+		org.painScreamQueue = 0
+		return
+	end
+
+	if (org.painScreamQueue or 0) < 1 then return end
+	if owner.painScreamPatch then return end
+	if (org.painScreamNext or 0) > time then return end
+
+	org.painScreamQueue = math.max((org.painScreamQueue or 0) - 1, 0)
+
+	if playPainScream(owner) then
+		org.painScreamNext = time + math.Rand(3, 4)
+	else
+		org.painScreamNext = time + 1
+	end
+end)
 
 hook.Add("PreHomigradDamage","BurnScream", function( ent, dmgInfo )
 	local ply = ent:IsRagdoll() and hg.RagdollOwner(ent) or ent
@@ -441,6 +656,7 @@ hook.Add("OnEntityWaterLevelChanged","StopPhraseInWater",function(ent,old,new)
 		local entReal = hg.GetCurrentCharacter(ply)
 		if ent == entReal and new == 3 then
 			ply.phrCld = 0
+			hg.StopPainScream(ply, 0.2)
 			ent:StopSound(ply.lastPhr or "")
 		end
 	end

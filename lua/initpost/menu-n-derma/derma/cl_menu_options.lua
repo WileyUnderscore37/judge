@@ -6,7 +6,14 @@ function hg.settings:AddOpt( strCategory, strConVar, strTitle, bDecimals, bStrin
     self.tbl[strCategory][strConVar] = { strCategory, strConVar, strTitle, bDecimals or false, bString or false, category }
 end
 local hg_firstperson_death = CreateClientConVar("hg_firstperson_death", "0", true, false, "Toggle first-person death camera view", 0, 1)
-local hg_font = CreateClientConVar("hg_font", "Courier Prime", true, false, "change every text font to selected because ui customization is cool")
+local hg_font_default = "Lora"
+local hg_font_legacy_default = "Courier Prime"
+local hg_font = CreateClientConVar("hg_font", hg_font_default, true, false, "change every text font to selected because ui customization is cool")
+
+if hg_font:GetString() == "" or hg_font:GetString() == hg_font_legacy_default then
+	RunConsoleCommand("hg_font", hg_font_default)
+end
+
 local hg_attachment_draw_distance = CreateClientConVar("hg_attachment_draw_distance", 0, true, nil, "distance to draw attachments", 0, 4096)
 
 xbars = 17
@@ -20,6 +27,20 @@ local sw, sh = ScrW(), ScrH()
 
 local function MenuUnit(num)
     return math.floor(num * math.min(ScrW(), ScrH()) / 1000)
+end
+
+local SOUND_SETTINGS_CLICK = "ui/rem_click.wav"
+local SOUND_TYPEWRITER = "rem_speech.ogg"
+local SOUND_TYPEWRITER_VOLUME = 0.35
+local SOUND_TYPEWRITER_PITCH = 110
+
+local function PlayTypewriterSound()
+    local ply = LocalPlayer and LocalPlayer()
+    if IsValid(ply) then
+        ply:EmitSound(SOUND_TYPEWRITER, 60, SOUND_TYPEWRITER_PITCH, SOUND_TYPEWRITER_VOLUME)
+        return
+    end
+    surface.PlaySound(SOUND_TYPEWRITER)
 end
 
 local settings_header_height = 70
@@ -366,7 +387,7 @@ local function SettingsCreateCategoryButton(pParent, strTitle, categoryKey)
 
     function btn:DoClick()
         if not IsValid(self) then return end
-        surface.PlaySound("shitty/tap_depress.wav")
+        surface.PlaySound(SOUND_SETTINGS_CLICK)
         settings_active_category = self.CategoryKey
         SettingsRefreshContent()
     end
@@ -392,13 +413,20 @@ local function SettingsCreateCategoryButton(pParent, strTitle, categoryKey)
         local targetText = isActive and ('[ '..strTitle..' ]') or strTitle
         local len = #targetText
         if charsToShow > len then charsToShow = len end
+        if self.TypewriterTarget ~= targetText then
+            self.TypewriterTarget = targetText
+            self.LastTypewriterChars = 0
+        end
+        if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+            PlayTypewriterSound()
+        end
+        self.LastTypewriterChars = charsToShow
         local ntxt = ""
         for i = 1, len do
             if i <= charsToShow then ntxt = ntxt .. targetText:sub(i, i)
             else ntxt = ntxt .. "#" end
         end
         if self:GetText() ~= ntxt then
-            surface.PlaySound("shitty/tap-resonant.wav")
             self:SetText(ntxt)
             self:SizeToContents()
         end
@@ -533,7 +561,7 @@ function SettingsRefreshContent()
                 if convar.GetName then
                     RunConsoleCommand(convar:GetName(), newValue and "1" or "0")
                 end
-                surface.PlaySound('glide/headlights_on.wav')
+                surface.PlaySound(SOUND_SETTINGS_CLICK)
                 targetProgress = newValue and 1 or 0
             end
 
@@ -743,13 +771,20 @@ function hg.DrawSettings(ParentPanel)
         local target = "SETTINGS"
         local len = #target
         if charsToShow > len then charsToShow = len end
+        if self.TypewriterTarget ~= target then
+            self.TypewriterTarget = target
+            self.LastTypewriterChars = 0
+        end
+        if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+            PlayTypewriterSound()
+        end
+        self.LastTypewriterChars = charsToShow
         local ntxt = ""
         for i = 1, len do
             if i <= charsToShow then ntxt = ntxt .. target:sub(i, i)
             else ntxt = ntxt .. "#" end
         end
         if self:GetText() ~= ntxt then
-            surface.PlaySound("shitty/tap-resonant.wav")
             self:SetText(ntxt)
             self:SizeToContents()
         end
@@ -776,6 +811,7 @@ function hg.DrawSettings(ParentPanel)
     backBtn.LineLerp = 0
     backBtn.HoverScale = 0.008
     function backBtn:DoClick()
+        surface.PlaySound(SOUND_SETTINGS_CLICK)
         if IsValid(ParentPanel) then 
             local luaMenu = ParentPanel:GetParent()
             ParentPanel:AlphaTo(0, 0.2, 0, function()
@@ -813,13 +849,20 @@ function hg.DrawSettings(ParentPanel)
         local target = "<- Return"
         local len = #target
         if charsToShow > len then charsToShow = len end
+        if self.TypewriterTarget ~= target then
+            self.TypewriterTarget = target
+            self.LastTypewriterChars = 0
+        end
+        if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+            PlayTypewriterSound()
+        end
+        self.LastTypewriterChars = charsToShow
         local ntxt = ""
         for i = 1, len do
             if i <= charsToShow then ntxt = ntxt .. target:sub(i, i)
             else ntxt = ntxt .. "#" end
         end
         if self:GetText() ~= ntxt then
-            surface.PlaySound("shitty/tap-resonant.wav")
             self:SetText(ntxt)
             self:SizeToContents()
         end
@@ -907,7 +950,7 @@ local function InfoCreateSectionButton(pParent, strTitle, sectionKey)
     btn:SetText(string.rep("#", #strTitle))
     btn:SetMouseInputEnabled(true)
     btn:SizeToContents()
-    btn:SetFont("ZCity_Menu_Small")
+    btn:SetFont("ZCity_Menu_Settings_Small")
     btn:SetTall(MenuUnit(42))
     btn:Dock(TOP)
     btn:DockMargin(MenuUnit(15), MenuUnit(2), 0, 0)
@@ -929,7 +972,7 @@ local function InfoCreateSectionButton(pParent, strTitle, sectionKey)
     function btn:DoClick()
         if not IsValid(self) then return end
         if self.SectionDisabled then return end
-        surface.PlaySound("shitty/tap_depress.wav")
+        surface.PlaySound(SOUND_SETTINGS_CLICK)
         info_active_section = self.SectionKey
         InfoRefreshContent()
     end
@@ -951,13 +994,20 @@ local function InfoCreateSectionButton(pParent, strTitle, sectionKey)
         local targetText = isActive and ("[ " .. strTitle .. " ]") or strTitle
         local len = #targetText
         if charsToShow > len then charsToShow = len end
+        if self.TypewriterTarget ~= targetText then
+            self.TypewriterTarget = targetText
+            self.LastTypewriterChars = 0
+        end
+        if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+            PlayTypewriterSound()
+        end
+        self.LastTypewriterChars = charsToShow
         local ntxt = ""
         for i = 1, len do
             if i <= charsToShow then ntxt = ntxt .. targetText:sub(i, i)
             else ntxt = ntxt .. "#" end
         end
         if self:GetText() ~= ntxt then
-            surface.PlaySound("shitty/tap-resonant.wav")
             self:SetText(ntxt)
             self:SizeToContents()
         end
@@ -1514,13 +1564,20 @@ function hg.DrawInformation(ParentPanel)
         local target = "INFORMATION"
         local len = #target
         if charsToShow > len then charsToShow = len end
+        if self.TypewriterTarget ~= target then
+            self.TypewriterTarget = target
+            self.LastTypewriterChars = 0
+        end
+        if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+            PlayTypewriterSound()
+        end
+        self.LastTypewriterChars = charsToShow
         local ntxt = ""
         for i = 1, len do
             if i <= charsToShow then ntxt = ntxt .. target:sub(i, i)
             else ntxt = ntxt .. "#" end
         end
         if self:GetText() ~= ntxt then
-            surface.PlaySound("shitty/tap-resonant.wav")
             self:SetText(ntxt)
             self:SizeToContents()
         end
@@ -1533,7 +1590,7 @@ function hg.DrawInformation(ParentPanel)
     local backBtn = vgui.Create("DLabel", sidebar)
     backBtn:Dock(BOTTOM)
     backBtn:DockMargin(MenuUnit(15), MenuUnit(2), 0, MenuUnit(20))
-    backBtn:SetFont("ZCity_Menu_Small")
+    backBtn:SetFont("ZCity_Menu_Settings_Small")
     backBtn:SetTextColor(settings_color_text)
     backBtn:SetText(string.rep("#", #"<- Return"))
     backBtn:SetMouseInputEnabled(true)
@@ -1543,6 +1600,7 @@ function hg.DrawInformation(ParentPanel)
     backBtn.HoverLerp = 0
     backBtn.LineLerp = 0
     function backBtn:DoClick()
+        surface.PlaySound(SOUND_SETTINGS_CLICK)
         if IsValid(ParentPanel) then
             local luaMenu = ParentPanel:GetParent()
             ParentPanel:AlphaTo(0, 0.2, 0, function()
@@ -1580,13 +1638,20 @@ function hg.DrawInformation(ParentPanel)
         local target = "<- Return"
         local len = #target
         if charsToShow > len then charsToShow = len end
+        if self.TypewriterTarget ~= target then
+            self.TypewriterTarget = target
+            self.LastTypewriterChars = 0
+        end
+        if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+            PlayTypewriterSound()
+        end
+        self.LastTypewriterChars = charsToShow
         local ntxt = ""
         for i = 1, len do
             if i <= charsToShow then ntxt = ntxt .. target:sub(i, i)
             else ntxt = ntxt .. "#" end
         end
         if self:GetText() ~= ntxt then
-            surface.PlaySound("shitty/tap-resonant.wav")
             self:SetText(ntxt)
             self:SizeToContents()
         end

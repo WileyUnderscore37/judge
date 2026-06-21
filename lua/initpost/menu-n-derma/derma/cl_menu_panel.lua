@@ -16,6 +16,21 @@ local menu_music_target_path = menu_music_default_path
 
 DISCORD_URL = "https://discord.gg/475EmEdTgH"
 
+local SOUND_MENU_SELECT = "ui/rem_select.wav"
+local SOUND_MENU_HOVER = "ui/rem_hover.wav"
+local SOUND_TYPEWRITER = "rem_speech.ogg"
+local SOUND_TYPEWRITER_VOLUME = 0.35
+local SOUND_TYPEWRITER_PITCH = 110
+
+local function PlayTypewriterSound()
+    local ply = LocalPlayer and LocalPlayer()
+    if IsValid(ply) then
+        ply:EmitSound(SOUND_TYPEWRITER, 60, SOUND_TYPEWRITER_PITCH, SOUND_TYPEWRITER_VOLUME)
+        return
+    end
+    surface.PlaySound(SOUND_TYPEWRITER)
+end
+
 local function StopMainMenuMusic()
     if menu_music_station then
         menu_music_station:Stop()
@@ -149,6 +164,7 @@ local Selects = {
         btnSOE.strTitle = "SOE"
 
         function btnSOE:DoClick()
+            surface.PlaySound(SOUND_MENU_SELECT)
             luaMenu:Close()
             hg.SelectPlayerRole(nil, "soe")
         end
@@ -166,6 +182,14 @@ local Selects = {
             local targetText = self.strTitle
             local len = #targetText
             if charsToShow > len then charsToShow = len end
+            if self.TypewriterTarget ~= targetText then
+                self.TypewriterTarget = targetText
+                self.LastTypewriterChars = 0
+            end
+            if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+                PlayTypewriterSound()
+            end
+            self.LastTypewriterChars = charsToShow
             local ntxt = ""
             for i = 1, len do
                 if i <= charsToShow then
@@ -223,6 +247,7 @@ local Selects = {
         btnSTD.strTitle = "STD"
 
         function btnSTD:DoClick()
+            surface.PlaySound(SOUND_MENU_SELECT)
             luaMenu:Close()
             hg.SelectPlayerRole(nil, "standard")
         end
@@ -238,6 +263,14 @@ local Selects = {
             local targetText = self.strTitle
             local len = #targetText
             if charsToShow > len then charsToShow = len end
+            if self.TypewriterTarget ~= targetText then
+                self.TypewriterTarget = targetText
+                self.LastTypewriterChars = 0
+            end
+            if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+                PlayTypewriterSound()
+            end
+            self.LastTypewriterChars = charsToShow
             local ntxt = ""
             for i = 1, len do
                 if i <= charsToShow then
@@ -1075,9 +1108,7 @@ function PANEL:AddSelect( pParent, strTitle, tbl )
     function btn:DoClick()
         if luaMenu.DisconnectCutscene then return end
         if luaMenu.SwitchingPanel then return end
-		for i = 1, 3 do
-			surface.PlaySound("shitty/tap_depress.wav")
-		end
+        surface.PlaySound(SOUND_MENU_SELECT)
 
         if tbl.BypassTransition then
             btn.Func(luaMenu)
@@ -1118,6 +1149,10 @@ function PANEL:AddSelect( pParent, strTitle, tbl )
 
     function btn:Think()
         local isHovered = self:IsHovered() or (IsValid(self:GetChild(0)) and self:GetChild(0):IsHovered()) or (IsValid(self:GetChild(0)) and IsValid(self:GetChild(0):GetChild(0)) and self:GetChild(0):GetChild(0):IsHovered())
+        if isHovered and not self.WasHovered then
+            surface.PlaySound(SOUND_MENU_HOVER)
+        end
+        self.WasHovered = isHovered
 
         self.HoverLerp = LerpFT(0.2, self.HoverLerp or 0, isHovered and 1 or 0)
         self.LineLerp = LerpFT(0.2, self.LineLerp or 0, isHovered and 1 or 0)
@@ -1136,6 +1171,14 @@ function PANEL:AddSelect( pParent, strTitle, tbl )
         local len = #targetText
 
         if charsToShow > len then charsToShow = len end
+        if self.TypewriterTarget ~= targetText then
+            self.TypewriterTarget = targetText
+            self.LastTypewriterChars = 0
+        end
+        if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+            PlayTypewriterSound()
+        end
+        self.LastTypewriterChars = charsToShow
 
         local ntxt = ""
         for i = 1, len do
@@ -1147,7 +1190,6 @@ function PANEL:AddSelect( pParent, strTitle, tbl )
         end
 
         if self:GetText() ~= ntxt then
-            surface.PlaySound("shitty/tap-resonant.wav")
             self:SetText(ntxt)
             self:SizeToContents()
         end

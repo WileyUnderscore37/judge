@@ -51,6 +51,21 @@ end
 hook.Add("OnScreenSizeChanged", "ZCity_Achievement_Fonts", CreateAchievementFonts)
 CreateAchievementFonts()
 
+local SOUND_ACH_CLICK = "ui/rem_click.wav"
+local SOUND_ACH_SELECT = "ui/rem_select.wav"
+local SOUND_TYPEWRITER = "rem_speech.ogg"
+local SOUND_TYPEWRITER_VOLUME = 0.35
+local SOUND_TYPEWRITER_PITCH = 110
+
+local function PlayTypewriterSound()
+    local ply = LocalPlayer and LocalPlayer()
+    if IsValid(ply) then
+        ply:EmitSound(SOUND_TYPEWRITER, 60, SOUND_TYPEWRITER_PITCH, SOUND_TYPEWRITER_VOLUME)
+        return
+    end
+    surface.PlaySound(SOUND_TYPEWRITER)
+end
+
 local achievement_header_height = 70
 local achievement_color_white = Color(255,255,255,240)
 local achievement_color_dim = Color(60,60,60,180)
@@ -133,6 +148,7 @@ local function AchievementCreateReturnButton(sidebar, ParentPanel)
     backBtn.LineLerp = 0
 
     function backBtn:DoClick()
+        surface.PlaySound(SOUND_ACH_CLICK)
         if IsValid(ParentPanel) then
             local luaMenu = ParentPanel:GetParent()
             ParentPanel:AlphaTo(0, 0.2, 0, function()
@@ -171,6 +187,14 @@ local function AchievementCreateReturnButton(sidebar, ParentPanel)
         local target = "<- Return"
         local len = #target
         if charsToShow > len then charsToShow = len end
+        if self.TypewriterTarget ~= target then
+            self.TypewriterTarget = target
+            self.LastTypewriterChars = 0
+        end
+        if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+            PlayTypewriterSound()
+        end
+        self.LastTypewriterChars = charsToShow
         local ntxt = ""
         for i = 1, len do
             if i <= charsToShow then
@@ -180,7 +204,6 @@ local function AchievementCreateReturnButton(sidebar, ParentPanel)
             end
         end
         if self:GetText() ~= ntxt then
-            surface.PlaySound("shitty/tap-resonant.wav")
             self:SetText(ntxt)
             self:SizeToContents()
         end
@@ -229,6 +252,7 @@ local function AchievementCreateHeaderReturnButton(parent, ParentPanel)
     backBtn.LineLerp = 0
 
     function backBtn:DoClick()
+        surface.PlaySound(SOUND_ACH_CLICK)
         if IsValid(ParentPanel) then
             local luaMenu = ParentPanel:GetParent()
             ParentPanel:AlphaTo(0, 0.2, 0, function()
@@ -267,6 +291,14 @@ local function AchievementCreateHeaderReturnButton(parent, ParentPanel)
         local target = "<- Return"
         local len = #target
         if charsToShow > len then charsToShow = len end
+        if self.TypewriterTarget ~= target then
+            self.TypewriterTarget = target
+            self.LastTypewriterChars = 0
+        end
+        if charsToShow > 0 and charsToShow > (self.LastTypewriterChars or 0) then
+            PlayTypewriterSound()
+        end
+        self.LastTypewriterChars = charsToShow
         local ntxt = ""
         for i = 1, len do
             if i <= charsToShow then
@@ -276,7 +308,6 @@ local function AchievementCreateHeaderReturnButton(parent, ParentPanel)
             end
         end
         if self:GetText() ~= ntxt then
-            surface.PlaySound("shitty/tap-resonant.wav")
             self:SetText(ntxt)
             self:SizeToContents()
         end
@@ -399,34 +430,26 @@ function hg.DrawAchievmentsMenu(ParentPanel)
         surface.DrawRect(0, h - MenuUnit(1), w, MenuUnit(1))
     end
 
-    local backBtn = AchievementCreateHeaderReturnButton(header, ParentPanel)
-    backBtn:SetPos(MenuUnit(25), MenuUnit(16))
-
     local headerTitle = vgui.Create("DLabel", header)
     headerTitle:SetFont("ZCity_Ach_Title")
     headerTitle:SetTextColor(achievement_color_white)
     headerTitle:SetText("ACHIEVEMENTS")
     headerTitle:SizeToContents()
+    headerTitle:SetPos(MenuUnit(25), MenuUnit(18))
 
     local headerHint = vgui.Create("DLabel", header)
     headerHint:SetFont("ZCity_Ach_Tiny")
     headerHint:SetTextColor(achievement_color_text_dim)
     headerHint:SetText("")
     headerHint:SetVisible(false)
-
-    header.Think = function(self)
-        if not IsValid(backBtn) or not IsValid(headerTitle) then return end
-        local titleX = backBtn:GetX() + backBtn:GetWide() + MenuUnit(18)
-        headerTitle:SetPos(titleX, MenuUnit(18))
-        if IsValid(headerHint) then
-            headerHint:SetPos(titleX, MenuUnit(48))
-        end
-    end
+    headerHint:SetPos(MenuUnit(25), MenuUnit(48))
 
     local contentHolder = vgui.Create("DPanel", mainPanel)
     contentHolder:Dock(FILL)
     contentHolder:DockMargin(MenuUnit(22), MenuUnit(22), MenuUnit(22), MenuUnit(22))
     contentHolder.Paint = function() end
+
+    AchievementCreateReturnButton(mainPanel, ParentPanel)
 
     local body = vgui.Create("DPanel", contentHolder)
     body:Dock(FILL)
@@ -654,7 +677,7 @@ function hg.DrawAchievmentsMenu(ParentPanel)
 
             row.DoClick = function(self)
                 achievement_active_key = self.Entry.key
-                surface.PlaySound("shitty/tap_depress.wav")
+                surface.PlaySound(SOUND_ACH_SELECT)
                 root:RefreshDetail()
                 root:RefreshList()
             end
