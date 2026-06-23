@@ -53,14 +53,15 @@ CreateAchievementFonts()
 
 local SOUND_ACH_CLICK = "ui/rem_click.wav"
 local SOUND_ACH_SELECT = "ui/rem_select.wav"
-local SOUND_TYPEWRITER = "rem_speech.ogg"
-local SOUND_TYPEWRITER_VOLUME = 0.35
-local SOUND_TYPEWRITER_PITCH = 110
+local SOUND_TYPEWRITER = "shitty/tap-resonant.wav"
+local SOUND_TYPEWRITER_LEVEL = 55
+local SOUND_TYPEWRITER_VOLUME = 0.25
+local SOUND_TYPEWRITER_PITCH = 102
 
 local function PlayTypewriterSound()
     local ply = LocalPlayer and LocalPlayer()
     if IsValid(ply) then
-        ply:EmitSound(SOUND_TYPEWRITER, 60, SOUND_TYPEWRITER_PITCH, SOUND_TYPEWRITER_VOLUME)
+        ply:EmitSound(SOUND_TYPEWRITER, SOUND_TYPEWRITER_LEVEL, SOUND_TYPEWRITER_PITCH, SOUND_TYPEWRITER_VOLUME)
         return
     end
     surface.PlaySound(SOUND_TYPEWRITER)
@@ -83,6 +84,11 @@ local gradient_u = Material("vgui/gradient-u")
 local tex_gradient_d = surface.GetTextureID("vgui/gradient-d")
 local tex_gradient_r = surface.GetTextureID("vgui/gradient-r")
 local tex_gradient_l = surface.GetTextureID("vgui/gradient-l")
+local achievement_transition_fade_time = 0.15
+local achievement_transition_slide_speed = 8
+local achievement_transition_list_offset = 180
+local achievement_transition_detail_offset = 180
+local achievement_return_offset = 180
 
 local function AchievementGetLocalTable()
     if not hg or not hg.achievements or not hg.achievements.GetLocalAchievements then
@@ -146,6 +152,7 @@ local function AchievementCreateReturnButton(sidebar, ParentPanel)
     backBtn.OpenTime = CurTime()
     backBtn.HoverLerp = 0
     backBtn.LineLerp = 0
+    backBtn.EnterLerp = 0
 
     function backBtn:DoClick()
         surface.PlaySound(SOUND_ACH_CLICK)
@@ -182,6 +189,13 @@ local function AchievementCreateReturnButton(sidebar, ParentPanel)
         local isHovered = self:IsHovered()
         self.HoverLerp = LerpFT(0.2, self.HoverLerp or 0, isHovered and 1 or 0)
         self.LineLerp = LerpFT(0.2, self.LineLerp or 0, isHovered and 1 or 0)
+        self.EnterLerp = LerpFT(0.18, self.EnterLerp or 0, 1)
+        self:DockMargin(
+            math.Round(Lerp(self.EnterLerp or 0, -MenuUnit(achievement_return_offset), MenuUnit(15))),
+            MenuUnit(2),
+            0,
+            MenuUnit(20)
+        )
         local elapsed = CurTime() - self.OpenTime
         local charsToShow = math.floor(elapsed * 15)
         local target = "<- Return"
@@ -399,7 +413,7 @@ function hg.DrawAchievmentsMenu(ParentPanel)
         surface.SetTexture(tex_gradient_d)
         surface.DrawTexturedRect(0, 0, w, h)
     end
-    ParentPanel:AlphaTo(255, 0.15, 0)
+    ParentPanel:AlphaTo(255, achievement_transition_fade_time, 0)
 
     local root = vgui.Create("DPanel", ParentPanel)
     root:SetSize(ParentPanel:GetWide(), ParentPanel:GetTall())
@@ -456,14 +470,29 @@ function hg.DrawAchievmentsMenu(ParentPanel)
     body.Paint = function() end
 
     local listCard = vgui.Create("DPanel", body)
-    listCard:Dock(LEFT)
-    listCard:SetWide(math.max(MenuUnit(430), math.floor(ScrW() * 0.5)))
-    listCard:DockMargin(0, 0, MenuUnit(14), 0)
+    listCard:SetPos(0, 0)
+    listCard:SetSize(0, 0)
+    listCard.TargetX = 0
+    listCard.TargetY = 0
     listCard.Paint = function(self, w, h)
         surface.SetDrawColor(achievement_card.r, achievement_card.g, achievement_card.b, achievement_card.a)
         surface.DrawRect(0, 0, w, h)
         surface.SetDrawColor(achievement_color_white.r, achievement_color_white.g, achievement_color_white.b, 70)
         surface.DrawRect(0, h - MenuUnit(1), w, MenuUnit(1))
+    end
+    listCard.Think = function(self)
+        local x, y = self:GetPos()
+        local targetX = self.TargetX or x
+        local targetY = self.TargetY or y
+        local nextX = Lerp(FrameTime() * achievement_transition_slide_speed, x, targetX)
+        local nextY = Lerp(FrameTime() * achievement_transition_slide_speed, y, targetY)
+        if math.abs(targetX - nextX) < 1 then
+            nextX = targetX
+        end
+        if math.abs(targetY - nextY) < 1 then
+            nextY = targetY
+        end
+        self:SetPos(math.Round(nextX), math.Round(nextY))
     end
 
     local listHeader = vgui.Create("DPanel", listCard)
@@ -508,12 +537,29 @@ function hg.DrawAchievmentsMenu(ParentPanel)
     end
 
     local detailCard = vgui.Create("DPanel", body)
-    detailCard:Dock(FILL)
+    detailCard:SetPos(0, 0)
+    detailCard:SetSize(0, 0)
+    detailCard.TargetX = 0
+    detailCard.TargetY = 0
     detailCard.Paint = function(self, w, h)
         surface.SetDrawColor(achievement_card.r, achievement_card.g, achievement_card.b, achievement_card.a)
         surface.DrawRect(0, 0, w, h)
         surface.SetDrawColor(achievement_color_white.r, achievement_color_white.g, achievement_color_white.b, 70)
         surface.DrawRect(0, h - MenuUnit(1), w, MenuUnit(1))
+    end
+    detailCard.Think = function(self)
+        local x, y = self:GetPos()
+        local targetX = self.TargetX or x
+        local targetY = self.TargetY or y
+        local nextX = Lerp(FrameTime() * achievement_transition_slide_speed, x, targetX)
+        local nextY = Lerp(FrameTime() * achievement_transition_slide_speed, y, targetY)
+        if math.abs(targetX - nextX) < 1 then
+            nextX = targetX
+        end
+        if math.abs(targetY - nextY) < 1 then
+            nextY = targetY
+        end
+        self:SetPos(math.Round(nextX), math.Round(nextY))
     end
 
     local detailHeader = vgui.Create("DPanel", detailCard)
@@ -600,12 +646,6 @@ function hg.DrawAchievmentsMenu(ParentPanel)
         surface.DrawOutlinedRect(0, 0, w, h, 1)
     end
 
-    local detailMeta = vgui.Create("DLabel", detailContent)
-    detailMeta:SetFont("ZCity_Ach_Tiny")
-    detailMeta:SetTextColor(achievement_color_text_dim)
-    detailMeta:SetText("")
-    detailMeta:SizeToContents()
-
     detailContent.PerformLayout = function(self, w, h)
         local iconSize = math.min(MenuUnit(140), math.floor(w * 0.22))
         detailIcon:SetSize(iconSize, iconSize)
@@ -635,10 +675,27 @@ function hg.DrawAchievmentsMenu(ParentPanel)
 
         detailBar:SetPos(0, blockTop + MenuUnit(22))
         detailBar:SetSize(w, MenuUnit(12))
+    end
 
-        detailMeta:SetPos(0, blockTop + MenuUnit(44))
-        detailMeta:SetWide(w)
-        detailMeta:SizeToContentsY()
+    body.PerformLayout = function(self, w, h)
+        local gap = MenuUnit(14)
+        local minDetailW = MenuUnit(320)
+        local listW = math.max(MenuUnit(430), math.floor(ScrW() * 0.5))
+        listW = math.min(listW, math.max(MenuUnit(260), w - minDetailW - gap))
+        local detailW = math.max(minDetailW, w - listW - gap)
+
+        listCard:SetSize(listW, h)
+        detailCard:SetSize(detailW, h)
+        listCard.TargetX = 0
+        detailCard.TargetX = listW + gap
+        listCard.TargetY = 0
+        detailCard.TargetY = 0
+
+        if not self.AchievementTransitionInitialized then
+            self.AchievementTransitionInitialized = true
+            listCard:SetPos(-listW - MenuUnit(achievement_transition_list_offset), 0)
+            detailCard:SetPos(w + MenuUnit(achievement_transition_detail_offset), 0)
+        end
     end
 
     function root:GetActiveEntry()
@@ -731,7 +788,6 @@ function hg.DrawAchievmentsMenu(ParentPanel)
             detailStatus:SetText("Waiting for achievement data")
             detailDesc:SetText("Open the menu again if achievements do not appear immediately.")
             detailProgress:SetText("")
-            detailMeta:SetText("")
             detailBar.Progress = 0
             detailContent:InvalidateLayout(true)
             return
@@ -742,7 +798,6 @@ function hg.DrawAchievmentsMenu(ParentPanel)
         detailStatus:SetText(entry.status)
         detailDesc:SetText(entry.description ~= "" and entry.description or "No description provided.")
         detailProgress:SetText(entry.current .. " / " .. entry.needed .. " progress")
-        detailMeta:SetText(entry.completed and "This achievement is already unlocked." or "Keep playing to finish this achievement.")
         detailBar.Progress = entry.progress
         detailContent:InvalidateLayout(true)
     end

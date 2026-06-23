@@ -173,6 +173,7 @@ local function CreateStyledAccessoryMenu(parent, title)
             end
         end
         timer.Simple(0,function()
+            if not IsValid(spawnIcon) or not IsValid(spawnIcon.Entity) then return end
             spawnIcon.Entity:SetSkin((isfunction(accessoryData.skin) and accessoryData.skin()) or (accessoryData.skin or 0))
             spawnIcon.Entity:SetBodyGroups(accessoryData.bodygroups or "0000000")
             if accessoryData.SubMat then
@@ -263,8 +264,6 @@ function PANEL:CallbackAppearance()
 end
 
 function PANEL:First( ply )
-    self:SetY(self:GetY() + self:GetTall())
-    self:MoveTo(self:GetX(), self:GetY() - self:GetTall(), 0.4, 0, 0.2, function() end)
     self:AlphaTo( 255, 0.2, 0.1, nil )
 
     if self.PostInit then
@@ -301,6 +300,7 @@ local appearance_preview_selector_shift_x = 165
 local appearance_name_fade_speed = 0.18
 local appearance_return_move_time = 0.32
 local appearance_header_height = 70
+local appearance_panel_slide_speed = 8
 local appearance_unsaved_box_width = 420
 local appearance_unsaved_box_height = 170
 local appearance_unsaved_button_width = 140
@@ -712,12 +712,7 @@ function PANEL:PostInit()
             if modelData and modelData.SubMat then
                 ent:SetSubMaterial(0, modelData.SubMat)
             end
-            local mn, mx = ent:GetRenderBounds()
-            local center = (mn + mx) * 0.5
-            local extents = mx - mn
-            local radius = math.max(extents:Length() * 0.65, 10)
-            self:SetLookAt(center)
-            self:SetCamPos(center + Vector(radius * 1.7, radius * 0.3, radius * 0.08))
+            self:SetLookAt(modelData and modelData.vpos or Vector(0,0,0))
         end
         return row
     end
@@ -1171,7 +1166,17 @@ function PANEL:PostInit()
     local sidebarWidth = math.floor(sizeX / 3.6)
     local sidebar = vgui.Create("DPanel", self)
     sidebar:SetSize(sidebarWidth, sizeY)
-    sidebar:SetPos(0, 0)
+    sidebar:SetPos(-sidebarWidth, 0)
+    sidebar.TargetX = 0
+    sidebar.Think = function(this)
+        local x, y = this:GetPos()
+        local targetX = this.TargetX or x
+        local nextX = Lerp(FrameTime() * appearance_panel_slide_speed, x, targetX)
+        if math.abs(targetX - nextX) < 1 then
+            nextX = targetX
+        end
+        this:SetPos(math.Round(nextX), y)
+    end
     sidebar.Paint = function(this, w, h)
         draw.RoundedBox(0, 0, 0, w, h, Color(10, 10, 15, 120))
         surface.SetDrawColor(appearance_color_white.r, appearance_color_white.g, appearance_color_white.b, 90)
@@ -1217,7 +1222,17 @@ function PANEL:PostInit()
 
     local mainPanel = vgui.Create("DPanel", self)
     mainPanel:SetSize(sizeX - sidebarWidth, sizeY)
-    mainPanel:SetPos(sidebarWidth, 0)
+    mainPanel:SetPos(sizeX, 0)
+    mainPanel.TargetX = sidebarWidth
+    mainPanel.Think = function(this)
+        local x, y = this:GetPos()
+        local targetX = this.TargetX or x
+        local nextX = Lerp(FrameTime() * appearance_panel_slide_speed, x, targetX)
+        if math.abs(targetX - nextX) < 1 then
+            nextX = targetX
+        end
+        this:SetPos(math.Round(nextX), y)
+    end
     mainPanel.Paint = function() end
     self.AppearancePreviewX = sidebarWidth + MenuUnit(appearance_preview_shift_x)
     self.AppearancePreviewY = MenuUnit(appearance_preview_shift_y)

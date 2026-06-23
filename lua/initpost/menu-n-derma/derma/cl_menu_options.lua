@@ -30,14 +30,15 @@ local function MenuUnit(num)
 end
 
 local SOUND_SETTINGS_CLICK = "ui/rem_click.wav"
-local SOUND_TYPEWRITER = "rem_speech.ogg"
-local SOUND_TYPEWRITER_VOLUME = 0.35
-local SOUND_TYPEWRITER_PITCH = 110
+local SOUND_TYPEWRITER = "shitty/tap-resonant.wav"
+local SOUND_TYPEWRITER_LEVEL = 55
+local SOUND_TYPEWRITER_VOLUME = 0.25
+local SOUND_TYPEWRITER_PITCH = 102
 
 local function PlayTypewriterSound()
     local ply = LocalPlayer and LocalPlayer()
     if IsValid(ply) then
-        ply:EmitSound(SOUND_TYPEWRITER, 60, SOUND_TYPEWRITER_PITCH, SOUND_TYPEWRITER_VOLUME)
+        ply:EmitSound(SOUND_TYPEWRITER, SOUND_TYPEWRITER_LEVEL, SOUND_TYPEWRITER_PITCH, SOUND_TYPEWRITER_VOLUME)
         return
     end
     surface.PlaySound(SOUND_TYPEWRITER)

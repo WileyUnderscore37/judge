@@ -2,7 +2,7 @@ local PANEL = {}
 local curent_panel 
 local red_select = Color(192,0,0)
 local menu_music_default_path = "sound/rem_mainmenu.mp3"
-local menu_music_appearance_path = "sound/rem_track1.mp3"
+local menu_music_appearance_path = "sound/rem_appearencemenu.mp3"
 local menu_music_flags = "noblock noplay"
 local menu_music_volume = 0.25
 local menu_music_fade_speed = 1.8
@@ -18,14 +18,15 @@ DISCORD_URL = "https://discord.gg/475EmEdTgH"
 
 local SOUND_MENU_SELECT = "ui/rem_select.wav"
 local SOUND_MENU_HOVER = "ui/rem_hover.wav"
-local SOUND_TYPEWRITER = "rem_speech.ogg"
-local SOUND_TYPEWRITER_VOLUME = 0.35
-local SOUND_TYPEWRITER_PITCH = 110
+local SOUND_TYPEWRITER = "shitty/tap-resonant.wav"
+local SOUND_TYPEWRITER_LEVEL = 55
+local SOUND_TYPEWRITER_VOLUME = 0.25
+local SOUND_TYPEWRITER_PITCH = 102
 
 local function PlayTypewriterSound()
     local ply = LocalPlayer and LocalPlayer()
     if IsValid(ply) then
-        ply:EmitSound(SOUND_TYPEWRITER, 60, SOUND_TYPEWRITER_PITCH, SOUND_TYPEWRITER_VOLUME)
+        ply:EmitSound(SOUND_TYPEWRITER, SOUND_TYPEWRITER_LEVEL, SOUND_TYPEWRITER_PITCH, SOUND_TYPEWRITER_VOLUME)
         return
     end
     surface.PlaySound(SOUND_TYPEWRITER)
