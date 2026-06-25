@@ -99,6 +99,27 @@ local fear_phrases = {
 	"Cold hands. Steady hands.",
 }
 
+local panicattack_phrases = {
+	"I CAN'T... I CAN BARELY BREATHE!",
+	"My chest is... convulsing...?",
+	"I'm gonna make it... I am gonna make it..",
+	"What the fuck..?",
+	"Shit.. What is happening?",
+	"Something is very wrong with me.",
+	"Relax..!",
+	"I need a second.. Just one second.",
+	"I cant form a single thought in my head!",
+	"I can't think straight..!",
+	"My hands won't stop shaking.",
+	"I need space..",
+	"I am losing control of myself..",
+	"Focus now.",
+	"Not now.. Not now..",
+	"I can't settle down!",
+	"This is way too much..!",
+    "I don't want to die.",
+}
+
 local is_aimed_at_phrases = {
     "Oh God. This is it.",
     "Don't. move.",
@@ -303,11 +324,13 @@ function hg.likely_to_phrase(ply)
 	local brain = org.brain
 	local blood = org.blood
 	local fear = org.fear
+	local panicattack = org.panicattack or 0
 	local temperature = org.temperature
 	local broken_dislocated = org.just_damaged_bone and ((org.just_damaged_bone - CurTime()) < -3)
 
 	return (broken_dislocated) and 5
 		or (pain > 65) and 5
+		or (panicattack > 0.55 and 1.2)
 		or (temperature < 31 and 0.5)
 		or (temperature > 38 and 0.5)
 		or (blood < 3000 and 0.3)
@@ -344,6 +367,7 @@ local function get_status_message(ply)
 	local temperature = org.temperature
 	local blood = org.blood
 	local hungry = org.hungry
+	local panicattack = org.panicattack or 0
 	local broken_dislocated = org.just_damaged_bone and ((org.just_damaged_bone + 3 - CurTime()) < -3)
 
 	if broken_dislocated and org.just_damaged_bone then
@@ -394,6 +418,8 @@ local function get_status_message(ply)
 		end
 	elseif after_unconscious_notify then
 		most_wanted_phraselist = after_unconscious
+	elseif panicattack > 0.55 then
+		most_wanted_phraselist = panicattack_phrases
 	elseif hg.nothing_happening(ply) then
 		most_wanted_phraselist = random_phrase
 

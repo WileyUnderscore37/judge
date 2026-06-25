@@ -2,6 +2,20 @@
 hg.organism.module = hg.organism.module or {}
 local module = hg.organism.module
 hg.organism.lastindex = hg.organism.lastindex or 1000000
+local panicattack_threshold = 0.45
+local panicattack_add_decay_time = 90
+local panicattack_rise_time = 10
+local panicattack_decay_time = 200
+local panicattack_gain_chance = 3
+local panicattack_gain_mul = 0.4
+local panicattack_disorientation = 0.45
+local panicattack_adrenaline_add_target = 4
+local panicattack_adrenaline_add_rise_time = 14
+local panicattack_heart_roll_delay = 15
+local panicattack_heart_roll_chance = 1
+local panicattack_damage_scale = 0.006
+local panicattack_witness_radius = 850
+local panicattack_death_radius = 900
 hook.Add("Org Clear", "Main", function(org)
 	org.alive = true
 	org.otrub = false
@@ -76,6 +90,10 @@ hook.Add("Org Clear", "Main", function(org)
 	org.assimilated = 0
 	org.berserk = 0
 	org.noradrenaline = 0
+	org.panicattackadd = 0
+	org.panicattack = 0
+	org.panicattackActive = false
+	org.nextPanicHeartRoll = 0
 
 	org.blindness = nil
 
@@ -167,6 +185,8 @@ local function send_organism(org, ply)
 	sendtable.assimilated = org.assimilated
 	sendtable.berserk = org.berserk
 	sendtable.noradrenaline = org.noradrenaline
+	sendtable.panicattackadd = org.panicattackadd
+	sendtable.panicattack = org.panicattack
 	sendtable.LodgedEntities = org.LodgedEntities
 	sendtable.CantCheckPulse = org.CantCheckPulse
 	sendtable.blindness = org.blindness
@@ -229,6 +249,8 @@ local function send_bareinfo(org)
 	sendtable.berserkActive2 = org.berserkActive2
 	sendtable.CantCheckPulse = org.CantCheckPulse
 	sendtable.noradrenalineActive = org.noradrenalineActive
+	sendtable.panicattackadd = org.panicattackadd
+	sendtable.panicattack = org.panicattack
 
 	local rf = RecipientFilter()
 	--rf:AddAllPlayers()
@@ -273,6 +295,62 @@ function META2:IsStimulated()
 	return false
 end
 
+function hg.organism.AddPanicAttack(org, amount, silent)
+	if not org then return 0 end
+	if not isnumber(amount) or amount <= 0 then return org.panicattackadd or 0 end
+	if math.random(panicattack_gain_chance) != 1 then return org.panicattackadd or 0 end
+
+	org.panicattackadd = math.Clamp((org.panicattackadd or 0) + amount * panicattack_gain_mul, 0, 1)
+
+	return org.panicattackadd
+end
+
+local function resolve_panic_attacker(victim, attacker)
+	if IsValid(attacker) then
+		if attacker:IsPlayer() then
+			return attacker
+		end
+
+		local owner = attacker.GetOwner and attacker:GetOwner()
+		if IsValid(owner) and owner:IsPlayer() then
+			return owner
+		end
+	end
+
+	if IsValid(victim) and victim.GetPhysicsAttacker then
+		local physicsAttacker = victim:GetPhysicsAttacker()
+		if IsValid(physicsAttacker) and physicsAttacker:IsPlayer() then
+			return physicsAttacker
+		end
+	end
+end
+
+local function panic_witness_event(victim, attacker, amount, radius)
+	if not IsValid(victim) then return end
+	if not isnumber(amount) or amount <= 0 then return end
+
+	local victimEnt = hg.GetCurrentCharacter(victim) or victim
+	local victimPos = victimEnt.WorldSpaceCenter and victimEnt:WorldSpaceCenter() or victimEnt:GetPos()
+
+	for _, watcher in ipairs(ents.FindInSphere(victimPos, radius)) do
+		if not watcher:IsPlayer() or watcher == victim then continue end
+		if not watcher:Alive() or not watcher.organism or watcher.organism.otrub then continue end
+		if IsValid(attacker) and watcher == attacker then continue end
+
+		local watcherEnt = hg.GetCurrentCharacter(watcher) or watcher
+		local tr = util.TraceLine({
+			start = watcher:EyePos(),
+			endpos = victimPos,
+			filter = {watcher, watcherEnt, victim, victimEnt, attacker},
+			mask = MASK_SHOT
+		})
+
+		if tr.Hit then continue end
+
+		hg.organism.AddPanicAttack(watcher.organism, amount, true)
+	end
+end
+
 local numerical = {
 	"One.",
 	"Two.",
@@ -315,6 +393,17 @@ hook.Add("HomigradDamage", "Berserk", function(ply, dmgInfo, hitgroup, ent)
 			attacker.organism.berserk = attacker.organism.berserk + 0.5
 		end
 	end)
+end)
+
+hook.Add("HomigradDamage", "PanicAttackDamage", function(ply, dmgInfo)
+	if not IsValid(ply) or not ply:IsPlayer() or not ply:Alive() then return end
+	if not ply.organism then return end
+
+	local amount = math.Clamp(dmgInfo:GetDamage() * panicattack_damage_scale + (dmgInfo:IsDamageType(DMG_BLAST) and 0.08 or 0), 0.03, 0.35)
+	local attacker = resolve_panic_attacker(ply, dmgInfo:GetAttacker())
+
+	hg.organism.AddPanicAttack(ply.organism, amount)
+	panic_witness_event(ply, attacker, math.Clamp(amount * 0.75, 0.04, 0.2), panicattack_witness_radius)
 end)
 
 hook.Add("Org Think", "Main", function(owner, org, timeValue)
@@ -408,6 +497,9 @@ hook.Add("Org Think", "Main", function(owner, org, timeValue)
 
 	org.berserk = math.Approach(org.berserk, 0, timeValue / 60)
 	org.noradrenaline = math.Approach(org.noradrenaline, 0, timeValue / 45)
+	local oldPanicAttack = org.panicattack or 0
+	org.panicattackadd = math.Approach(org.panicattackadd or 0, 0, timeValue / panicattack_add_decay_time)
+	org.panicattack = math.Approach(oldPanicAttack, org.panicattackadd or 0, timeValue / ((org.panicattackadd or 0) > oldPanicAttack and panicattack_rise_time or panicattack_decay_time))
 
 	if org.berserk > 0 and !org.berserkActive then
 		org.berserkActive = true
@@ -427,6 +519,27 @@ hook.Add("Org Think", "Main", function(owner, org, timeValue)
 		org.noradrenalineActive = true
 	elseif org.noradrenaline <= 0 then
 		org.noradrenalineActive = false
+	end
+
+	if oldPanicAttack < panicattack_threshold and org.panicattack >= panicattack_threshold and isPly and owner:Alive() then
+		owner:Notify("I can't calm down.", 2, "panicattack_start", 2, nil, Color(255, 140, 140))
+	end
+
+	if org.panicattack >= panicattack_threshold then
+		org.panicattackActive = true
+		org.disorientation = math.max(org.disorientation, 0.6 + panicattack_disorientation * org.panicattack)
+		org.adrenalineAdd = math.Approach(org.adrenalineAdd or 0, math.Remap(org.panicattack, panicattack_threshold, 1, panicattack_adrenaline_add_target * 0.5, panicattack_adrenaline_add_target), timeValue / panicattack_adrenaline_add_rise_time)
+
+		if isPly and CurTime() >= (org.nextPanicHeartRoll or 0) then
+			org.nextPanicHeartRoll = CurTime() + panicattack_heart_roll_delay
+			if math.random(100) <= panicattack_heart_roll_chance then
+				org.heartstop = true
+				owner:Notify("My heart just stopped.", 2, "panicattack_heartstop", 2, nil, Color(255, 120, 120))
+			end
+		end
+	else
+		org.panicattackActive = false
+		org.nextPanicHeartRoll = CurTime() + panicattack_heart_roll_delay
 	end
 
 	if (org.llegamputated or org.rlegamputated) and org.berserk <= 0.3 then
@@ -747,6 +860,16 @@ end)
 
 hook.Add("PlayerDeath","next-respawn-full",function(ply)
 	ply.fullsend = true
+end)
+
+hook.Add("PlayerDeath", "PanicAttackWitnessDeath", function(victim, inflictor, attacker)
+	local realAttacker = resolve_panic_attacker(victim, attacker)
+	panic_witness_event(victim, realAttacker, 0.14, panicattack_death_radius)
+end)
+
+hook.Add("OnNPCKilled", "PanicAttackWitnessNPCDeath", function(victim, attacker, inflictor)
+	local realAttacker = resolve_panic_attacker(victim, attacker)
+	panic_witness_event(victim, realAttacker, 0.1, panicattack_death_radius)
 end)
 
 hook.Add("HG_OnWakeOtrub", "afterOtrub", function( owner )

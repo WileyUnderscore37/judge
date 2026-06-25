@@ -106,6 +106,8 @@ if SERVER then
         entOwner:EmitSound("snd_jack_hmcd_pillsuse.wav", 60, math.random(95, 105))
 
         org.adrenalineAdd = math.Approach(org.adrenalineAdd, -4, self.modeValues[1] * 2)
+		org.panicattackadd = math.max((org.panicattackadd or 0) - self.modeValues[1] * 0.65, 0)
+		org.panicattack = math.max((org.panicattack or 0) - self.modeValues[1] * 0.2, 0)
 
         self.modeValues[1] = 0
         if self.modeValues[1] == 0 then

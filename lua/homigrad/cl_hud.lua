@@ -74,23 +74,15 @@ end)
 
 --local hg_coolvetica = ConVarExists("hg_coolvetica") and GetConVar("hg_coolvetica") or CreateClientConVar("hg_coolvetica", "0", true, false, "changes every text to coolvetica because its good", 0, 1)
 local hg_font_default = "Lora"
-local hg_font_legacy_default = "Courier Prime"
 local hg_font = ConVarExists("hg_font") and GetConVar("hg_font") or CreateClientConVar("hg_font", hg_font_default, true, false, "Change UI text font")
-local hg_font_value = hg_font:GetString()
+local hg_oldradialmenu = ConVarExists("hg_oldradialmenu") and GetConVar("hg_oldradialmenu") or CreateClientConVar("hg_oldradialmenu", "0", true, false, "Use the old radial menu style", 0, 1)
 
-if hg_font_value == "" or hg_font_value == hg_font_legacy_default then
+if hg_font:GetString() != hg_font_default then
 	RunConsoleCommand("hg_font", hg_font_default)
-	hg_font_value = hg_font_default
 end
 
 local font = function() -- hg_coolvetica:GetBool() and "Coolvetica" or "Courier Prime"
-    local usefont = hg_font_default
-
-    if hg_font:GetString() != "" then
-        usefont = hg_font:GetString()
-    end
-
-    return usefont
+    return hg_font_default
 end
 
 --atlaschat.coolvetica
@@ -119,6 +111,13 @@ surface.CreateFont("HomigradFontBig", {
 surface.CreateFont("HomigradFontMedium", {
 	font = font(),
 	size = ScreenScale(8),
+	weight = 1100,
+	outline = false,
+})
+
+surface.CreateFont("HomigradFontRadialOld", {
+	font = font(),
+	size = ScreenScale(11),
 	weight = 1100,
 	outline = false,
 })
@@ -224,13 +223,21 @@ local radialCenterTextAlpha = 0
 local radialDrawSegments = 144
 local radialSpinAngle = 0
 local radialSpinSpeed = 10
+local radialRollDrumSpinDuration = 0.32
+local radialRollDrumSpinAngle = 540
+local oldRadialSliceColor = Color(26, 26, 30, 170)
+local oldRadialHoverColor = Color(230, 230, 235, 95)
+local oldRadialTextColor = Color(245, 245, 245, 255)
+local oldRadialIconSizeMul = 0.05
+local oldRadialTextRadiusMul = 0.76
+local oldRadialLabelGap = 0.008
 local radialIconMaterials = {
 	["weapon menu"] = Material("radialmenu/weaponmenu.png", "smooth mips"),
 	["attachments menu"] = Material("radialmenu/attachments.png", "smooth mips"),
 	["drop equipment"] = Material("radialmenu/droparmor.png", "smooth mips"),
 	["inspect"] = Material("radialmenu/inspect.png", "smooth mips"),
 	["drop weapon"] = Material("radialmenu/dropstuff.png", "smooth mips"),
-	["drop ammo"] = Material("radialmenu/dropstuff.png", "smooth mips"),
+	["drop ammo"] = Material("radialmenu/dropammo.png", "smooth mips"),
 	["do phrase rmb menu"] = Material("radialmenu/scream.png", "smooth mips"),
 	["change posture rmb menu"] = Material("radialmenu/changeposture.png", "smooth mips"),
 	["reset posture"] = Material("radialmenu/resetposture.png", "smooth mips"),
@@ -239,6 +246,8 @@ local radialIconMaterials = {
 	["meow"] = Material("radialmenu/scream.png", "smooth mips"),
 	["do gesture rmb menu"] = Material("radialmenu/surrender.png", "smooth mips"),
 	["unload"] = Material("radialmenu/unload.png", "smooth mips"),
+	["roll drum"] = Material("radialmenu/spindrum.png", "smooth mips"),
+	["fix dislocation"] = Material("radialmenu/broken.png", "smooth mips"),
 }
 
 local function NormalizeRadialText(txt)
@@ -291,6 +300,13 @@ local function DrawCircleRing(x, y, innerRadius, outerRadius, segments, color)
 end
 
 local function GetRadialIcon(option)
+	if isfunction(option[5]) then
+		local mat = option[5](option)
+		if mat and type(mat) == "IMaterial" then
+			return mat
+		end
+	end
+
 	if option[5] and type(option[5]) == "IMaterial" then
 		return option[5]
 	end
@@ -309,6 +325,29 @@ local function GetRadialIcon(option)
 	end
 end
 
+local function GetRadialText(option)
+	local txt = option and option[2]
+	if isfunction(txt) then
+		txt = txt(option)
+	end
+
+	return txt or ""
+end
+
+local function GetRadialIconAngle(option)
+	local txt = NormalizeRadialText(GetRadialText(option))
+	if txt != "roll drum" then return 0 end
+
+	local startTime = hg.radialRollDrumSpinStart or 0
+	local delta = CurTime() - startTime
+	if delta < 0 or delta > radialRollDrumSpinDuration then return 0 end
+
+	local progress = math.Clamp(delta / radialRollDrumSpinDuration, 0, 1)
+	local remain = 1 - progress
+
+	return remain * remain * remain * radialRollDrumSpinAngle
+end
+
 local function GetRadialFallbackText(txt)
 	txt = string.Trim((txt or ""):gsub("\n", " "))
 	if txt == "" then return "?" end
@@ -324,6 +363,22 @@ local function GetRadialFallbackText(txt)
 	end
 
 	return table.concat(out)
+end
+
+local function DrawOldRadialLabel(centerX, centerY, angleRad, radius, text, icon, scaleMul)
+	local baseX = centerX + math.sin(angleRad) * radius * oldRadialTextRadiusMul
+	local baseY = centerY + math.cos(angleRad) * radius * oldRadialTextRadiusMul
+	local iconSize = ScrH() * oldRadialIconSizeMul * scaleMul
+	local textY = baseY
+
+	if icon then
+		surface.SetMaterial(icon)
+		surface.SetDrawColor(oldRadialTextColor)
+		surface.DrawTexturedRect(baseX - iconSize * 0.5, baseY - iconSize - ScrH() * oldRadialLabelGap * scaleMul, iconSize, iconSize)
+		textY = textY + iconSize * 0.1
+	end
+
+	draw.DrawText(text, "HomigradFontRadialOld", baseX, textY, oldRadialTextColor, TEXT_ALIGN_CENTER)
 end
 
 local function CreateRadialMenu(options_arg, bAutoClose)
@@ -408,6 +463,7 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 		local optionCount = #options
 		local distance = math.sqrt(x ^ 2 + y ^ 2)
 		local partDeg = optionCount > 0 and (360 / optionCount) or 360
+		local useOldRadial = hg_oldradialmenu:GetBool()
 		local hasMultiButtons = false
 		for _, option in ipairs(options) do
 			if option[3] then
@@ -416,7 +472,7 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 			end
 		end
 
-		if hasMultiButtons then
+		if useOldRadial or hasMultiButtons then
 			vecXY.x = x
 			vecXY.y = y
 			local deg = (vecXY:GetNormalized() - vecDown):Angle()
@@ -434,7 +490,7 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 
 				if option[3] then
 					surface.SetMaterial(matHuy)
-					surface.SetDrawColor(colBlack)
+					surface.SetDrawColor(useOldRadial and oldRadialSliceColor or colBlack)
 					draw.CirclePart(centerX, centerY, r, 40, optionCount, oldNum)
 					local count = #option[4]
 					local selectedPart = count - (math.floor((r - distance) / (r / count)))
@@ -443,7 +499,7 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 					for i, opt in pairs(option[4]) do
 						local selected = current_option_select == i
 						surface.SetMaterial(matHuy)
-						surface.SetDrawColor((selected and isMouseIntersecting) and colWhiteTransparent or colTransparent)
+						surface.SetDrawColor((selected and isMouseIntersecting) and (useOldRadial and oldRadialHoverColor or colWhiteTransparent) or colTransparent)
 						draw.CirclePart(centerX, centerY, r * (i / count), 40, optionCount, oldNum)
 						local a = -partDeg * oldNum - partDeg / 2
 						a = math.rad(a) + math.pi
@@ -454,7 +510,7 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 							math.randomseed(os.time())
 						end
 
-						draw.DrawText(opt, "HomigradFont", centerX + math.sin(a) * r * (i / count - 0.5 / count), centerY + math.cos(a) * r * (i / count - 0.5 / count), colWhite, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+						draw.DrawText(opt, useOldRadial and "HomigradFontRadialOld" or "HomigradFont", centerX + math.sin(a) * r * (i / count - 0.5 / count), centerY + math.cos(a) * r * (i / count - 0.5 / count), useOldRadial and oldRadialTextColor or colWhite, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 					end
 				else
 					surface.SetMaterial(matHuy)
@@ -462,13 +518,13 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 						if option[7] and IsColor(option[7]) then
 							surface.SetDrawColor(option[7]:Lerp(option[6], 1 - optionSelected[oldNum]))
 						else
-							surface.SetDrawColor(colWhiteTransparent:Lerp(option[6], 1 - optionSelected[oldNum]))
+							surface.SetDrawColor((useOldRadial and oldRadialHoverColor or colWhiteTransparent):Lerp(option[6], 1 - optionSelected[oldNum]))
 						end
 					else
 						if option[7] and IsColor(option[7]) then
-							surface.SetDrawColor(option[7]:Lerp(options_arg ~= nil and colOption or colBlack, 1 - optionSelected[oldNum]))
+							surface.SetDrawColor(option[7]:Lerp(options_arg ~= nil and (useOldRadial and oldRadialSliceColor or colOption) or (useOldRadial and oldRadialSliceColor or colBlack), 1 - optionSelected[oldNum]))
 						else
-							surface.SetDrawColor(colWhiteTransparent:Lerp(options_arg ~= nil and colOption or colBlack, 1 - optionSelected[oldNum]))
+							surface.SetDrawColor((useOldRadial and oldRadialHoverColor or colWhiteTransparent):Lerp(options_arg ~= nil and (useOldRadial and oldRadialSliceColor or colOption) or (useOldRadial and oldRadialSliceColor or colBlack), 1 - optionSelected[oldNum]))
 						end
 					end
 
@@ -476,17 +532,26 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 					local a = -partDeg * oldNum - partDeg / 2
 					a = math.rad(a) + math.pi
 
-					if option[5] then
+					if useOldRadial then
+						local txt = GetRadialText(option)
+						local icon = GetRadialIcon(option)
+						if paining then
+							math.randomseed(math.Round(CurTime() / 5 + oldNum, 0))
+							txt = hg.get_status_message(lply)
+							math.randomseed(os.time())
+						end
+						DrawOldRadialLabel(centerX, centerY, a, r, txt, icon, viewLerp)
+					elseif option[5] then
 						surface.SetMaterial(option[5])
 						surface.SetDrawColor(color_white)
 						local sizeW = scrW / 2.25 + math.sin(a) * r * 0.7
 						local sizeH = scrH / 2.2 + math.cos(a) * r * 0.7
 						surface.DrawTexturedRect(sizeW, sizeH, scrW * 0.1, scrH * 0.1)
 					else
-						local txt = option[2]
+						local txt = GetRadialText(option)
 						if paining then
 							math.randomseed(math.Round(CurTime() / 5 + oldNum, 0))
-							txt = hg.get_status_message(ply)
+							txt = hg.get_status_message(lply)
 							math.randomseed(os.time())
 						end
 						draw.DrawText(txt, "HomigradFont", centerX + math.sin(a) * r * 0.75, centerY + math.cos(a) * r * 0.75, colWhite, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
@@ -562,13 +627,18 @@ local function CreateRadialMenu(options_arg, bAutoClose)
 			if icon then
 				surface.SetMaterial(icon)
 				surface.SetDrawColor(255, 255, 255, (selected and 255 or 225) * viewLerp)
-				surface.DrawTexturedRect(slotX - iconSize * 0.5, slotY - iconSize * 0.5, iconSize, iconSize)
+				local iconAngle = GetRadialIconAngle(option)
+				if iconAngle != 0 then
+					surface.DrawTexturedRectRotated(slotX, slotY, iconSize, iconSize, iconAngle)
+				else
+					surface.DrawTexturedRect(slotX - iconSize * 0.5, slotY - iconSize * 0.5, iconSize, iconSize)
+				end
 			else
-				draw.SimpleText(GetRadialFallbackText(option[2]), "HomigradFont", slotX, slotY, Color(radialTextColor.r, radialTextColor.g, radialTextColor.b, 255 * viewLerp), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+				draw.SimpleText(GetRadialFallbackText(GetRadialText(option)), "HomigradFont", slotX, slotY, Color(radialTextColor.r, radialTextColor.g, radialTextColor.b, 255 * viewLerp), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 			end
 
 			if selected then
-				hoveredText = option[2]
+				hoveredText = GetRadialText(option)
 			end
 		end
 

@@ -161,6 +161,98 @@ else
 end
 
 if CLIENT then
+	local weaponMenuAmmoSectionText = "Ammo Types"
+	local weaponMenuCylinderSectionText = "Cylinder"
+	local weaponMenuSlotText = "Slot %d"
+	local weaponMenuAmmoIconCache = {}
+	local weaponMenuEmptySlotIcon = Material("radialmenu/redcross.png", "smooth mips")
+
+	local function GetWeaponMenuAmmoIcon(ammoName)
+		if not ammoName or ammoName == "" then return nil end
+		if weaponMenuAmmoIconCache[ammoName] ~= nil then return weaponMenuAmmoIconCache[ammoName] end
+
+		local ammoInfo = hg.ammotypeshuy and hg.ammotypeshuy[ammoName]
+		local ammoID = ammoInfo and ammoInfo.name
+		if not ammoID then
+			weaponMenuAmmoIconCache[ammoName] = false
+			return nil
+		end
+
+		local entClass = "ent_ammo_" .. ammoID
+		local stored = scripted_ents.GetStored(entClass)
+		local iconPath = stored and stored.t and stored.t.IconOverride or hg.ammoents and hg.ammoents[ammoID] and hg.ammoents[ammoID].Icon
+		if not iconPath or iconPath == "" then
+			weaponMenuAmmoIconCache[ammoName] = false
+			return nil
+		end
+
+		local mat = Material(iconPath, "smooth mips")
+		weaponMenuAmmoIconCache[ammoName] = mat
+
+		return mat
+	end
+
+	local function BuildWeaponAmmoMenu(wep)
+		local options = {}
+
+		for index, ammoData in ipairs(wep.AmmoTypes or {}) do
+			local ammoName = ammoData[1]
+			options[#options + 1] = {
+				[1] = function()
+					RunConsoleCommand("hg_change_ammotype", index)
+				end,
+				[2] = ammoName,
+				[5] = GetWeaponMenuAmmoIcon(ammoName)
+			}
+		end
+
+		return options
+	end
+
+	local function GetWeaponMenuDrumSlotText(index, value)
+		if value == 1 then
+			return string.format(weaponMenuSlotText .. " - Loaded", index)
+		end
+
+		if value == -1 then
+			return string.format(weaponMenuSlotText .. " - Spent", index)
+		end
+
+		return string.format(weaponMenuSlotText .. " - Empty", index)
+	end
+
+	local function BuildWeaponDrumMenu(wep)
+		local options = {}
+		local drum = wep:GetDrum()
+
+		for index = 1, #drum do
+			options[#options + 1] = {
+				[1] = function()
+					RunConsoleCommand("hg_insertbullet", index)
+				end,
+				[2] = function()
+					if not IsValid(wep) then return GetWeaponMenuDrumSlotText(index, 0) end
+
+					local liveDrum = wep:GetDrum()
+					return GetWeaponMenuDrumSlotText(index, liveDrum[index])
+				end,
+				[5] = function()
+					if not IsValid(wep) then return weaponMenuEmptySlotIcon end
+
+					local liveDrum = wep:GetDrum()
+					local value = liveDrum[index]
+					if value == 0 then
+						return weaponMenuEmptySlotIcon
+					end
+
+					return GetWeaponMenuAmmoIcon(wep.Primary and wep.Primary.Ammo)
+				end
+			}
+		end
+
+		return options
+	end
+
 	hook.Add("radialOptions", "weapon_manipulations", function()
 		local wep = lply:GetActiveWeapon()
 		local organism = lply.organism or {}
@@ -222,29 +314,26 @@ if CLIENT then
         }
 
         if wep.GetDrum then
-            local tbl3 = {function() RunConsoleCommand("hg_rolldrum") end, "Roll Drum"}
+            local tbl3 = {function(mouseClick)
+				hg.radialRollDrumSpinStart = CurTime()
+				RunConsoleCommand("hg_rolldrum")
+
+				return -1
+			end, "Roll Drum"}
             tbl[#tbl + 1] = tbl3
-        
-            --if wep:Clip1() > 0 then return end
-            --if primaryAmmoCount <= 0 then return end
-        
-            local drum = wep:GetDrum()
-            
-            local drum1 = {}
-            for i = 1, #drum do
-                drum1[i] = "Slot №"..tostring(i)
-            end
-        
-            local tbl4 = {
-                function(mouseClick, val)
-                    RunConsoleCommand("hg_insertbullet", val)
-                end,
-                "Load one bullet",
-                true,
-                drum1
-            }
-            
-            tbl[#tbl + 1] = tbl4
+
+			local drumMenu = BuildWeaponDrumMenu(wep)
+			if #drumMenu > 0 then
+				tbl[#tbl + 1] = {
+					[1] = function()
+						hg.CreateRadialMenu(drumMenu)
+
+						return -1
+					end,
+					[2] = weaponMenuCylinderSectionText,
+					[5] = GetWeaponMenuAmmoIcon(wep.Primary and wep.Primary.Ammo)
+				}
+			end
         end
 
         if wep.AllowedInspect then
@@ -264,20 +353,18 @@ if CLIENT then
                 [2] = "Unload" 
             }
         elseif (wep:Clip1() == 0 or wep.AllwaysChangeAmmo) and wep.AmmoTypes and not wep.reload then
-            local ammotypes = {}
-            
-            for k, ammotype in ipairs(wep.AmmoTypes) do
-                ammotypes[k] = ammotype[1]
-            end 
+			local ammoMenu = BuildWeaponAmmoMenu(wep)
+			if #ammoMenu > 0 then
+				tbl[#tbl + 1] = {
+					[1] = function()
+						hg.CreateRadialMenu(ammoMenu)
 
-            tbl[#tbl + 1] = {
-                function(mouseClick, chosen)
-                    RunConsoleCommand("hg_change_ammotype", chosen) 
-                end,
-                "Change Ammo Type",
-                true,
-                ammotypes
-            }
+						return -1
+					end,
+					[2] = weaponMenuAmmoSectionText,
+					[5] = GetWeaponMenuAmmoIcon(wep.Primary and wep.Primary.Ammo) or ammoMenu[1][5]
+				}
+			end
         end
 
         local laser = wep.attachments and wep.attachments.underbarrel

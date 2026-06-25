@@ -234,6 +234,7 @@ local heatMat = Material("effects/shaders/zb_heat")
 local blindMat = Material("effects/shaders/zb_blind")
 
 local PainLerp = 0
+local PanicAttackLerp = 0
 local O2Lerp = 0
 local assimilatedLerp = 0
 local tempLerp = 36.6
@@ -254,6 +255,16 @@ local lobotomy_mats = {
 local consciousnessTypeBeatVolume = 0.18
 local dying2Volume = 0.4
 local painBeatOverlayPath = "sound/rem_pain.mp3"
+local panicattackOverlayPath = "sound/rem_panicattack.mp3"
+local panicattackFadeStart = 0
+local panicattackThreshold = 0.55
+local panicattackVolumeMul = 1
+local panicattackVisualExponent = 1.75
+local panicattackPulseFloor = 0.78
+local panicattackPulseIntensity = 0.2
+local panicattackShakeIntervalMin = 0.45
+local panicattackShakeIntervalMax = 1.4
+local panicattackShakeMul = 0.85
 local painBeatOverlayVolumeMul = 1.25
 local painThresholdMax = 120
 local painAgonyThreshold = 0.45
@@ -261,9 +272,10 @@ local painExcruciatingThreshold = 0.87
 local painAgonyVolumeMul = 1.15
 local painExcruciatingVolumeMul = 0.85
 local painLayerFadeLerp = 0.06
-local painEffectIntensity = 2
+local painEffectIntensity = 1.55
 local painPulseIntensity = 0.45
 local PainStationLoading = false
+local PanicStationLoading = false
 local PainStationOverlayLoading = false
 local AssimilationStationLoading = false
 local BrainTraumaStationLoading = false
@@ -331,6 +343,7 @@ end
 
 local function stopthings()
 	PainLerp = 0
+	PanicAttackLerp = 0
 	O2Lerp = 0
 	shockLerp = 0
 	assimilatedLerp = 0
@@ -338,7 +351,9 @@ local function stopthings()
 	consciousnessLerp = 1
 
 	lply.tinnitus = 0
+	nextPanicAttackShake = 0
 	PainStationLoading = false
+	PanicStationLoading = false
 	PainStationOverlayLoading = false
 	AssimilationStationLoading = false
 	BrainTraumaStationLoading = false
@@ -371,6 +386,11 @@ local function stopthings()
 	if IsValid(PainStationOverlay) then
 		PainStationOverlay:Stop()
 		PainStationOverlay = nil
+	end
+
+	if IsValid(PanicStation) then
+		PanicStation:Stop()
+		PanicStation = nil
 	end
 
 	if IsValid(BrainTraumaStation) then
@@ -421,11 +441,13 @@ local choosera = 1
 local tempolerp = 0
 local lerpblood = 0
 local addtime = CurTime()
+local nextPanicAttackShake = 0
 local hurtoverlay = Material("zcity/neurotrauma/damageOverlay.png", "smooth")
 hook.Add("Post Post Processing", "ItHurts", function()
 	local spect = IsValid(lply:GetNWEntity("spect")) and lply:GetNWEntity("spect")
 	local painVolume = 0
 	local normalizedPain = 0
+	local panicVolume = 0
 	
 	if IsValid(PainStation) then
 		PainStation:SetVolume(0)
@@ -433,6 +455,10 @@ hook.Add("Post Post Processing", "ItHurts", function()
 
 	if IsValid(PainStationOverlay) then
 		PainStationOverlay:SetVolume(0)
+	end
+
+	if IsValid(PanicStation) then
+		PanicStation:SetVolume(0)
 	end
 	
 	if !lply:Alive() and !IsValid(spect) then stopthings() return end
@@ -528,6 +554,8 @@ hook.Add("Post Post Processing", "ItHurts", function()
 	O2Lerp = LerpFT(0.01, O2Lerp, (30 - o2) * (org.otrub and 2 or 10) + (brain * 100) * (org.otrub and 1 or 5))
 
 	tempLerp = LerpFT(0.01, tempLerp, org.temperature)
+	local panicattackVisual = math.Clamp(math.Remap(org.panicattack or 0, panicattackFadeStart, panicattackThreshold, 0, 1), 0, 1)
+	PanicAttackLerp = LerpFT(0.03, PanicAttackLerp, panicattackVisual ^ panicattackVisualExponent)
 
 	if tempLerp > 38 then
 		local heat = tempLerp - 38
@@ -607,6 +635,46 @@ hook.Add("Post Post Processing", "ItHurts", function()
 		render.DrawScreenQuad()
 	end
 
+	if PanicAttackLerp > 0.001 then
+		local panicBase = PanicAttackLerp
+		local panicPulse = panicBase * (panicattackPulseFloor + math.ease.InOutSine(math.abs(math.cos(CurTime() * 2))) * panicattackPulseIntensity)
+
+		render.UpdateScreenEffectTexture()
+
+		heatMat:SetFloat("$c0_x", -CurTime() * 0.1)
+		heatMat:SetFloat("$c0_y", panicBase * 0.014 + panicPulse * 0.055)
+		heatMat:SetFloat("$c2_x", panicBase * 0.28 + panicPulse * 1.7)
+
+		render.SetMaterial(heatMat)
+		render.DrawScreenQuad()
+
+		render.UpdateScreenEffectTexture()
+		render.UpdateFullScreenDepthTexture()
+
+		grainMat:SetFloat("$c0_x", CurTime())
+		grainMat:SetFloat("$c0_y", -1)
+		grainMat:SetFloat("$c0_z", 1 + panicBase * 1.4)
+		grainMat:SetFloat("$c1_x", panicBase * 3.2 + panicPulse * 5.8)
+		grainMat:SetFloat("$c1_y", panicBase * 0.08 + panicPulse * 0.22)
+		grainMat:SetFloat("$c1_z", panicBase * 0.08 + panicPulse * 0.24)
+		grainMat:SetFloat("$c2_x", panicBase * 0.04 + panicPulse * 0.12)
+		grainMat:SetFloat("$c2_y", 0.075 * panicBase)
+		grainMat:SetFloat("$c2_z", 0)
+		grainMat:SetFloat("$c3_x", 0)
+
+		render.SetMaterial(grainMat)
+		render.DrawScreenQuad()
+
+		if not org.otrub and panicBase > 0.15 and CurTime() >= nextPanicAttackShake then
+			local shakeMul = (0.25 + panicBase * 0.9) * panicattackShakeMul
+			ViewPunch(Angle(math.Rand(-0.8, 0.6), math.Rand(-1, 1), math.Rand(-0.2, 0.2)) * shakeMul)
+			ViewPunch2(Angle(math.Rand(-0.25, 0.35), math.Rand(-0.55, 0.55), math.Rand(-0.4, 0.4)) * shakeMul)
+			nextPanicAttackShake = CurTime() + math.Rand(panicattackShakeIntervalMin, panicattackShakeIntervalMax)
+		end
+	else
+		nextPanicAttackShake = 0
+	end
+
 	local tempo = math.Clamp((5 - (tempLerp - 29)) * 0.5 - 5 * (org.heartbeat < 1 and 1 or 0), 0, 5)
 	tempolerp = LerpFT(0.01, tempolerp, tempo)
 	
@@ -673,6 +741,29 @@ hook.Add("Post Post Processing", "ItHurts", function()
 
 	updatePainLayer(painLayers.agony, normalizedPain, painVolume)
 	updatePainLayer(painLayers.excruciating, normalizedPain, painVolume)
+
+	if PanicAttackLerp > 0.001 and not org.otrub then
+		if (!IsValid(PanicStation) or PanicStation:GetState() != GMOD_CHANNEL_PLAYING) and not PanicStationLoading then
+			PanicStationLoading = true
+			sound.PlayFile(panicattackOverlayPath, "noblock noplay", function(station)
+				PanicStationLoading = false
+				if IsValid(station) then
+					station:SetVolume(0)
+					station:Play()
+					PanicStation = station
+					station:EnableLooping(true)
+				end
+			end)
+		end
+
+		panicVolume = math.Clamp(PanicAttackLerp * panicattackVolumeMul, 0, 1)
+		if IsValid(PanicStation) then
+			PanicStation:SetVolume(panicVolume)
+		end
+	elseif IsValid(PanicStation) then
+		PanicStation:Stop()
+		PanicStation = nil
+	end
 
 	if brain > 0.01 then
 		local chooser = 1

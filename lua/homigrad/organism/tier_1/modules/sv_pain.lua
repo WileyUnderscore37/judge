@@ -4,15 +4,19 @@ hg.organism.module.pain = {}
 local module = hg.organism.module.pain
 local consciousness_otrub_threshold = 0.08
 local consciousness_fake_threshold = 0.38
-local shock_consciousness_target = 0.24
+local shock_consciousness_soft_target = 0.5
+local shock_consciousness_hard_target = 0.12
 local otrub_consciousness_target = 0.08
 local shock_consciousness_drain = 10
 local otrub_consciousness_drain = 8
 local consciousness_recovery_speed = 12
 local low_consciousness_recovery_speed = 16
 local otrub_consciousness_recovery_speed = 20
-local shock_unconsciousness_threshold = 45
-local shock_paincheck_multiplier = 5
+local shock_consciousness_threshold = 45
+local shock_consciousness_max = 85
+local pain_shock_threshold = 80
+local pain_shock_target = 55
+local pain_shock_gain = 2
 local pain_tolerance = 120
 local otrub_pain_tolerance = 90
 local pain_fake_threshold = 0.9
@@ -36,13 +40,6 @@ module[1] = function(org)
 
 	org.stun = 0
 	org.lightstun = 0
-end
-
-function hg.organism.paincheck(org)
-	local analgesiaMul = (org.analgesia * 4 + 1)
-	local adrenalineMul = min(max(1 + org.adrenaline, 1), 1.2)
-
-	return (org.shock > org.shock_turn * shock_paincheck_multiplier * analgesiaMul)
 end
 
 module[2] = function(owner, org, timeValue)
@@ -88,14 +85,19 @@ module[2] = function(owner, org, timeValue)
 
 	org.disorientation = math.min(org.disorientation, 10)
 
-	if org.pain > 80 then
-		org.shock = math.Approach(org.shock, 70, timeValue * 4)
+	if org.pain > pain_shock_threshold then
+		org.shock = math.Approach(org.shock, pain_shock_target, timeValue * pain_shock_gain)
 	end
 
 	if org.otrub then
 		org.consciousness = Approach(org.consciousness, otrub_consciousness_target, timeValue / otrub_consciousness_drain)
-	elseif org.shock > (shock_unconsciousness_threshold * analgesiaMul * painkillerMul) then
-		org.consciousness = Approach(org.consciousness, shock_consciousness_target, timeValue / shock_consciousness_drain)
+	else
+		local shockThreshold = shock_consciousness_threshold * analgesiaMul * painkillerMul
+		if org.shock > shockThreshold then
+			local shockMax = shock_consciousness_max * analgesiaMul * painkillerMul
+			local shockTarget = Clamp(math.Remap(org.shock, shockThreshold, shockMax, shock_consciousness_soft_target, shock_consciousness_hard_target), shock_consciousness_hard_target, shock_consciousness_soft_target)
+			org.consciousness = Approach(org.consciousness, shockTarget, timeValue / shock_consciousness_drain)
+		end
 	end
 
 	if org.tranquilizer > 0 then
@@ -131,10 +133,6 @@ module[2] = function(owner, org, timeValue)
 	org.painadd = min(max(org.painadd - add * analgesiaMul, 0), 150)
 
 	//org.painkiller = Approach(org.painkiller, 0, timeValue / 240 * (org.naloxone * 25 + 1))
-
-	if hg.organism.paincheck(org) then
-		org.needotrub = true
-	end
 
 	if org.nearpainlimit then
 		org.needfake = true

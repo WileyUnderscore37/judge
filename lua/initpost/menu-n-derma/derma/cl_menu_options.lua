@@ -7,12 +7,28 @@ function hg.settings:AddOpt( strCategory, strConVar, strTitle, bDecimals, bStrin
 end
 local hg_firstperson_death = CreateClientConVar("hg_firstperson_death", "0", true, false, "Toggle first-person death camera view", 0, 1)
 local hg_font_default = "Lora"
-local hg_font_legacy_default = "Courier Prime"
-local hg_font = CreateClientConVar("hg_font", hg_font_default, true, false, "change every text font to selected because ui customization is cool")
+local hg_font = ConVarExists("hg_font") and GetConVar("hg_font") or CreateClientConVar("hg_font", hg_font_default, true, false, "change every text font to selected because ui customization is cool")
+local hg_oldradialmenu = CreateClientConVar("hg_oldradialmenu", "0", true, false, "use the old radial menu style", 0, 1)
 
-if hg_font:GetString() == "" or hg_font:GetString() == hg_font_legacy_default then
-	RunConsoleCommand("hg_font", hg_font_default)
+local function ForceHGFont()
+	if hg_font:GetString() != hg_font_default then
+		RunConsoleCommand("hg_font", hg_font_default)
+	end
 end
+
+ForceHGFont()
+
+cvars.AddChangeCallback("hg_font", function(_, _, newValue)
+	if newValue != hg_font_default then
+		RunConsoleCommand("hg_font", hg_font_default)
+	end
+end, "hg_font_lock")
+
+hook.Add("InitPostEntity", "hg_font_force_join", function()
+	ForceHGFont()
+	timer.Simple(1, ForceHGFont)
+	timer.Simple(5, ForceHGFont)
+end)
 
 local hg_attachment_draw_distance = CreateClientConVar("hg_attachment_draw_distance", 0, true, nil, "distance to draw attachments", 0, 4096)
 
@@ -119,7 +135,9 @@ hg.settings:AddOpt("Blood","hg_blood_fps", "Blood FPS")
 hg.settings:AddOpt("Blood","hg_blood_sprites", "Blood Sprites (DISABLED FOR EVERYONE)")
 hg.settings:AddOpt("Blood","hg_old_blood", "Old blood")
 
-hg.settings:AddOpt("UI","hg_font", "Change Custom Font", false, true)
+hg.settings.tbl["UI"] = hg.settings.tbl["UI"] or {}
+hg.settings.tbl["UI"]["hg_font"] = nil
+hg.settings:AddOpt("UI","hg_oldradialmenu", "Old Radial Menu")
 
 hg.settings:AddOpt("Weapons","hg_weaponshotblur_enable", "Shooting Blur")
 hg.settings:AddOpt("Weapons","hg_dynamic_mags", "Dynamic Ammo Inspect")
@@ -932,7 +950,7 @@ function hg.DrawSettings(ParentPanel)
     headerHint:SetPos(MenuUnit(25), MenuUnit(45))
     headerHint:SetFont("ZCity_Menu_Settings_Tiny")
     headerHint:SetTextColor(settings_color_text_dim)
-    headerHint:SetText("Configure ZCity to your liking")
+    headerHint:SetText("Preferences.")
     headerHint:SizeToContents()
 
     local contentHolder = vgui.Create("DPanel", mainPanel)
