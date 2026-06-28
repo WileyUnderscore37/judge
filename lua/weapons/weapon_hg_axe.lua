@@ -1,15 +1,15 @@
 ﻿if SERVER then AddCSLuaFile() end
 SWEP.Base = "weapon_melee"
-SWEP.PrintName = "Woodcutting axe"
+SWEP.PrintName = "Fire Axe"
 SWEP.Instructions = "An axe is an implement that has been used for millennia to shape, split, and cut wood. Can break down doors.\n\nLMB to attack.\nRMB to block."
 SWEP.Category = "Weapons - Melee"
 
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
 
-SWEP.WorldModel = "models/props/cs_militia/axe.mdl"
-SWEP.WorldModelReal = "models/weapons/tfa_nmrih/v_me_bat_metal.mdl"
-SWEP.WorldModelExchange = "models/props/cs_militia/axe.mdl"
+SWEP.WorldModel = "models/weapons/ravaged/w_ravaged_fireaxe.mdl"
+SWEP.WorldModelReal = "models/weapons/ravaged/anim_axe_fire.mdl"
+SWEP.WorldModelExchange = "models/weapons/ravaged/w_ravaged_fireaxe.mdl"
 SWEP.ViewModel = ""
 
 SWEP.SuicidePos = Vector(0, -1, -26)
@@ -27,11 +27,11 @@ SWEP.weight = 2.5
 
 SWEP.HoldType = "pistol"
 
-SWEP.HoldPos = Vector(-9, 0, 0)
-SWEP.HoldAng = Angle(0, 0, -20)
+SWEP.HoldPos = Vector(-12, -9, -1)
+SWEP.HoldAng = Angle(0, 11, 0)
 
-SWEP.AttackTime = 0.48
-SWEP.AnimTime1 = 2
+SWEP.AttackTime = 0.51
+SWEP.AnimTime1 = 2.45
 SWEP.WaitTime1 = 1.3
 SWEP.ViewPunch1 = Angle(1, 1, -1)
 
@@ -45,8 +45,8 @@ SWEP.sprint_ang = Angle(15, 0, 0)
 
 SWEP.basebone = 94
 
-SWEP.weaponPos = Vector(0, 0, 0.5)
-SWEP.weaponAng = Angle(0, -90, -13)
+SWEP.weaponPos = Vector(-0.75, 4, -3)
+SWEP.weaponAng = Angle(-1, -100, -1)
 
 SWEP.AnimList = {
     ["idle"] = "Idle",
@@ -56,10 +56,18 @@ SWEP.AnimList = {
 }
 
 SWEP.DamageType = DMG_SLASH
-SWEP.DamagePrimary = 42
+SWEP.DamagePrimary = 51
 SWEP.DamageSecondary = 14
+SWEP.HitCooldownEnabled = true
+SWEP.HitCooldown = 1.5
+SWEP.ComboEnabled = true
+SWEP.ComboResetTime = 1.4
+SWEP.ComboDamageMul1 = 1
+SWEP.ComboDamageMul2 = 1.25
+SWEP.ComboDamageMul3 = 1.65
 
-SWEP.PenetrationPrimary = 10
+
+SWEP.PenetrationPrimary = 6
 SWEP.PenetrationSecondary = 3
 
 SWEP.MaxPenLen = 10
@@ -67,15 +75,15 @@ SWEP.MaxPenLen = 10
 SWEP.PenetrationSizePrimary = 5.5
 SWEP.PenetrationSizeSecondary = 1.5
 
-SWEP.StaminaPrimary = 40
+SWEP.StaminaPrimary = 37
 SWEP.StaminaSecondary = 15
 
 SWEP.AttackLen1 = 65
 SWEP.AttackLen2 = 40
 
 if CLIENT then
-	SWEP.WepSelectIcon = Material("vgui/wep_jack_hmcd_axe")
-	SWEP.IconOverride = "vgui/wep_jack_hmcd_axe"
+	SWEP.WepSelectIcon = Material("vgui/hud/ravaged_fireaxe")
+	SWEP.IconOverride = "vgui/hud/ravaged_fireaxe"
 	SWEP.BounceWeaponIcon = false
 end
 
@@ -90,6 +98,26 @@ SWEP.AttackHitFlesh = "snd_jack_hmcd_axehit.wav"
 SWEP.Attack2HitFlesh = "Flesh.ImpactHard"
 SWEP.DeploySnd = "physics/wood/wood_plank_impact_soft2.wav"
 
+SWEP.hitsoundbrutalize = {
+    {"axe/axehit1.wav", 70, {111, 155}},
+    {"axe/axehit2.wav", 75, {111, 155}},
+    {"axe/axehit3.wav", 75, {111, 115}},
+    {"axe/axehit4.wav", 75, {111, 155}},
+}
+
+SWEP.hitsoundextra = {
+    {"hardimpact/body_medium_break2.wav", 70, {85, 102}},
+    {"hardimpact/body_medium_break3.wav", 70, {85, 102}},
+    {"hardimpact/body_medium_break4.wav", 70, {85, 102}},
+}
+
+SWEP.swingsoundextra = {
+    {"bat/baseball_swing_1st_layer_01.wav", 60, {85, 95}},
+    {"bat/baseball_swing_1st_layer_02.wav", 60, {85, 95}},
+    {"bat/baseball_swing_1st_layer_03.wav", 60, {85, 95}},
+    {"bat/baseball_swing_1st_layer_04.wav", 60, {85, 95}},
+}
+
 SWEP.AttackPos = Vector(0,0,0)
 
 SWEP.NoHolster = true
@@ -102,7 +130,7 @@ SWEP.Attack2TimeLength = 0.01
 SWEP.AttackRads = 75
 SWEP.AttackRads2 = 0
 
-SWEP.SwingAng = -20
+SWEP.SwingAng = -5
 SWEP.SwingAng2 = 0
 
 function SWEP:CanPrimaryAttack()
@@ -113,10 +141,10 @@ function SWEP:CanPrimaryAttack()
 end
 
 function SWEP:CanSecondaryAttack()
-    --[[self.DamageType = DMG_CLUB
+    self.DamageType = DMG_CLUB
     self.AttackHit = "Concrete.ImpactHard"
-    self.Attack2Hit = "Concrete.ImpactHard"--]]
-    return false
+    self.Attack2Hit = "Concrete.ImpactHard"
+    return true
 end
 
 function SWEP:PrimaryAttackAdd(ent)

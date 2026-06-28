@@ -69,12 +69,7 @@ SWEP.ComboDamageMul3 = 1.65
 SWEP.PlayerKnockbackMul = 2
 SWEP.PlayerKnockbackUpMul = 0.45
 SWEP.PlayerSecondaryKnockbackMul = 0.75
-SWEP.RagdollKnockbackMul = 75
-SWEP.RagdollKnockbackUpMul = 8
-SWEP.RagdollSecondaryKnockbackMul = 0.65
-SWEP.RagdollSwingSideMul = 1.25
-SWEP.RagdollViewPunchYawMul = 0.08
-SWEP.RagdollViewPunchRollMul = 0.04
+SWEP.RagdollHitForceMul = 0.5
 SWEP.HeadTraceFallbackRadius = 10
 SWEP.HeadRagdollChance = 0.55
 SWEP.HeadRagdollForceMul = 1.35
@@ -1026,12 +1021,27 @@ function SWEP:ShouldHeadRagdoll(ent, trace)
     return math.Rand(0, 1) <= (self.HeadRagdollChance or 0.85)
 end
 
-function SWEP:ShouldPlayBrutalizeHitSound(victim, trace)
+function SWEP:ShouldPlayBrutalizeHitSound(ent, victim, trace, attacktype)
+    if attacktype then return false end
     if not istable(self.hitsoundbrutalize) then return false end
     if not self:GetRandomConfiguredHitSound(self.hitsoundbrutalize) then return false end
     if not IsValid(victim) or not victim.organism then return false end
     if (victim.organism.skull or 0) < (self.BrutalizeSkullThreshold or 0.99) then return false end
-    return self:IsHeadHit(victim, trace)
+
+    local hitEnt = IsValid(ent) and ent or trace and trace.Entity
+    if IsValid(hitEnt) then
+        if hitEnt:IsRagdoll() and trace and trace.PhysicsBone ~= nil and hitEnt.TranslatePhysBoneToBone and hitEnt.GetBoneName then
+            local bone = hitEnt:TranslatePhysBoneToBone(trace.PhysicsBone)
+            if bone and bone >= 0 then
+                return hg.bonetohitgroup and hg.bonetohitgroup[hitEnt:GetBoneName(bone)] == HITGROUP_HEAD
+            end
+            return false
+        end
+
+        return self:IsHeadTrace(hitEnt, trace)
+    end
+
+    return self:IsHeadTrace(victim, trace)
 end
 
 function SWEP:PlaySoftHitSounds(owner, ent, trace, attacktype)
@@ -1039,7 +1049,7 @@ function SWEP:PlaySoftHitSounds(owner, ent, trace, attacktype)
     if not IsValid(ent) then return end
 
     local victim = self:GetHitVictim(ent)
-    local brutalize = self:ShouldPlayBrutalizeHitSound(victim, trace)
+    local brutalize = self:ShouldPlayBrutalizeHitSound(ent, victim, trace, attacktype)
     local volumeMul = brutalize and (self.BrutalizeHitVolumeMul or 0.5) or 1
 
     owner:EmitSound(attacktype and self.Attack2HitFlesh or self.AttackHitFlesh, 50 * volumeMul)
@@ -1224,31 +1234,6 @@ function SWEP:PunchPlayer(ent, attacktype, trnormal, dmg)
 			end
         end
     end
-end
-
-function SWEP:GetRagdollHitForce(ent, traceNormal, dmg, attacktype)
-    local owner = self:GetOwner()
-    local pushDir = IsValid(owner) and IsValid(ent) and (ent:GetPos() - owner:GetPos()) or traceNormal
-    if IsValid(owner) then
-        local eyeAng = owner:EyeAngles()
-        local viewPunch = attacktype and (self.ViewPunch2 or angle_zero) or (self.ViewPunch1 or angle_zero)
-        local swingAng = attacktype and (self.SwingAng2 or 0) or (self.SwingAng or -90)
-        local sideBias = math.sin(math.rad(swingAng)) * (self.RagdollSwingSideMul or 0.85)
-        sideBias = sideBias - viewPunch.y * (self.RagdollViewPunchYawMul or 0.08)
-        sideBias = sideBias - viewPunch.r * (self.RagdollViewPunchRollMul or 0.04)
-        pushDir = pushDir + eyeAng:Right() * sideBias
-    end
-    pushDir.z = 0
-    if pushDir:LengthSqr() <= 0.001 then
-        pushDir = Vector(traceNormal.x, traceNormal.y, 0)
-    end
-    if pushDir:LengthSqr() > 0.001 then
-        pushDir:Normalize()
-    end
-    local forceMul = attacktype and (self.RagdollSecondaryKnockbackMul or 0.75) or 1
-    local force = pushDir * math.min(dmg * (self.RagdollKnockbackMul or 75) * forceMul, 1800)
-    force.z = math.min(dmg * (self.RagdollKnockbackUpMul or 8) * forceMul, 240)
-    return force
 end
 
 SWEP.MinSensivity = 0.35
@@ -1570,9 +1555,8 @@ function SWEP:CustomThink()
                 self.slash = nil
                 self:PlaySoftHitSounds(owner, ent, trace, false)
                 
-                local headHit = self:IsHeadHit(ent, trace)
-                local hitForce = self:GetRagdollHitForce(ent, trace.Normal, dmg, false)
-                if headHit then
+                local hitForce = trace.Normal * math.min(dmg, 25) * 400 * (self.RagdollHitForceMul or 1)
+                if self:IsHeadHit(ent, trace) then
                     hitForce.x = hitForce.x * (self.HeadRagdollForceMul or 1.35)
                     hitForce.y = hitForce.y * (self.HeadRagdollForceMul or 1.35)
                     hitForce.z = hitForce.z * (self.HeadRagdollUpMul or 1.2)
@@ -1691,10 +1675,9 @@ function SWEP:CustomThink()
                 self.slash = nil
                 self:PlaySoftHitSounds(owner, ent, trace, true)
 
-                local headHit = self:IsHeadHit(ent, trace)
                 local phys = ent:GetPhysicsObjectNum(trace.PhysicsBone or 0)
-                local hitForce = self:GetRagdollHitForce(ent, trace.Normal, dmg, true)
-                if headHit then
+                local hitForce = trace.Normal * math.min(dmg, 25) * 400 * (self.RagdollHitForceMul or 1)
+                if self:IsHeadHit(ent, trace) then
                     hitForce.x = hitForce.x * (self.HeadRagdollForceMul or 1.35)
                     hitForce.y = hitForce.y * (self.HeadRagdollForceMul or 1.35)
                     hitForce.z = hitForce.z * (self.HeadRagdollUpMul or 1.2)
@@ -2200,9 +2183,8 @@ function SWEP:NPCThink()
                     self:PlaySoftHitSounds(npc, trEnt, trace, false)
 
 					if trEnt:IsPlayer() then
-						local headHit = self:IsHeadHit(trEnt, trace)
-						local hitForce = self:GetRagdollHitForce(trEnt, trace.Normal, dmg, false)
-						if headHit then
+						local hitForce = trace.Normal * math.min(dmg, 25) * 400 * (self.RagdollHitForceMul or 1)
+						if self:IsHeadHit(trEnt, trace) then
 							hitForce.x = hitForce.x * (self.HeadRagdollForceMul or 1.35)
 							hitForce.y = hitForce.y * (self.HeadRagdollForceMul or 1.35)
 							hitForce.z = hitForce.z * (self.HeadRagdollUpMul or 1.2)
