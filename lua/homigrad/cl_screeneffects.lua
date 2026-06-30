@@ -302,6 +302,142 @@ local painLayers = {
 		targetVolume = 0
 	}
 }
+local seizureSoundPath = "sound/rem_seizure.ogg"
+local seizureIntroDuration = 3
+local seizureFlashDelayMin = 0.12
+local seizureFlashDelayMax = 0.55
+local seizureFlashDurationMin = 0.35
+local seizureFlashDurationMax = 1.1
+local seizureFlashSizeMin = 9000
+local seizureFlashSizeMax = 18000
+local seizureFinalFlashLead = 2
+local seizureFinalFlashDuration = 5
+local seizureFinalFlashSize = 90000
+local seizureSoundVolume = 1
+local seizureSoundOtrubVolume = 0.3
+local seizureSoundOtrubPlaybackRate = 0.82
+local seizureIntroTab = {
+	["$pp_colour_addr"] = 0,
+	["$pp_colour_addg"] = 0,
+	["$pp_colour_addb"] = 0,
+	["$pp_colour_brightness"] = 0,
+	["$pp_colour_contrast"] = 1,
+	["$pp_colour_colour"] = 1,
+	["$pp_colour_mulr"] = 0,
+	["$pp_colour_mulg"] = 0,
+	["$pp_colour_mulb"] = 0
+}
+local seizureChromatic = Material("effects/shaders/merc_chromaticaberration")
+local SeizureStationLoading = false
+local seizureAudioGeneration = 0
+local seizureClientActive = false
+local seizureClientStart = 0
+local seizureClientEnd = 0
+local nextSeizureFlash = 0
+local nextSeizureCamShake = 0
+local seizureFinalFlashFired = false
+
+local function stopSeizureEffects()
+	seizureClientActive = false
+	seizureClientStart = 0
+	seizureClientEnd = 0
+	nextSeizureFlash = 0
+	nextSeizureCamShake = 0
+	seizureFinalFlashFired = false
+	SeizureStationLoading = false
+	seizureAudioGeneration = seizureAudioGeneration + 1
+
+	if IsValid(SeizureStation) then
+		SeizureStation:Stop()
+		SeizureStation = nil
+	end
+end
+
+local function ensureSeizureStation()
+	if IsValid(SeizureStation) or SeizureStationLoading then return end
+
+	local generation = seizureAudioGeneration
+	SeizureStationLoading = true
+	sound.PlayFile(seizureSoundPath, "noblock noplay", function(station)
+		SeizureStationLoading = false
+		if generation != seizureAudioGeneration then
+			if IsValid(station) then
+				station:Stop()
+			end
+			return
+		end
+		if IsValid(station) then
+			station:SetVolume(0)
+			station:Play()
+			station:EnableLooping(true)
+			SeizureStation = station
+		end
+	end)
+end
+
+local function addSeizureFlash(isFinal)
+	if not hg.AddFlash then return end
+
+	local view = render.GetViewSetup(true)
+	local pos = view.origin + view.angles:Forward() * math.Rand(isFinal and 140 or 120, isFinal and 220 or 210) + view.angles:Right() * math.Rand(isFinal and -45 or -110, isFinal and 45 or 110) + view.angles:Up() * math.Rand(isFinal and -45 or -80, isFinal and 45 or 80)
+	local time = isFinal and seizureFinalFlashDuration or math.Rand(seizureFlashDurationMin, seizureFlashDurationMax)
+	local size = isFinal and seizureFinalFlashSize or math.Rand(seizureFlashSizeMin, seizureFlashSizeMax)
+
+	hg.AddFlash(view.origin, 1, pos, time, size)
+end
+
+local function updateSeizureEffects(org)
+	if org.seizureActive and (org.seizureStart or 0) > 0 and (org.seizureEnd or 0) > CurTime() then
+		if not seizureClientActive or seizureClientStart != org.seizureStart or seizureClientEnd != org.seizureEnd then
+			seizureClientActive = true
+			seizureClientStart = org.seizureStart
+			seizureClientEnd = org.seizureEnd
+			nextSeizureFlash = math.max(seizureClientStart + seizureIntroDuration, CurTime() + seizureIntroDuration)
+			nextSeizureCamShake = CurTime()
+			seizureFinalFlashFired = false
+		end
+
+		ensureSeizureStation()
+		if IsValid(SeizureStation) then
+			SeizureStation:SetVolume(org.otrub and seizureSoundOtrubVolume or seizureSoundVolume)
+			SeizureStation:SetPlaybackRate(org.otrub and seizureSoundOtrubPlaybackRate or 1)
+		end
+
+		local seizureElapsed = math.max(CurTime() - seizureClientStart, 0)
+		if seizureElapsed < seizureIntroDuration then
+			local intensity = math.min(seizureElapsed, seizureIntroDuration)
+			seizureIntroTab["$pp_colour_contrast"] = intensity / 2
+			seizureIntroTab["$pp_colour_addr"] = intensity / 10
+			seizureIntroTab["$pp_colour_brightness"] = intensity / 10
+			DrawColorModify(seizureIntroTab)
+			DrawBloom(0.65, intensity * 4, 9, 9, 1, 1, intensity / 16, 0.2, 0.2)
+
+			render.UpdateScreenEffectTexture()
+			seizureChromatic:SetFloat("$c0_x", 3.5 - intensity)
+			seizureChromatic:SetInt("$c0_y", 1)
+			render.SetMaterial(seizureChromatic)
+			render.DrawScreenQuad()
+		end
+
+		if seizureElapsed >= seizureIntroDuration and CurTime() >= nextSeizureFlash then
+			addSeizureFlash(false)
+			nextSeizureFlash = CurTime() + math.Rand(seizureFlashDelayMin, seizureFlashDelayMax)
+		end
+
+		if CurTime() >= nextSeizureCamShake then
+			ViewPunch(Angle(math.Rand(-1.25, 1.25), math.Rand(-1.4, 1.4), math.Rand(-0.45, 0.45)))
+			ViewPunch2(Angle(math.Rand(-0.55, 0.55), math.Rand(-0.8, 0.8), math.Rand(-0.7, 0.7)))
+			nextSeizureCamShake = CurTime() + math.Rand(0.025, 0.06)
+		end
+
+		if not seizureFinalFlashFired and CurTime() >= seizureClientEnd - seizureFinalFlashLead then
+			addSeizureFlash(true)
+			seizureFinalFlashFired = true
+		end
+	else
+		stopSeizureEffects()
+	end
+end
 
 local function stopPainLayer(layer)
 	layer.targetVolume = 0
@@ -362,6 +498,7 @@ local function stopthings()
 	NoiseStation2Loading = false
 	NoiseStation2DyingLoading = false
 	stopPainLayers()
+	stopSeizureEffects()
 	
 	if IsValid(PainStation) then
 		PainStation:Stop()
@@ -467,6 +604,8 @@ hook.Add("Post Post Processing", "ItHurts", function()
 	if not organism then stopthings() return end
 	if not organism.brain then stopthings() return end
 	local org = organism
+
+	updateSeizureEffects(org)
 	
 	if org.blindness or amtflashed >= 0.8 then
 		local blindness = ((org.blindness and math.Round(org.blindness) == 0) or amtflashed >= 0.8) and 0 or (org.blindness)

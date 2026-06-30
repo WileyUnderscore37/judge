@@ -16,6 +16,23 @@ local panicattack_heart_roll_chance = 1
 local panicattack_damage_scale = 0.006
 local panicattack_witness_radius = 850
 local panicattack_death_radius = 900
+local seizure_duration = 90
+local seizure_brain_damage_start = 80
+local seizure_brain_damage_final = 0.99
+local seizure_pose_force = 850
+local seizure_pose_damp = 42
+local seizure_leg_buckle = 46
+local seizure_shake_freq = 5.8
+local seizure_shake_amp = 1.35
+local seizure_brain_trauma_gain_mul = 2
+local seizure_brain_heal_gain_mul = 1.1
+local seizure_temperature_gain_mul = 0.013
+local seizure_temperature_low_start = 35
+local seizure_temperature_high_start = 39
+local seizure_brain_roll_delay = 20
+local seizure_brain_roll_chance = 15
+local seizure_brain_roll_gain_min = 0.04
+local seizure_brain_roll_gain_max = 0.11
 hook.Add("Org Clear", "Main", function(org)
 	org.alive = true
 	org.otrub = false
@@ -94,6 +111,14 @@ hook.Add("Org Clear", "Main", function(org)
 	org.panicattack = 0
 	org.panicattackActive = false
 	org.nextPanicHeartRoll = 0
+	org.seizure = 0
+	org.seizureActive = false
+	org.seizureStart = 0
+	org.seizureEnd = 0
+	org.nextSeizureSpasm = 0
+	org.nextSeizureRoll = 0
+	org.lastSeizureBrain = 0
+	org.lastSeizureTemperature = org.temperature
 
 	org.blindness = nil
 
@@ -119,7 +144,7 @@ end)
 
 hook.Add("Should Fake Up", "organism", function(ply)
 	local org = ply.organism
-	if org.otrub or org.fake or org.nearpainlimit or org.spine1 >= hg.organism.fake_spine1 or org.spine2 >= hg.organism.fake_spine2 or org.spine3 >= hg.organism.fake_spine3 or (org.lleg == 1 and org.rleg == 1) and org.berserk <= 0.3 or (org.blood < 2900) or org.consciousness <= 0.4 then
+	if org.seizureActive or org.otrub or org.fake or org.nearpainlimit or org.spine1 >= hg.organism.fake_spine1 or org.spine2 >= hg.organism.fake_spine2 or org.spine3 >= hg.organism.fake_spine3 or (org.lleg == 1 and org.rleg == 1) and org.berserk <= 0.3 or (org.blood < 2900) or org.consciousness <= 0.4 then
 		return false
 	end
 end)
@@ -187,6 +212,10 @@ local function send_organism(org, ply)
 	sendtable.noradrenaline = org.noradrenaline
 	sendtable.panicattackadd = org.panicattackadd
 	sendtable.panicattack = org.panicattack
+	sendtable.seizure = org.seizure
+	sendtable.seizureActive = org.seizureActive
+	sendtable.seizureStart = org.seizureStart
+	sendtable.seizureEnd = org.seizureEnd
 	sendtable.LodgedEntities = org.LodgedEntities
 	sendtable.CantCheckPulse = org.CantCheckPulse
 	sendtable.blindness = org.blindness
@@ -251,6 +280,10 @@ local function send_bareinfo(org)
 	sendtable.noradrenalineActive = org.noradrenalineActive
 	sendtable.panicattackadd = org.panicattackadd
 	sendtable.panicattack = org.panicattack
+	sendtable.seizure = org.seizure
+	sendtable.seizureActive = org.seizureActive
+	sendtable.seizureStart = org.seizureStart
+	sendtable.seizureEnd = org.seizureEnd
 
 	local rf = RecipientFilter()
 	--rf:AddAllPlayers()
@@ -303,6 +336,92 @@ function hg.organism.AddPanicAttack(org, amount, silent)
 	org.panicattackadd = math.Clamp((org.panicattackadd or 0) + amount * panicattack_gain_mul, 0, 1)
 
 	return org.panicattackadd
+end
+
+function hg.organism.AddSeizure(org, amount)
+	if not org then return 0 end
+	if not isnumber(amount) or amount <= 0 then return org.seizure or 0 end
+
+	org.seizure = math.Clamp((org.seizure or 0) + amount, 0, 1)
+
+	return org.seizure
+end
+
+local function apply_seizure_pose(rag, org, time)
+	if not IsValid(rag) then return end
+
+	local boneSpine2 = rag:LookupBone("ValveBiped.Bip01_Spine2")
+	if not boneSpine2 then return end
+
+	local spine2 = rag:GetPhysicsObjectNum(rag:TranslateBoneToPhysBone(boneSpine2))
+	if not IsValid(spine2) then return end
+
+	local spineAng = spine2:GetAngles()
+	local spinePos = spine2:GetPos()
+	local force = seizure_pose_force * math.Clamp((org.pulse or 70) / 70, 0.9, 1.15)
+	local damp = seizure_pose_damp
+
+	local shake = Vector(
+		math.sin(time * seizure_shake_freq) * seizure_shake_amp,
+		math.sin(time * (seizure_shake_freq + 0.9)) * seizure_shake_amp * 0.8,
+		math.sin(time * (seizure_shake_freq + 1.4)) * seizure_shake_amp * 0.65
+	)
+
+	local torsoAng = Angle(
+		spineAng.p + 8 + math.sin(time * 3.6) * 1.4,
+		spineAng.y,
+		spineAng.roll + math.sin(time * 4.1) * 2.2
+	)
+
+	local leftShoulderAng = Angle(torsoAng.p + 16, torsoAng.y, torsoAng.roll - 16)
+	local rightShoulderAng = Angle(torsoAng.p + 20, torsoAng.y, torsoAng.roll + 16)
+	local thighAng = Angle(spineAng.p + seizure_leg_buckle + math.sin(time * 4.5) * 2.5, spineAng.y + 180, spineAng.roll + math.sin(time * 4.9) * 2.5)
+	local calfAng = Angle(spineAng.p + seizure_leg_buckle + 26 + math.sin(time * 5.2) * 2, spineAng.y + 180, spineAng.roll - math.sin(time * 5.7) * 2)
+	local chestPos = spinePos + torsoAng:Forward() * 3 + torsoAng:Up() * 8 + shake
+	local stomachPos = spinePos + torsoAng:Forward() * 1 + torsoAng:Up() * 2 + shake * 0.75
+	local lForePos = chestPos - torsoAng:Right() * 9 + torsoAng:Forward() * 1
+	local rForePos = stomachPos + torsoAng:Right() * 8
+	local lHandPos = chestPos - torsoAng:Right() * 5 - torsoAng:Up() * 1
+	local rHandPos = stomachPos + torsoAng:Right() * 4 - torsoAng:Up() * 1
+
+	hg.ShadowControl(rag, 8, 0.001, thighAng, force * 1.1, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 9, 0.001, thighAng, force * 1.1, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 11, 0.001, calfAng, force * 0.95, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 12, 0.001, calfAng, force * 0.95, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 2, 0.001, leftShoulderAng, force * 0.45, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 3, 0.001, rightShoulderAng, force * 0.45, damp, vector_origin, 0, 0)
+	hg.ShadowControl(rag, 4, 0.001, nil, 0, 0, lForePos, force * 0.95, damp)
+	hg.ShadowControl(rag, 6, 0.001, nil, 0, 0, rForePos, force * 0.95, damp)
+	hg.ShadowControl(rag, 5, 0.001, nil, 0, 0, lHandPos, force * 1.2, damp)
+	hg.ShadowControl(rag, 7, 0.001, nil, 0, 0, rHandPos, force * 1.2, damp)
+	hg.ShadowControl(rag, 10, 0.4, Angle(torsoAng.p + 14, torsoAng.y, torsoAng.roll), 10, 6)
+end
+
+local function stop_seizure(owner, org)
+	local wasActive = org.seizureActive
+	org.seizure = 0
+	org.seizureActive = false
+	org.seizureStart = 0
+	org.seizureEnd = 0
+	org.nextSeizureSpasm = 0
+
+	if wasActive and IsValid(owner) and owner:IsPlayer() and owner:Alive() then
+		owner.fullsend = true
+		send_organism(org, owner)
+	end
+end
+
+local function start_seizure(owner, org)
+	if org.seizureActive or not IsValid(owner) or not owner:IsPlayer() or not owner:Alive() then return end
+
+	local time = CurTime()
+	org.seizure = 1
+	org.seizureActive = true
+	org.seizureStart = time
+	org.seizureEnd = time + seizure_duration
+	org.nextSeizureSpasm = time
+	owner.fullsend = true
+	send_organism(org, owner)
 end
 
 local function resolve_panic_attacker(victim, attacker)
@@ -500,6 +619,8 @@ hook.Add("Org Think", "Main", function(owner, org, timeValue)
 	local oldPanicAttack = org.panicattack or 0
 	org.panicattackadd = math.Approach(org.panicattackadd or 0, 0, timeValue / panicattack_add_decay_time)
 	org.panicattack = math.Approach(oldPanicAttack, org.panicattackadd or 0, timeValue / ((org.panicattackadd or 0) > oldPanicAttack and panicattack_rise_time or panicattack_decay_time))
+	local oldSeizureBrain = org.lastSeizureBrain or (org.brain or 0)
+	local oldSeizureTemperature = org.lastSeizureTemperature or (org.temperature or 36.7)
 
 	if org.berserk > 0 and !org.berserkActive then
 		org.berserkActive = true
@@ -540,6 +661,68 @@ hook.Add("Org Think", "Main", function(owner, org, timeValue)
 	else
 		org.panicattackActive = false
 		org.nextPanicHeartRoll = CurTime() + panicattack_heart_roll_delay
+	end
+
+	local brainDelta = (org.brain or 0) - oldSeizureBrain
+	if brainDelta > 0 then
+		hg.organism.AddSeizure(org, math.Clamp(brainDelta * seizure_brain_trauma_gain_mul, 0, 1))
+	elseif brainDelta < 0 and oldSeizureBrain > 0 then
+		hg.organism.AddSeizure(org, math.Clamp(-brainDelta * seizure_brain_heal_gain_mul, 0, 1))
+	end
+
+	local temperature = org.temperature or 36.7
+	local previousTemperature = oldSeizureTemperature
+	local heatStress = math.max(temperature - seizure_temperature_high_start, previousTemperature - seizure_temperature_high_start, 0)
+	local coldStress = math.max(seizure_temperature_low_start - temperature, seizure_temperature_low_start - previousTemperature, 0)
+	local temperatureStress = math.max(heatStress, coldStress)
+	if temperatureStress > 0 then
+		hg.organism.AddSeizure(org, timeValue * temperatureStress * seizure_temperature_gain_mul)
+	end
+
+	local curTime = CurTime()
+	if (org.brain or 0) > 0.05 then
+		org.nextSeizureRoll = org.nextSeizureRoll or (curTime + seizure_brain_roll_delay)
+		if curTime >= org.nextSeizureRoll then
+			org.nextSeizureRoll = curTime + seizure_brain_roll_delay
+			if math.random(seizure_brain_roll_chance) == 1 then
+				hg.organism.AddSeizure(org, math.Rand(seizure_brain_roll_gain_min, seizure_brain_roll_gain_max) * math.Clamp(math.Remap(org.brain or 0, 0.05, 1, 0.75, 1.5), 0.75, 1.5))
+			end
+		end
+	else
+		org.nextSeizureRoll = curTime + seizure_brain_roll_delay
+	end
+
+	org.lastSeizureBrain = org.brain or 0
+	org.lastSeizureTemperature = temperature
+
+	if org.seizure >= 1 and !org.seizureActive and isPly and owner:Alive() then
+		start_seizure(owner, org)
+	elseif org.seizureActive and org.seizure <= 0 then
+		stop_seizure(owner, org)
+	end
+
+	if org.seizureActive then
+		local time = CurTime()
+		local seizureStart = org.seizureStart or time
+		local seizureEnd = org.seizureEnd or time
+
+		org.needfake = true
+		owner.fakecd = math.max(owner.fakecd or 0, seizureEnd)
+
+		if time >= seizureEnd then
+			org.brain = math.max(org.brain or 0, seizure_brain_damage_final)
+			stop_seizure(owner, org)
+		else
+			if time >= seizureStart + seizure_brain_damage_start then
+				local frac = math.Clamp((time - (seizureStart + seizure_brain_damage_start)) / math.max(seizure_duration - seizure_brain_damage_start, 0.001), 0, 1)
+				org.brain = math.max(org.brain or 0, seizure_brain_damage_final * frac)
+			end
+
+			local rag = owner.FakeRagdoll
+			if IsValid(rag) then
+				apply_seizure_pose(rag, org, time)
+			end
+		end
 	end
 
 	if (org.llegamputated or org.rlegamputated) and org.berserk <= 0.3 then
@@ -755,7 +938,10 @@ hook.Add("Org Think", "regenerationberserk", function(owner, org, timeValue)
 	org.lungsL[2] = math.max((org.lungsL[2] or 0) - regen, 0)
 	org.eyeL = math.max((org.eyeL or 0) - regen, 0)
 	org.eyeR = math.max((org.eyeR or 0) - regen, 0)
-	org.brain = math.max(org.brain - regen, 0)
+	local oldBrain = org.brain or 0
+	org.brain = math.max(oldBrain - regen, 0)
+	hg.organism.AddSeizure(org, math.Clamp((oldBrain - org.brain) * seizure_brain_heal_gain_mul, 0, 1))
+	org.lastSeizureBrain = org.brain
 
 	org.hungry = 0
 
@@ -797,7 +983,10 @@ hook.Add("Org Think", "regenerationnoradrenaline", function(owner, org, timeValu
 	org.analgesia = math.Approach(org.analgesia, 1, regen * 10)
 
 	if org.noradrenaline > 2 then
-		org.brain = math.Approach(org.brain, 0.3, timeValue / 60)
+		local oldBrain = org.brain or 0
+		org.brain = math.Approach(oldBrain, 0.3, timeValue / 60)
+		hg.organism.AddSeizure(org, math.Clamp((oldBrain - org.brain) * seizure_brain_heal_gain_mul, 0, 1))
+		org.lastSeizureBrain = org.brain
 	end
 
 	org.pulse = math.Approach(org.pulse, 70, regen * 10)
@@ -853,7 +1042,11 @@ end)
 hook.Add("SetupMove", "hg-speed", function(ply, mv) end) --mv:SetMaxClientSpeed(100) --mv:SetMaxSpeed(100)
 
 hook.Add("StartCommand","hg_lol",function(ply,cmd)
-	if ply.organism.otrub and ply:Alive() then
+	if not ply:Alive() or not ply.organism then return end
+	if ply.organism.seizureActive then
+		cmd:ClearMovement()
+		cmd:ClearButtons()
+	elseif ply.organism.otrub then
 		cmd:ClearMovement()
 	end
 end)

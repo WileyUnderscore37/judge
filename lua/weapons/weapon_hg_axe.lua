@@ -1,7 +1,7 @@
-﻿if SERVER then AddCSLuaFile() end
+if SERVER then AddCSLuaFile() end
 SWEP.Base = "weapon_melee"
 SWEP.PrintName = "Fire Axe"
-SWEP.Instructions = "An axe is an implement that has been used for millennia to shape, split, and cut wood. Can break down doors.\n\nLMB to attack.\nRMB to block."
+SWEP.Instructions = "An axe is an implement that has been used for millennia to shape, split, and cut wood. Can break down doors.\n\nLMB to attack.\nR + LMB to charge.\nRMB to block."
 SWEP.Category = "Weapons - Melee"
 
 SWEP.Spawnable = true
@@ -39,6 +39,25 @@ SWEP.Attack2Time = 0.3
 SWEP.AnimTime2 = 1
 SWEP.WaitTime2 = 0.8
 SWEP.ViewPunch2 = Angle(0, 0, -2)
+SWEP.canchargeattack = true
+SWEP.ChargeAnimTimeBegin = 1.45
+SWEP.ChargeAnimTimeIdle = 1
+SWEP.ChargeAnimTimeEnd = 1.65
+SWEP.ChargeFullTime = 0.65
+SWEP.ChargeAttackTime = 0.41
+SWEP.ChargeWaitTime = 2.5
+SWEP.ChargeAttackLen = 70
+SWEP.ChargeAttackTimeLength = 0.34
+SWEP.ChargeAttackRads = 85
+SWEP.ChargeSwingAng = -78
+SWEP.ChargeStamina = 48
+SWEP.ChargePenetration = 8
+SWEP.ChargePenetrationSize = 6.5
+SWEP.ChargeDamageMul = 2.05
+SWEP.ChargeBreakBoneMul = 2.1
+SWEP.ChargeTapCancelTime = 1
+SWEP.ChargeViewPunch = Angle(12, 0, 0)
+SWEP.ChargeHoldPos = Vector(-7, -5, -1)
 
 SWEP.attack_ang = Angle(0, 0, 0)
 SWEP.sprint_ang = Angle(15, 0, 0)
@@ -53,6 +72,9 @@ SWEP.AnimList = {
     ["deploy"] = "Draw",
     ["attack"] = "Attack_Quick",
     ["attack2"] = "Shove",
+    ["charge_begin"] = "Attack_Charge_Begin",
+    ["charge_idle"] = "Attack_Charge_Idle",
+    ["charge_end"] = "Attack_Charge_End",
 }
 
 SWEP.DamageType = DMG_SLASH
@@ -96,6 +118,8 @@ SWEP.AttackHit = "Canister.ImpactHard"
 SWEP.Attack2Hit = "Canister.ImpactHard"
 SWEP.AttackHitFlesh = "snd_jack_hmcd_axehit.wav"
 SWEP.Attack2HitFlesh = "Flesh.ImpactHard"
+SWEP.ChargeAttackHit = "Canister.ImpactHard"
+SWEP.ChargeAttackHitFlesh = "snd_jack_hmcd_axehit.wav"
 SWEP.DeploySnd = "physics/wood/wood_plank_impact_soft2.wav"
 
 SWEP.hitsoundbrutalize = {
@@ -147,10 +171,23 @@ function SWEP:CanSecondaryAttack()
     return true
 end
 
+function SWEP:CanChargeAttack()
+    self.DamageType = DMG_SLASH
+    self.AttackHit = "Canister.ImpactHard"
+    self.Attack2Hit = "Canister.ImpactHard"
+    self.ChargeAttackHit = "Canister.ImpactHard"
+    self.ChargeAttackHitFlesh = "snd_jack_hmcd_axehit.wav"
+    return true
+end
+
 function SWEP:PrimaryAttackAdd(ent)
     if hgIsDoor(ent) and math.random(7) > 3 then
         hgBlastThatDoor(ent,self:GetOwner():GetAimVector() * 50 + self:GetOwner():GetVelocity())
     end
+end
+
+function SWEP:ChargeAttackAdd(ent)
+    self:PrimaryAttackAdd(ent)
 end
 
 SWEP.MinSensivity = 0.7

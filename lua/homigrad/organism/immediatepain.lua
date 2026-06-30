@@ -1,7 +1,7 @@
 if SERVER then
-    local painaddDrainRate = 10
-    local adrenalinePainaddPassiveRate = 12
-    local adrenalinePainaddPassiveCap = 1
+    local painaddDrainRate = 16
+    local adrenalinePainaddPassiveRate = 20
+    local adrenalinePainaddPassiveCap = 2
     local adrenalinePainaddPassiveMin = 15
 
     hook.Add("Org Think", "ImmediatePainApply", function(owner, org, timeValue)

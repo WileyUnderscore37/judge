@@ -366,7 +366,7 @@ local function Impact(Weapon, iAmmoDamageType, bFirstTimePredicted, vSrc, tr, sI
 	end
 end
 
-local function Damage(bDoDebugHit, bStartedWater, bEndNotWater, iFlags, iDamage, iPlayerDamage, iNPCDamage, iAmmoDamage, pAttacker, pInflictor,
+local function Damage(bDoDebugHit, bStartedInWater, bEndNotWater, iFlags, iDamage, iPlayerDamage, iNPCDamage, iAmmoDamage, pAttacker, pInflictor,
 	iAmmoDamageType, tr, Weapon, vShotDir, flAmmoForce, flForce, flPhysPush, iAmmoType, vSrc, fCallback, bFirstTimePredicted, bDrop, sImpactEffect, sRagdollImpactEffect, tInfo)
 	
 	local vHitPos = tr.HitPos
@@ -377,7 +377,7 @@ local function Damage(bDoDebugHit, bStartedWater, bEndNotWater, iFlags, iDamage,
 		debugoverlay.Box(vHitPos, vector_debug_min, vector_debug_max, DEBUG_LENGTH, color_debug)
 	end
 	
-	if (not bStartedWater and bEndNotWater or bit.band(iFlags, FIRE_BULLETS_DONT_HIT_UNDERWATER) == 0) then
+	if (not bStartedInWater and bEndNotWater or bit.band(iFlags, FIRE_BULLETS_DONT_HIT_UNDERWATER) == 0) then
 		-- The engine considers this a float
 		-- Even though no values assigned to it are
 		-- FIXME: Update these typedefs
@@ -799,7 +799,7 @@ function ENTITY:FireLuaBullets(tInfo)
 				break // we didn't hit anything, stop tracing shoot
 			end
 			
-			Damage(bDoDebugHit, bStartedWater, bEndNotWater, iFlags, iDamage, iPlayerDamage, iNPCDamage, iAmmoDamage, pAttacker, pInflictor, iAmmoDamageType,
+			Damage(bDoDebugHit, bStartedInWater, bEndNotWater, iFlags, iDamage, iPlayerDamage, iNPCDamage, iAmmoDamage, pAttacker, pInflictor, iAmmoDamageType,
 				tr, bWeaponValid and pWeapon, vShotDir, flAmmoForce, flForce, flPhysPush, iAmmoType, vSrc, fCallback, bFirstTimePredicted, bDrop, sImpactEffect, sRagdollImpactEffect, tInfo)
 			// do damage, paint decals
 			-- https://github.com/Facepunch/garrysmod-issues/issues/2741
@@ -1135,7 +1135,7 @@ function PLAYER:FireCSSBullets(tInfo)
 			flCurrentPlayerDamage = flCurrentPlayerDamage * flDecay
 			flCurrentNPCDamage = flCurrentNPCDamage * flDecay
 			
-			Damage(bDoDebugHit, bStartedWater, bEndNotWater, iFlags, flCurrentDamage, flCurrentPlayerDamage, flCurrentNPCDamage, bIsPlayer and iAmmoPlayerDamage or iAmmoNPCDamage, pAttacker,
+			Damage(bDoDebugHit, bStartedInWater, bEndNotWater, iFlags, flCurrentDamage, flCurrentPlayerDamage, flCurrentNPCDamage, bIsPlayer and iAmmoPlayerDamage or iAmmoNPCDamage, pAttacker,
 				pInflictor, iAmmoDamageType, tr, bWeaponValid and pWeapon, vShotDir, flAmmoForce, flForce, flPhysPush, iAmmoType, vSrc, fCallback, bFirstTimePredicted, bDrop, sImpactEffect, sRagdollImpactEffect)
 			
 			// check if we reach penetration distance, no more penetrations after that

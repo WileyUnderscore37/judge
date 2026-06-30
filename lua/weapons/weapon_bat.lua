@@ -56,6 +56,26 @@ SWEP.ComboDamageMul1 = 1
 SWEP.ComboDamageMul2 = 1.25
 SWEP.ComboDamageMul3 = 1.65
 
+SWEP.canchargeattack = true
+SWEP.ChargeAnimTimeBegin = 1
+SWEP.ChargeAnimTimeIdle = 1
+SWEP.ChargeAnimTimeEnd = 1.35
+SWEP.ChargeFullTime = 0.65
+SWEP.ChargeAttackTime = 0.36
+SWEP.ChargeWaitTime = 1.95
+SWEP.ChargeAttackLen = 70
+SWEP.ChargeAttackTimeLength = 0.26
+SWEP.ChargeAttackRads = 85
+SWEP.ChargeSwingAng = -94
+SWEP.ChargeStamina = 48
+SWEP.ChargePenetration = 8
+SWEP.ChargePenetrationSize = 6.5
+SWEP.ChargeDamageMul = 1.85
+SWEP.ChargeBreakBoneMul = 1.15
+SWEP.ChargeTapCancelTime = 1
+SWEP.ChargeViewPunch = Angle(7, 0, 0)
+SWEP.ChargeHoldPos = Vector(-8, 0, 0)
+
 SWEP.hitsoundextra = {
     {"bat/sfx_bat_impact_02.wav", 55, {105, 115}},
     {"bat/sfx_bat_impact_04.wav", 55, {105, 115}},

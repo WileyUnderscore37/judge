@@ -391,6 +391,7 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 	local brain = org.brain or 0
 	local otrub = lply:Alive() and org.otrub or false
 	local analgesia = organism.analgesia or 0
+	local analgesiaVisual = org.seizureActive and math.max(analgesia * 3, 3) or analgesia
 	local health = health
 	local disorientation = org.disorientation or 0
 	local immobilization = org.immobilization or 0
@@ -506,8 +507,8 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 	--DrawMaterialOverlay( "homigrad/vgui/bloodblur.png", 0)
 	local view = render.GetViewSetup()
 	--RenderSuperDoF(view.origin,view.angles,0)
-	if analgesia > 1 then
-		DrawMaterialOverlay( "particle/warp4_warp_noz", -(analgesia - 0.5) * math.sin(CurTime()) * 5 / 150 )
+	if analgesiaVisual > 1 then
+		DrawMaterialOverlay( "particle/warp4_warp_noz", -(analgesiaVisual - 0.5) * math.sin(CurTime()) * 5 / 150 )
 	end
 
 	/*
@@ -528,7 +529,7 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 
 	*/
 
-	tabblood["$pp_colour_colour"] = Lerp(FrameTime() * 30, tabblood["$pp_colour_colour"], math.max(0, (blood / 5000) * (potato and (blood / 5000) or 1) - (!org.otrub and potato and k2 or 0) + (math.max(org.analgesia - 1, 0) * math.sin(CurTime()) * 5)))
+	tabblood["$pp_colour_colour"] = Lerp(FrameTime() * 30, tabblood["$pp_colour_colour"], math.max(0, (blood / 5000) * (potato and (blood / 5000) or 1) - (!org.otrub and potato and k2 or 0) + (math.max(analgesiaVisual - 1, 0) * math.sin(CurTime()) * 5)))
 	//tabblood["$pp_colour_contrast"] = Lerp(FrameTime() * 30, tabblood["$pp_colour_contrast"], health < 80 and math.max(1.5 * ( 1 - math.min(health / 50, 1) ), 1 ) or 1)
 	tabblood["$pp_colour_brightness"] = Lerp(FrameTime() * 30, tabblood["$pp_colour_brightness"], (potato and ((blood / 5000 - 1) / 2 - (!org.otrub and k2 / 10 or 0)) or 0) )
 	tabblood["$pp_colour_addb"] = 0

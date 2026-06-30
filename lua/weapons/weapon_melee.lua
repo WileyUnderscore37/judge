@@ -42,6 +42,76 @@ function SWEP:CanSecondaryAttack()
 	return true
 end
 
+function SWEP:CanChargeAttack()
+    return true
+end
+
+function SWEP:IsSecondaryAttackType(attacktype)
+    return attacktype == true or attacktype == 2
+end
+
+function SWEP:IsChargeAttackType(attacktype)
+    return attacktype == 3
+end
+
+function SWEP:GetAttackConfigValue(primary, secondary, charge, attacktype)
+    if self:IsChargeAttackType(attacktype) then
+        if charge ~= nil then
+            return charge
+        end
+
+        return primary
+    end
+
+    if self:IsSecondaryAttackType(attacktype) then
+        return secondary
+    end
+
+    return primary
+end
+
+function SWEP:GetAttackAnimToken(token, fallback)
+    if self.AnimList and self.AnimList[token] then
+        return token
+    end
+
+    return fallback
+end
+
+function SWEP:GetChargeFraction()
+    return math.Clamp(((self.ChargeReleasedAt or CurTime()) - (self.ChargeStartedAt or CurTime())) / math.max(self.ChargeFullTime or 0.35, 0.001), 0, 1)
+end
+
+function SWEP:GetChargeDamageScale()
+    return Lerp(self:GetChargeFraction(), 1, self.ChargeDamageMul or 1)
+end
+
+function SWEP:GetChargeBoneScale()
+    return Lerp(self:GetChargeFraction(), 1, self.ChargeBreakBoneMul or 1)
+end
+
+function SWEP:GetAttackDamageBase(attacktype)
+    local damage = self:GetAttackConfigValue(self.DamagePrimary, self.DamageSecondary, self.DamagePrimary, attacktype) or 0
+
+    if self:IsChargeAttackType(attacktype) then
+        damage = damage * (self.ReleasedChargeDamageMul or 1)
+    end
+
+    return damage
+end
+
+function SWEP:GetAttackHitSound(attacktype)
+    return self:GetAttackConfigValue(self.AttackHit, self.Attack2Hit, self.ChargeAttackHit, attacktype)
+end
+
+function SWEP:GetAttackFleshHitSound(attacktype)
+    return self:GetAttackConfigValue(self.AttackHitFlesh, self.Attack2HitFlesh, self.ChargeAttackHitFlesh, attacktype)
+end
+
+function SWEP:GetAttackSwingSound(attacktype)
+    return self:GetAttackConfigValue(self.AttackSwing, self.AttackSwing, self.ChargeAttackSwing, attacktype)
+end
+
 SWEP.supportTPIK = true
 SWEP.ismelee = true
 SWEP.ismelee2 = true
@@ -91,6 +161,30 @@ SWEP.ViewPunch1 = Angle(2,0,0)
 SWEP.ViewPunch2 = Angle(0,1,0)
 
 SWEP.AttackSize = 5
+
+SWEP.canchargeattack = false
+SWEP.ChargeAnimTimeBegin = 0.2
+SWEP.ChargeAnimTimeIdle = 0.35
+SWEP.ChargeAnimTimeEnd = 0.8
+SWEP.ChargeFullTime = 0.35
+SWEP.ChargeAttackTime = 0.2
+SWEP.ChargeWaitTime = 0.5
+SWEP.ChargeAttackLen = 55
+SWEP.ChargeAttackTimeLength = 0.15
+SWEP.ChargeAttackRads = 45
+SWEP.ChargeSwingAng = -90
+SWEP.ChargeStamina = 10
+SWEP.ChargePenetration = 8
+SWEP.ChargePenetrationSize = 0.75
+SWEP.ChargeDamageMul = 1.5
+SWEP.ChargeBreakBoneMul = 1.25
+SWEP.ChargeMinStamina = 90
+SWEP.ChargeTapCancelTime = 0.12
+SWEP.ChargeHoldMinKeys = 1
+SWEP.ChargeViewPunch = nil
+SWEP.ChargeHoldPos = nil
+SWEP.ChargeHoldAng = nil
+SWEP.ChargeHoldLerpSpeed = 0.12
 
 SWEP.weaponPos = Vector(2,0.1,-0.8)
 SWEP.weaponAng = Angle(180,90,90)
@@ -507,8 +601,11 @@ function SWEP:ModelAnim(model, pos, ang)
     //self.attackanim = LerpFT(0.1, self.attackanim, (inattack1 and 0.8 or 0) - (inattack2 and 0.3 or 0))
     //self.sprintanim = LerpFT(0.05, self.sprintanim, self:IsSprinting() and 1 or 0)
 
-    local hpos = self.HoldPos
-    local hang = self.HoldAng
+    local chargeHoldTarget = ((self.Charging or (self:GetInAttack() and self:GetAttackType() == 3)) and 1) or 0
+    self.chargeHoldLerp = LerpFT(self.ChargeHoldLerpSpeed or 0.12, self.chargeHoldLerp or 0, chargeHoldTarget)
+
+    local hpos = LerpVector(self.chargeHoldLerp, self.HoldPos, self.ChargeHoldPos or self.HoldPos)
+    local hang = LerpAngle(self.chargeHoldLerp, self.HoldAng, self.ChargeHoldAng or self.HoldAng)
     
     if self.SuicideStart and self.SuicideStart + self.SuicideTime > CurTime() then
         local animpos = (1 - math.Clamp((self.SuicideStart + self.SuicideTime - CurTime()) / self.SuicideTime, 0, 1))
@@ -720,6 +817,7 @@ function SWEP:SetupDataTables()
 end
 
 function SWEP:OwnerChanged()
+    self:CancelChargeAttack(false)
     if IsValid(self:GetOwner()) and self:GetOwner():IsPlayer() then
         self:PlayAnim("deploy",0.5,false,nil,false)
         self:SetHold(self.HoldType)
@@ -733,6 +831,7 @@ function SWEP:OwnerChanged()
 end
 
 function SWEP:OnRemove()
+    self:CancelChargeAttack(false)
     if CLIENT then
         timer.Remove("hg_melee_hitstop_" .. self:EntIndex())
     end
@@ -744,6 +843,7 @@ SWEP.Initialzed = false
 function SWEP:Deploy()
     if SERVER and self.Initialzed and not self:GetOwner().noSound then self:GetOwner():EmitSound(self.DeploySnd,65) end
     self.Initialzed = true
+    self:CancelChargeAttack(false)
     self:ResetCombo()
     self:PlayAnim("deploy", 1, false, nil, false)
     self:SetHold(self.HoldType)
@@ -752,6 +852,7 @@ function SWEP:Deploy()
 end
 
 function SWEP:Holster(wep)
+    self:CancelChargeAttack(false)
     self:SetInAttack(false)
     self:ResetCombo()
     return true
@@ -777,6 +878,88 @@ function SWEP:ApplyHitCooldown()
     self.attackwait = self.HitCooldown / mul
 end
 
+function SWEP:ClearChargeState()
+    self.Charging = nil
+    self.ChargeIdleLooping = nil
+    self.ChargeStartedAt = nil
+    self.ChargeReleasedAt = nil
+    self.ReleasedChargeDamageMul = nil
+    self.ReleasedChargeBoneMul = nil
+    self.ChargeStaminaMul = nil
+end
+
+function SWEP:CancelChargeAttack(playIdle)
+    if not self.Charging and self.ReleasedChargeDamageMul == nil and self.ReleasedChargeBoneMul == nil then return end
+
+    self:ClearChargeState()
+
+    if playIdle then
+        self:PlayAnim("idle", 10, true)
+    end
+end
+
+function SWEP:StartChargeAttack()
+    local owner = self:GetOwner()
+    if not IsValid(owner) then return end
+    if self.Charging then return end
+    if not owner.organism or owner.organism.stamina[1] < (self.ChargeMinStamina or 90) then return end
+
+    local mul = 1 / math.Clamp((180 - owner.organism.stamina[1]) / 90, 1, 2)
+
+    self.HitEnts = nil
+    self.FirstAttackTick = false
+    self.AttackHitPlayed = false
+    self.HitWorld = false
+    self.ComboAppliedThisAttack = nil
+    self.Charging = true
+    self.ChargeIdleLooping = false
+    self.ChargeStartedAt = CurTime()
+    self.ChargeReleasedAt = nil
+    self.ReleasedChargeDamageMul = nil
+    self.ReleasedChargeBoneMul = nil
+    self.ChargeStaminaMul = mul
+
+    self:PlayAnim(self:GetAttackAnimToken("charge_begin", "Attack_Charge_Begin"), (self.ChargeAnimTimeBegin or 0.2) / mul, false, nil, false, false)
+end
+
+function SWEP:ReleaseChargeAttack()
+    local owner = self:GetOwner()
+    if not IsValid(owner) then
+        self:CancelChargeAttack(false)
+        return
+    end
+
+    if not self.Charging then return end
+
+    local mul = self.ChargeStaminaMul or (1 / math.Clamp((180 - owner.organism.stamina[1]) / 90, 1, 2))
+
+    self.ChargeReleasedAt = CurTime()
+    self.ReleasedChargeDamageMul = self:GetChargeDamageScale()
+    self.ReleasedChargeBoneMul = self:GetChargeBoneScale()
+    self.Charging = nil
+    self.ChargeIdleLooping = nil
+    self.HitEnts = nil
+    self.FirstAttackTick = false
+    self.AttackHitPlayed = false
+    self.HitWorld = false
+    self.ComboAppliedThisAttack = nil
+    self:PlayAnim(self:GetAttackAnimToken("charge_end", "Attack_Charge_End"), (self.ChargeAnimTimeEnd or self.AnimTime1 or 1) / mul, false, nil, false, false)
+    self:SetAttackType(3)
+    self:SetLastAttack(CurTime() + (self.ChargeAttackTime or self.AttackTime) / mul)
+    self:SetAttackTime(self:GetLastAttack() + ((self.ChargeAttackTimeLength or self.AttackTimeLength) / mul))
+    self:SetAttackLength(self.ChargeAttackLen or self.AttackLen1)
+    self:SetAttackWait((self.ChargeWaitTime or self.WaitTime1) / mul)
+    self:SetInAttack(true)
+    self.lastattack = CurTime() + (self.ChargeAttackTime or self.AttackTime) / mul
+    self.attackwait = (self.ChargeWaitTime or self.WaitTime1) / mul
+
+    if CLIENT and not self:IsLocal() and owner.AnimRestartGesture then
+        owner:AnimRestartGesture(GESTURE_SLOT_ATTACK_AND_RELOAD, ACT_HL2MP_GESTURE_RANGE_ATTACK_SLAM, true)
+    end
+
+    self.viewpunch = true
+end
+
 function SWEP:ThinkAdd()
 end
 
@@ -795,7 +978,8 @@ if CLIENT then
 
         local inattack1 = time / self.AttackTimeLength
         local inattack2 = time / self.Attack2TimeLength
-        local mul = self:GetAttackType() == 1 and inattack1 or inattack2
+        local inattack3 = time / (self.ChargeAttackTimeLength or self.AttackTimeLength)
+        local mul = self:GetAttackType() == 1 and inattack1 or self:GetAttackType() == 3 and inattack3 or inattack2
 
         mul = math.max( (math.max(math.min(mul,self.MinSensivity or 0.35),0)) - (self.MinSensivity/10) ,0 )
         mul = 1-(mul)
@@ -935,13 +1119,18 @@ function SWEP:PlayExtraHitSounds(owner, volumeMul)
     self:EmitConfiguredHitSoundLayer(owner, self.hitsoundplus, volumeMul)
 end
 
-function SWEP:PlaySwingSound(owner)
+function SWEP:PlaySwingSound(owner, attacktype)
+    if self:IsChargeAttackType(attacktype) and self.ChargeSwingSoundExtra ~= nil then
+        self:EmitConfiguredHitSoundLayer(owner, self.ChargeSwingSoundExtra)
+        return
+    end
+
     if self.swingsoundextra ~= nil then
         self:EmitConfiguredHitSoundLayer(owner, self.swingsoundextra)
         return
     end
 
-    owner:EmitSound(self.AttackSwing or "weapons/slam/throw.wav", 50, math.random(95,105))
+    owner:EmitSound(self:GetAttackSwingSound(attacktype) or "weapons/slam/throw.wav", 50, math.random(95,105))
 end
 
 function SWEP:PrecacheConfiguredHitSoundLayer(layer)
@@ -1022,7 +1211,7 @@ function SWEP:ShouldHeadRagdoll(ent, trace)
 end
 
 function SWEP:ShouldPlayBrutalizeHitSound(ent, victim, trace, attacktype)
-    if attacktype then return false end
+    if self:IsSecondaryAttackType(attacktype) then return false end
     if not istable(self.hitsoundbrutalize) then return false end
     if not self:GetRandomConfiguredHitSound(self.hitsoundbrutalize) then return false end
     if not IsValid(victim) or not victim.organism then return false end
@@ -1052,9 +1241,9 @@ function SWEP:PlaySoftHitSounds(owner, ent, trace, attacktype)
     local brutalize = self:ShouldPlayBrutalizeHitSound(ent, victim, trace, attacktype)
     local volumeMul = brutalize and (self.BrutalizeHitVolumeMul or 0.5) or 1
 
-    owner:EmitSound(attacktype and self.Attack2HitFlesh or self.AttackHitFlesh, 50 * volumeMul)
+    owner:EmitSound(self:GetAttackFleshHitSound(attacktype), 50 * volumeMul)
 
-    if not attacktype then
+    if not self:IsSecondaryAttackType(attacktype) then
         self:PlayExtraHitSounds(owner, volumeMul)
     end
 
@@ -1063,26 +1252,37 @@ function SWEP:PlaySoftHitSounds(owner, ent, trace, attacktype)
     end
 end
 
+local ShouldDrawMeleeAttackHull
+local DrawMeleeAttackHull
+
 function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
     //if SERVER then owner:SetNetVar("slowDown", owner:GetNetVar("slowDown", 0) + (attacktype and self.DamageSecondary or self.DamagePrimary)) end
+    local secondary = self:IsSecondaryAttackType(attacktype)
+    local charge = self:IsChargeAttackType(attacktype)
     
     if not self.FirstAttackTick then 
         if CLIENT then
             if owner == lply and self.viewpunch then
-                ViewPunch(self.ViewPunch1)
+                ViewPunch(self:GetAttackConfigValue(self.ViewPunch1, self.ViewPunch2, self.ChargeViewPunch, attacktype) or self.ViewPunch1)
                 self.viewpunch = nil
             end
         else
-            self.Penetration = attacktype and self.PenetrationSecondary or self.PenetrationPrimary
-            self.PenetrationSize = attacktype and self.PenetrationSizeSecondary or self.PenetrationSizePrimary
+            self.Penetration = self:GetAttackConfigValue(self.PenetrationPrimary, self.PenetrationSecondary, self.ChargePenetration, attacktype)
+            self.PenetrationSize = self:GetAttackConfigValue(self.PenetrationSizePrimary, self.PenetrationSizeSecondary, self.ChargePenetrationSize, attacktype)
             
-            self:PlaySwingSound(owner)
+            self:PlaySwingSound(owner, attacktype)
             
             if owner.organism then
-                owner.organism.stamina.subadd = owner.organism.stamina.subadd + (attacktype and self.StaminaSecondary or self.StaminaPrimary) * 0.5 * math.Clamp(vellen / 200, 1, 1.25)
+                owner.organism.stamina.subadd = owner.organism.stamina.subadd + self:GetAttackConfigValue(self.StaminaPrimary, self.StaminaSecondary, self.ChargeStamina, attacktype) * 0.5 * math.Clamp(vellen / 200, 1, 1.25)
             end
 
-            if !attacktype then
+            if charge then
+                if self.CustomChargeAttack and self:CustomChargeAttack() then
+                    self:SetInAttack(false)
+
+                    return
+                end
+            elseif !secondary then
                 if self.CustomAttack and self:CustomAttack() then
                     self:SetInAttack(false)
 
@@ -1102,6 +1302,7 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
     
     local vellen = math.min(owner:GetVelocity():Length() * 0.05, 40)
     local eyetr = hg.eyeTrace(owner, (self:GetAttackLength() + vellen), ent, owner:GetAimVector())
+    local shouldDrawHull = ShouldDrawMeleeAttackHull(owner)
     //debugoverlay.Line(eyetr.StartPos, eyetr.StartPos + eyetr.Normal * (self:GetAttackLength() + vellen), 3, color_white)
     //local ent = ents.Create("prop_physics")
     //ent:SetModel("models/props_interiors/pot01a.mdl")
@@ -1118,8 +1319,8 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
     for i = 0, amt do
         local normal = eyetr.Normal:Angle()
 
-        normal:RotateAroundAxis(normal:Forward(), (attacktype and self.SwingAng2 or self.SwingAng) or -90)
-        normal:RotateAroundAxis(normal:Up(), ((0.5 - inattackLength) * ((attacktype and self.AttackRads2 or self.AttackRads) or 65)))
+        normal:RotateAroundAxis(normal:Forward(), self:GetAttackConfigValue(self.SwingAng, self.SwingAng2, self.ChargeSwingAng, attacktype) or -90)
+        normal:RotateAroundAxis(normal:Up(), ((0.5 - inattackLength) * (self:GetAttackConfigValue(self.AttackRads, self.AttackRads2, self.ChargeAttackRads, attacktype) or 65)))
         normal:RotateAroundAxis(normal:Up(), (i - amt * 0.5) * 1)
         
         --debugoverlay.Line(eyetr.StartPos, eyetr.StartPos + normal:Forward() * (self:GetAttackLength() + vellen), 3, color_white)
@@ -1127,8 +1328,8 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
         local tr = {}
 
         tr.start = eyetr.StartPos
-        tr.endpos = eyetr.StartPos + normal:Forward() * (attacktype and 1 or math.max(0.5, 1 - math.abs((0.5 - inattackLength) * 2))) * (self:GetAttackLength() + vellen)
-        tr.filter = self.MultiDmg1 and {owner, ent} or self.HitEnts
+        tr.endpos = eyetr.StartPos + normal:Forward() * (secondary and 1 or math.max(0.5, 1 - math.abs((0.5 - inattackLength) * 2))) * (self:GetAttackLength() + vellen)
+        tr.filter = (secondary and self.MultiDmg2 or charge and self.MultiDmgCharge or self.MultiDmg1) and {owner, ent} or self.HitEnts
 
         local size = 0.15
 
@@ -1136,6 +1337,10 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
         tr.maxs = Vector(size, size, size)
 
         trace = util.TraceLine(tr)
+
+        if shouldDrawHull then
+            DrawMeleeAttackHull(tr, trace)
+        end
 
         //if SERVER then
         //    local vec = trace.Normal * math.min(self.DamagePrimary * 0.5, 20)
@@ -1173,9 +1378,9 @@ function SWEP:PlayEffects(trace, attacktype)
     elseif not self.AttackHitPlayed then
         self.AttackHitPlayed = true
 
-        owner:EmitSound(self.AttackHit, 50)
+        owner:EmitSound(self:GetAttackHitSound(attacktype), 50)
 
-		if self.weight >= 1.5 and self.DamageType ~= DMG_SLASH and trace.MatType ~= MAT_GLASS and not attacktype then
+		if self.weight >= 1.5 and self.DamageType ~= DMG_SLASH and trace.MatType ~= MAT_GLASS and not self:IsSecondaryAttackType(attacktype) then
 			util.Decal("Impact.BluntAdd" .. math.random(bluntDecalsRand), trace.HitPos + trace.HitNormal, trace.HitPos - trace.HitNormal, owner)
 			owner:ScreenShake(trace.HitPos, self.HitScreenShakeAmp or 22, self.HitScreenShakeFreq or 6, self.HitScreenShakeDur or 0.28, self.HitScreenShakeRadius or 110, false)
 		end
@@ -1209,8 +1414,8 @@ function SWEP:PunchPlayer(ent, attacktype, trnormal, dmg)
 
         if ply:IsPlayer() then
             local normal = Angle(0,0,0)
-            normal:RotateAroundAxis(normal:Forward(),-((attacktype and self.SwingAng2 or self.SwingAng) or -90))
-            normal:RotateAroundAxis(normal:Up(),-((attacktype and self.AttackRads2 or self.AttackRads) or 65))
+            normal:RotateAroundAxis(normal:Forward(),-(self:GetAttackConfigValue(self.SwingAng, self.SwingAng2, self.ChargeSwingAng, attacktype) or -90))
+            normal:RotateAroundAxis(normal:Up(),-(self:GetAttackConfigValue(self.AttackRads, self.AttackRads2, self.ChargeAttackRads, attacktype) or 65))
 
             local dot = ply:GetAimVector():Dot(trnormal)
             
@@ -1227,7 +1432,7 @@ function SWEP:PunchPlayer(ent, attacktype, trnormal, dmg)
                 if pushDir:LengthSqr() > 0.001 then
                     pushDir:Normalize()
                 end
-                local forceMul = attacktype and (self.PlayerSecondaryKnockbackMul or 0.75) or 1
+                local forceMul = self:IsSecondaryAttackType(attacktype) and (self.PlayerSecondaryKnockbackMul or 0.75) or 1
                 local force = pushDir * math.min(dmg * (self.PlayerKnockbackMul or 3.25) * forceMul, 140)
                 force.z = math.min(dmg * (self.PlayerKnockbackUpMul or 0.45) * forceMul, 22)
                 ply:SetVelocity(force)
@@ -1268,8 +1473,8 @@ function SWEP:BlockingLogic(ent, mul, attacktype, trace)
 
         //print(dist, distLine)
 
-        local dmg = wep.DamagePrimary
-        local selfdmg = self.DamagePrimary * 0.2
+        local dmg = wep.GetAttackDamageBase and wep:GetAttackDamageBase(wep.GetAttackType and wep:GetAttackType() or 1) or wep.DamagePrimary
+        local selfdmg = self:GetAttackDamageBase(attacktype) * 0.2
 
         if wep.GetBlocking and wep:GetBlocking() and wep.SetStartedBlocking and dist < 10 then
             local perfectblock = CurTime() - wep:GetStartedBlocking() < 0.5
@@ -1314,9 +1519,39 @@ function SWEP:AddDecal()
 end
 
 local hg_nomeleestop
+local developer = GetConVar("developer")
+local hg_developer = ConVarExists("hg_developer") and GetConVar("hg_developer") or CreateConVar("hg_developer",0,FCVAR_SERVER_CAN_EXECUTE,"Toggle developer mode (enables damage traces)",0,1)
 
 if CLIENT then
     hg_nomeleestop = ConVarExists("hg_nomeleestop") and GetConVar("hg_nomeleestop") or CreateConVar("hg_nomeleestop", 0, FCVAR_ARCHIVE, "Toggle melee stop-on-hit animation feature", 0, 1)
+end
+
+ShouldDrawMeleeAttackHull = function(owner)
+    if SERVER then return false end
+    if not developer or not developer:GetBool() then return false end
+    if not hg_developer or not hg_developer:GetBool() then return false end
+    if not IsFirstTimePredicted() then return false end
+    return IsValid(owner) and owner == LocalPlayer()
+end
+
+DrawMeleeAttackHull = function(tr, trace)
+    local mins = tr.mins or vector_origin
+    local maxs = tr.maxs or vector_origin
+    local colorTrace = trace and trace.Hit and Color(255, 80, 80) or Color(80, 255, 80)
+    local colorBox = trace and trace.Hit and Color(255, 120, 120, 12) or Color(120, 255, 120, 12)
+    local diff = tr.endpos - tr.start
+    local ang = diff:Angle()
+    local steps = math.max(math.ceil(diff:Length() / math.max((maxs - mins):Length(), 1)), 1)
+
+    for step = 0, steps do
+        debugoverlay.BoxAngles(LerpVector(step / steps, tr.start, tr.endpos), mins, maxs, ang, 0.06, colorBox)
+    end
+
+    debugoverlay.Line(tr.start, tr.endpos, 0.06, colorTrace, true)
+
+    if trace and trace.HitPos then
+        debugoverlay.Cross(trace.HitPos, 1.5, 0.06, colorTrace, true)
+    end
 end
 
 local function GetMeleeAnimTiming(self)
@@ -1326,13 +1561,21 @@ local function GetMeleeAnimTiming(self)
 end
 
 local function SetMeleeAnimTiming(self, timing, speedMul)
-    local animspeed = math.max((self.animspeed or 0) * speedMul, 0.001)
+    local animspeed = math.max((self.animbasespeed or self.animspeed or 0) * speedMul, 0.001)
     local internalTiming = self.reverseanim and (1 - timing) or timing
     self.animspeed = animspeed
     self.animtime = CurTime() - internalTiming * animspeed + animspeed
 end
 
-local function QueueMeleeHitStop(self, speedMul, pause, resumeMul, reverse, stopanim)
+local function SyncMeleeAnimToCooldown(self, timing)
+    local cooldown = math.max((self:GetLastAttack() + self:GetAttackWait()) - CurTime(), 0.001)
+    local animspeed = cooldown / math.max(self.reverseanim and timing or (1 - timing), 0.001)
+    local internalTiming = self.reverseanim and (1 - timing) or timing
+    self.animspeed = animspeed
+    self.animtime = CurTime() - internalTiming * animspeed + animspeed
+end
+
+local function QueueMeleeHitStop(self, speedMul, pause, reverse, stopanim)
     if not CLIENT then return end
 
     self.hitstopToken = (self.hitstopToken or 0) + 1
@@ -1352,7 +1595,7 @@ local function QueueMeleeHitStop(self, speedMul, pause, resumeMul, reverse, stop
         if self.hitstopToken ~= token then return end
 
         local currentTiming = GetMeleeAnimTiming(self)
-        SetMeleeAnimTiming(self, currentTiming, resumeMul)
+        SyncMeleeAnimToCooldown(self, currentTiming)
     end)
 end
 
@@ -1451,12 +1694,42 @@ function SWEP:CustomThink()
 		self.blockSound = nil
 	end
 
+    if self.Charging then
+        if not self.canchargeattack or not self:InUse() or self:GetBlocking() then
+            self:CancelChargeAttack(true)
+            return
+        end
+
+        local holdInputs = 0
+        if hg.KeyDown(owner, IN_ATTACK) then
+            holdInputs = holdInputs + 1
+        end
+        if hg.KeyDown(owner, IN_RELOAD) then
+            holdInputs = holdInputs + 1
+        end
+
+        if holdInputs < (self.ChargeHoldMinKeys or 1) then
+            if CurTime() - (self.ChargeStartedAt or CurTime()) < (self.ChargeTapCancelTime or 0.12) then
+                self:CancelChargeAttack(true)
+            else
+                self:ReleaseChargeAttack()
+            end
+        elseif not self.ChargeIdleLooping and (self.ChargeStartedAt or CurTime()) + ((self.ChargeAnimTimeBegin or 0.2) / (self.ChargeStaminaMul or 1)) <= CurTime() then
+            self.ChargeIdleLooping = true
+            self:PlayAnim(self:GetAttackAnimToken("charge_idle", "Attack_Charge_Idle"), (self.ChargeAnimTimeIdle or 0.35) / (self.ChargeStaminaMul or 1), true, nil, false, false)
+        end
+
+        return
+    end
+
     if self:GetInAttack() then
         local inattack1 = math.max(self:GetLastAttack() - CurTime(), 0) / self.AttackTime
         local inattack2 = math.max(self:GetLastAttack() - CurTime(), 0) / self.Attack2Time
+        local inattack3 = math.max(self:GetLastAttack() - CurTime(), 0) / (self.ChargeAttackTime or self.AttackTime)
 
         local inattackL1 = math.max(self:GetAttackTime() - CurTime(), 0) / self.AttackTimeLength
         local inattackL2 = math.max(self:GetAttackTime() - CurTime(), 0) / self.Attack2TimeLength
+        local inattackL3 = math.max(self:GetAttackTime() - CurTime(), 0) / (self.ChargeAttackTimeLength or self.AttackTimeLength)
         
         local ent = hg.GetCurrentCharacter(owner)
         local vellen = ent:GetVelocity():Length()
@@ -1501,12 +1774,12 @@ function SWEP:CustomThink()
 
 			if CLIENT and IsFirstTimePredicted() and self.weight > 0.4 and (!self.stopanim or (!soft and !self.HitWorld)) and !hg_nomeleestop:GetBool() then
 				if !soft or self.AnimAlwaysBack or self.HitWorld then   
-                    QueueMeleeHitStop(self, self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, self.HitStopWorldResumeMul or 0.6, true, self.HitStopWorldStop or 0.12)
+                    QueueMeleeHitStop(self, self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, true, self.HitStopWorldStop or 0.12)
                     util.ScreenShake(self:GetPos(), 35, 1, 1, 100)
 					self.reverseanim = true
                     self.HitWorld = true
 				else
-                    QueueMeleeHitStop(self, self.HitStopSoftSpeedMul or 1.9, self.HitStopSoftPause or 0.05, self.HitStopSoftResumeMul or 0.72, false, self.HitStopSoftStop or 0.1)
+                    QueueMeleeHitStop(self, self.HitStopSoftSpeedMul or 1.9, self.HitStopSoftPause or 0.05, false, self.HitStopSoftStop or 0.1)
                     util.ScreenShake(self:GetPos(), 35, 1, 1, 100)
 				end
 			end
@@ -1718,6 +1991,143 @@ function SWEP:CustomThink()
                 self.AttackHitPlayed = false
                 self.ComboAppliedThisAttack = nil
             end
+        elseif self:GetAttackType() == 3 and inattack3 == 0 then
+            owner:LagCompensation(true)
+            
+            local trace = self:Attack(owner, ent, vellen, 3, inattackL3)
+
+            owner:LagCompensation(false)
+
+            if SERVER and (owner:OnGround() or owner.organism.superfighter) then
+                local vec = owner:GetAimVector() * math.min(self:GetAttackDamageBase(3) * 0.5, 24)
+                vec[3] = 0
+
+                owner:SetVelocity(vec)
+            end
+
+            if !trace then return end
+
+            local ent = trace.Entity
+
+            local shouldhit = (IsValid(ent) or ent:IsWorld())
+
+            local damageBase = self.DamagePrimary or 0
+            local dmg = math.random(damageBase - 3, damageBase + 3) * (self.ReleasedChargeDamageMul or 1)
+
+            local soft = self:IsEntSoft(ent)
+            if !shouldhit then
+                goto meleeskip3
+            end
+
+            if SERVER and soft and self.HitEnts[#self.HitEnts] ~= ent then
+                self:AddDecal()
+            end
+
+            if self:IsHitCooldownTarget(ent) then
+                self:ApplyHitCooldown()
+            end
+
+			if CLIENT and IsFirstTimePredicted() and self.weight > 0.4 and (!self.stopanim or (!soft and !self.HitWorld)) and !hg_nomeleestop:GetBool() then
+				if !soft or self.AnimAlwaysBack or self.HitWorld then
+                    QueueMeleeHitStop(self, self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, false, self.HitStopWorldStop or 0.12)
+                    util.ScreenShake(self:GetPos(), 35, 1, 1, 100)
+                    self.HitWorld = true
+				else
+                    QueueMeleeHitStop(self, self.HitStopSoftSpeedMul or 1.9, self.HitStopSoftPause or 0.05, false, self.HitStopSoftStop or 0.1)
+                    util.ScreenShake(self:GetPos(), 35, 1, 1, 100)
+				end
+			end
+
+            if CLIENT then goto meleeskip3 end
+
+            ent:PrecacheGibs()
+
+            mul = mul * (self:BehindAttack(ent) and 2 or 1)
+            mul = mul * self:BlockingLogic(ent, mul, 3, trace)
+
+            dmg = dmg * mul
+            dmg = self:ApplyComboDamage(dmg)
+
+            if self:AlreadyHit(ent, trace) then
+                goto meleeskip3
+            end
+            
+            if self.HitEnts[#self.HitEnts] ~= ent then
+                self:PlayEffects(trace, 3)
+            end
+            
+            if self.MultiDmgCharge or (self.HitEnts[#self.HitEnts] ~= ent) then
+                if self.MultiDmgCharge or not self:IsEntSoft(ent) then
+                    dmg = dmg / ((self.ChargeAttackRads or self.AttackRads) * (self.ChargeAttackTimeLength or self.AttackTimeLength))
+                else
+                    dmg = dmg / 1.5
+                end
+                                
+                local dmginfo = DamageInfo()
+
+                dmginfo:SetAttacker(owner)
+                dmginfo:SetInflictor(self)
+                dmginfo:SetDamage(dmg)
+                dmginfo:SetDamageForce(trace.Normal * dmg)
+                dmginfo:SetDamageType(ent:GetClass() == "func_breakable_surf" and DMG_SLASH or self.DamageType)
+                dmginfo:SetDamagePosition(trace.HitPos)
+                
+                local oldBreakBoneMul = self.BreakBoneMul
+                self.BreakBoneMul = (self.BreakBoneMul or 1) * (self.ReleasedChargeBoneMul or 1)
+                self.slash = self.MultiDmgCharge
+                ent:TakeDamageInfo(dmginfo)
+                self.attackedOnce = true
+                self.slash = nil
+                self.BreakBoneMul = oldBreakBoneMul
+                self:PlaySoftHitSounds(owner, ent, trace, 3)
+                
+                local hitForce = trace.Normal * math.min(dmg, 25) * 400 * (self.RagdollHitForceMul or 1)
+                if self:IsHeadHit(ent, trace) then
+                    hitForce.x = hitForce.x * (self.HeadRagdollForceMul or 1.35)
+                    hitForce.y = hitForce.y * (self.HeadRagdollForceMul or 1.35)
+                    hitForce.z = hitForce.z * (self.HeadRagdollUpMul or 1.2)
+                end
+                hg.AddForceRag(ent, trace.PhysicsBone or 0, hitForce, 0.5)
+
+                self:PunchPlayer(ent, 3, trace.Normal, dmg)
+
+                local phys = ent:GetPhysicsObjectNum(trace.PhysicsBone or 0)
+
+                if IsValid(phys) then
+                    phys:ApplyForceOffset(hitForce, trace.HitPos)
+                end
+
+                if self:ShouldHeadRagdoll(ent, trace) then
+                    timer.Simple(0, function()
+                        local victim = self:GetHitVictim(ent)
+                        if IsValid(victim) and victim:IsPlayer() and victim:Alive() and not IsValid(victim.FakeRagdoll) then
+                            hg.Fake(victim)
+                        end
+                    end)
+                end
+
+                self:ChargeAttackAdd(ent, trace)
+            end
+
+            ::meleeskip3::
+            
+            if not ent:IsWorld() and self:IsEntSoft(ent) then
+                self.HitEnts[#self.HitEnts + 1] = ent
+            end
+
+            self.FirstAttackTick = true
+
+            if inattackL3 == 0 then
+                self:SetInAttack(false)
+                self.HitEnts = nil
+                self.FirstAttackTick = false
+                self.AttackHitPlayed = false
+                self.ComboAppliedThisAttack = nil
+                self.ChargeReleasedAt = nil
+                self.ReleasedChargeDamageMul = nil
+                self.ReleasedChargeBoneMul = nil
+                self.ChargeStaminaMul = nil
+            end
         end
     else
         self.attackedOnce = nil
@@ -1730,6 +2140,9 @@ function SWEP:PrimaryAttackAdd(ent)
 end
 
 function SWEP:SecondaryAttackAdd(ent)
+end
+
+function SWEP:ChargeAttackAdd(ent)
 end
 
 SWEP.AttackTimeLength = 0.15
@@ -1761,9 +2174,9 @@ function SWEP:PrimaryAttack()
 
     if self.cutthroat and self.cutthroat + 1 > CurTime() then return end
     if self.CanSuicide and ply.suiciding then return end
+    if self.Charging then return end
 
     if ply.organism and ply.organism.larmamputated and self.TwoHanded then return end
-    if !hg.KeyDown(self:GetOwner(), IN_ATTACK2) and not self:CanPrimaryAttack() then return end
     
     if self:GetLastBlocked() + 1 > CurTime() then
         //return
@@ -1781,6 +2194,14 @@ function SWEP:PrimaryAttack()
     if !self:InUse() then return end
     if (self:GetLastAttack() + self:GetAttackWait()) > CurTime() then return end
     if self.lastattack and (self.lastattack + self.attackwait) > CurTime() then return end
+
+    if self.canchargeattack and hg.KeyDown(ply, IN_RELOAD) then
+        if not self:CanChargeAttack() then return end
+        self:StartChargeAttack()
+        return
+    end
+
+    if !hg.KeyDown(self:GetOwner(), IN_ATTACK2) and not self:CanPrimaryAttack() then return end
 
     local mul = 1 / math.Clamp((180 - self:GetOwner().organism.stamina[1]) / 90, 1, 2)
 
@@ -2070,6 +2491,7 @@ function SWEP:PlayAnim(anim, time, cycling, callback, reverse, sendtoclient)
     
     self:GetWM():SetSequence(self.AnimList[anim] or anim)
     self.animtime = CurTime() + time
+    self.animbasespeed = time
     self.animspeed = time
     self.cycling = cycling
     self.reverseanim = reverse

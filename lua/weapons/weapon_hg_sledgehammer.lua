@@ -10,7 +10,7 @@ SWEP.Weight = 0
 
 SWEP.WorldModel = "models/weapons/tfa_nmrih/w_me_sledge.mdl"
 SWEP.WorldModelReal = "models/weapons/tfa_nmrih/v_me_sledge.mdl"
-SWEP.WorldModelExchange = "models/weapons/tfa_nmrih/w_me_sledge.mdl"
+SWEP.WorldModelExchange = "models/weapons/ravaged/w_ravaged_sledgehammer.mdl"
 SWEP.ViewModel = ""
 
 SWEP.HoldType = "revolver"
@@ -20,9 +20,9 @@ SWEP.weight = 3.5
 SWEP.HoldPos = Vector(-14,-2,1)
 SWEP.HoldAng = Angle(0,0,0)
 
-SWEP.AttackTime = 0.43
-SWEP.AnimTime1 = 1.9
-SWEP.WaitTime1 = 1.3
+SWEP.AttackTime = 0.49
+SWEP.AnimTime1 = 2.1
+SWEP.WaitTime1 = 2
 SWEP.ViewPunch1 = Angle(1,2,0)
 
 SWEP.Attack2Time = 0.3
@@ -38,8 +38,15 @@ SWEP.basebone = 94
 SWEP.weaponPos = Vector(0,0,0)
 SWEP.weaponAng = Angle(0,-90,0)
 
-SWEP.DamagePrimary = 74
+SWEP.DamagePrimary = 70
 SWEP.DamageSecondary = 34
+SWEP.HitCooldownEnabled = true
+SWEP.HitCooldown = 2.5
+SWEP.ComboEnabled = true
+SWEP.ComboResetTime = 3
+SWEP.ComboDamageMul1 = 1
+SWEP.ComboDamageMul2 = 1.25
+SWEP.ComboDamageMul3 = 1.65
 
 SWEP.PenetrationPrimary = 5
 SWEP.PenetrationSecondary = 7
@@ -49,8 +56,29 @@ SWEP.MaxPenLen = 6
 SWEP.PenetrationSizePrimary = 4
 SWEP.PenetrationSizeSecondary = 1.25
 
-SWEP.StaminaPrimary = 50
+SWEP.StaminaPrimary = 43
 SWEP.StaminaSecondary = 35
+
+SWEP.canchargeattack = true
+SWEP.ChargeAnimTimeBegin = 1.45
+SWEP.ChargeAnimTimeIdle = 1
+SWEP.ChargeAnimTimeEnd = 1.65
+SWEP.ChargeFullTime = 0.65
+SWEP.ChargeAttackTime = 0.29
+SWEP.ChargeWaitTime = 2.5
+SWEP.ChargeAttackLen = 70
+SWEP.ChargeAttackTimeLength = 0.34
+SWEP.ChargeAttackRads = 85
+SWEP.ChargeSwingAng = -105
+SWEP.ChargeStamina = 75
+SWEP.ChargePenetration = 8
+SWEP.ChargePenetrationSize = 6.5
+SWEP.ChargeDamageMul = 1.85
+SWEP.ChargeBreakBoneMul = 1.85
+SWEP.ChargeTapCancelTime = 1
+SWEP.ChargeViewPunch = Angle(12, 0, 0)
+SWEP.ChargeHoldPos = Vector(-10,-2,1)
+
 
 SWEP.AttackLen1 = 65
 SWEP.AttackLen2 = 45
@@ -63,8 +91,8 @@ SWEP.AnimList = {
 }
 
 if CLIENT then
-	SWEP.WepSelectIcon = Material("vgui/icons/ico_sledgehammer.png")
-	SWEP.IconOverride = "vgui/icons/ico_sledgehammer.png"
+	SWEP.WepSelectIcon = Material("vgui/hud/ravaged_sledgehammer")
+	SWEP.IconOverride = "vgui/hud/ravaged_sledgehammer"
 	SWEP.BounceWeaponIcon = false
 end
 
@@ -77,6 +105,19 @@ SWEP.Attack2Hit = "Canister.ImpactHard"
 SWEP.AttackHitFlesh = "Flesh.ImpactHard"
 SWEP.Attack2HitFlesh = "Flesh.ImpactHard"
 SWEP.DeploySnd = "physics/wood/wood_plank_impact_soft2.wav"
+
+SWEP.swingsoundextra = {
+    {"bat/baseball_swing_1st_layer_01.wav", 60, {80, 90}},
+    {"bat/baseball_swing_1st_layer_02.wav", 60, {80, 90}},
+    {"bat/baseball_swing_1st_layer_03.wav", 60, {80, 90}},
+    {"bat/baseball_swing_1st_layer_04.wav", 60, {80, 90}},
+}
+
+SWEP.hitsoundextra = {
+    {"hardimpact/body_medium_break2.wav", 70, {72, 82}},
+    {"hardimpact/body_medium_break3.wav", 70, {72, 82}},
+    {"hardimpact/body_medium_break4.wav", 70, {72, 82}},
+}
 
 SWEP.AttackPos = Vector(0,0,0)
 
