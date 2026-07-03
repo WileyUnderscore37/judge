@@ -26,7 +26,7 @@ if CLIENT then
 end
 
 SWEP.DamageType = DMG_CLUB
-SWEP.DamagePrimary = 34
+SWEP.DamagePrimary = 28
 SWEP.DamageSecondary = 13
 
 SWEP.PenetrationPrimary = 5
@@ -45,16 +45,17 @@ SWEP.HoldAng = Angle(0,0,-10)
 
 SWEP.AttackTime = 0.29
 SWEP.AnimTime1 = 1.45
-SWEP.WaitTime1 = 0.95
+SWEP.WaitTime1 = 0.9
 SWEP.AttackLen1 = 55
 SWEP.ViewPunch1 = Angle(2,4,0)
 SWEP.HitCooldownEnabled = true
-SWEP.HitCooldown = 1.4
+SWEP.HitCooldown = 1
 SWEP.ComboEnabled = true
 SWEP.ComboResetTime = 1.7
 SWEP.ComboDamageMul1 = 1
 SWEP.ComboDamageMul2 = 1.25
 SWEP.ComboDamageMul3 = 1.65
+SWEP.BlockDirectionalCharge = "overhead" --left, right, overhead, center, neutral
 
 SWEP.canchargeattack = true
 SWEP.ChargeAnimTimeBegin = 1
@@ -77,25 +78,27 @@ SWEP.ChargeViewPunch = Angle(7, 0, 0)
 SWEP.ChargeHoldPos = Vector(-8, 0, 0)
 
 SWEP.hitsoundextra = {
-    {"bat/sfx_bat_impact_02.wav", 55, {105, 115}},
-    {"bat/sfx_bat_impact_04.wav", 55, {105, 115}},
-    {"bat/sfx_bat_impact_05.wav", 55, {105, 115}},
-    {"bat/sfx_bat_impact_06.wav", 55, {105, 115}},
-    {"bat/sfx_bat_impact_07.wav", 55, {105, 115}},
-    {"bat/sfx_bat_impact_08.wav", 55, {105, 115}},
-    {"bat/sfx_bat_impact_09.wav", 55, {105, 115}},
-    {"bat/sfx_bat_impact_10.wav", 55, {105, 115}},
+    {"punch/Punch-01.wav", 55, {105, 115}},
+    {"punch/Punch-02.wav", 55, {105, 115}},
+    {"punch/Punch-03.wav", 55, {105, 115}},
+    {"punch/Punch-04.wav", 55, {105, 115}},
+    {"punch/Punch-05.wav", 55, {105, 115}},
+    {"punch/Punch-06.wav", 55, {105, 115}},
+    {"punch/Punch-07.wav", 55, {105, 115}},
+    {"punch/Punch-08.wav", 55, {105, 115}},
+    {"punch/Punch-09.wav", 55, {105, 115}},
+    {"punch/Punch-10.wav", 55, {105, 115}},
 }
 
 SWEP.hitsoundplus = {
-    {"bat/hitplus.ogg", 55, {105, 115}},
+    {"rem_metalbat.wav", 55, {105, 125}},
 }
 
 SWEP.hitsoundbrutalize = {
-    {"bat/sfx_bat_impact_gore_05.wav", 70, {95, 105}},
-    {"bat/sfx_bat_impact_gore_07.wav", 75, {98, 102}},
-    {"bat/sfx_bat_impact_gore_08.wav", 75, {98, 102}},
-    {"bat/sfx_bat_impact_gore_10.wav", 75, {98, 102}},
+    {"hammerbrutalize/rem_hammerbrutalize1.wav", 70, {110, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize2.wav", 70, {110, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize3.wav", 70, {110, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize4.wav", 70, {110, 115}},
 }
 
 SWEP.swingsoundextra = {
@@ -142,8 +145,8 @@ SWEP.BlockSound = {"physics/metal/metal_sheet_impact_hard2.wav", 85, {125, 145}}
 
 SWEP.NoHolster = true
 
-SWEP.BreakBoneMul = 0.95
-SWEP.PainMultiplier = 0.9
+SWEP.BreakBoneMul = 0.8
+SWEP.PainMultiplier = 0.76
 
 SWEP.AttackTimeLength = 0.255
 SWEP.Attack2TimeLength = 0.001

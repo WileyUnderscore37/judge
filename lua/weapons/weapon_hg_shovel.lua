@@ -73,9 +73,22 @@ SWEP.swingsoundextra = {
     {"bat/baseball_swing_1st_layer_04.wav", 60, {80, 90}},
 }
 
-SWEP.hitsoundextra = {
+SWEP.hitsoundplus = {
     {"shovelcrowbarshared/shovelhit1.ogg", 70, {80, 95}},
     {"shovelcrowbarshared/shovelhit2.ogg", 70, {80, 95}},
+}
+
+SWEP.hitsoundextra = {
+    {"punch/Punch-01.wav", 55, {105, 115}},
+    {"punch/Punch-02.wav", 55, {105, 115}},
+    {"punch/Punch-03.wav", 55, {105, 115}},
+    {"punch/Punch-04.wav", 55, {105, 115}},
+    {"punch/Punch-05.wav", 55, {105, 115}},
+    {"punch/Punch-06.wav", 55, {105, 115}},
+    {"punch/Punch-07.wav", 55, {105, 115}},
+    {"punch/Punch-08.wav", 55, {105, 115}},
+    {"punch/Punch-09.wav", 55, {105, 115}},
+    {"punch/Punch-10.wav", 55, {105, 115}},
 }
 
 
@@ -116,9 +129,10 @@ SWEP.Attack2HitFlesh = "Flesh.ImpactHard"
 SWEP.DeploySnd = "SolidMetal.ImpactSoft"
 
 SWEP.AttackPos = Vector(0,0,0)
-SWEP.BlockTier = 2
+SWEP.BlockTier = 3
 SWEP.BlockMaterial = "metal"
-SWEP.BlockSound = {"physics/metal/metal_solid_impact_hard2.wav", 68, {95, 102}}
+SWEP.BlockSound = {"physics/metal/metal_solid_impact_hard1.wav", 68, {95, 102}}
+SWEP.BlockDirectionalCharge = "overhead" --left, right, overhead, center, neutral
 
 function SWEP:CanSecondaryAttack()
     self.DamageType = DMG_CLUB

@@ -26,7 +26,7 @@ if CLIENT then
 end
 
 SWEP.DamageType = DMG_CLUB
-SWEP.DamagePrimary = 28
+SWEP.DamagePrimary = 24
 SWEP.DamageSecondary = 10
 
 SWEP.PenetrationPrimary = 4
@@ -43,15 +43,15 @@ SWEP.StaminaSecondary = 10
 SWEP.HoldPos = Vector(-8,0,0)
 SWEP.HoldAng = Angle(0,0,-10)
 
-SWEP.AttackTime = 0.275
-SWEP.AnimTime1 = 1.25
-SWEP.WaitTime1 = 0.89
-SWEP.AttackLen1 = 60
+SWEP.AttackTime = 0.29
+SWEP.AnimTime1 = 1.45
+SWEP.WaitTime1 = 0.9
+SWEP.AttackLen1 = 55
 SWEP.ViewPunch1 = Angle(2,4,0)
 SWEP.HitCooldownEnabled = true
-SWEP.HitCooldown = 1.35
+SWEP.HitCooldown = 1
 SWEP.ComboEnabled = true
-SWEP.ComboResetTime = 1.4
+SWEP.ComboResetTime = 1.7
 SWEP.ComboDamageMul1 = 1
 SWEP.ComboDamageMul2 = 1.25
 SWEP.ComboDamageMul3 = 1.65
@@ -136,11 +136,11 @@ SWEP.AttackPos = Vector(0,0,0)
 SWEP.BlockTier = 3
 SWEP.BlockMaterial = "wood"
 SWEP.BlockSound = {"physics/wood/wood_plank_impact_hard1.wav", 68, {95, 102}}
-
+SWEP.BlockDirectionalCharge = "overhead" --left, right, overhead, center, neutral
 SWEP.NoHolster = true
 
-SWEP.BreakBoneMul = 0.75
-SWEP.PainMultiplier = 0.85
+SWEP.BreakBoneMul = 0.55
+SWEP.PainMultiplier = 0.65
 
 SWEP.AttackTimeLength = 0.2
 SWEP.Attack2TimeLength = 0.001

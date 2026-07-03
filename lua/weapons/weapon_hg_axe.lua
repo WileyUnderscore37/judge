@@ -47,7 +47,7 @@ SWEP.ChargeFullTime = 0.65
 SWEP.ChargeAttackTime = 0.41
 SWEP.ChargeWaitTime = 2.5
 SWEP.ChargeAttackLen = 70
-SWEP.ChargeAttackTimeLength = 0.34
+SWEP.ChargeAttackTimeLength = 0.24
 SWEP.ChargeAttackRads = 85
 SWEP.ChargeSwingAng = -78
 SWEP.ChargeStamina = 48
@@ -58,6 +58,8 @@ SWEP.ChargeBreakBoneMul = 2.1
 SWEP.ChargeTapCancelTime = 1
 SWEP.ChargeViewPunch = Angle(12, 0, 0)
 SWEP.ChargeHoldPos = Vector(-7, -5, -1)
+
+SWEP.ArteryChance = 1.45
 
 SWEP.attack_ang = Angle(0, 0, 0)
 SWEP.sprint_ang = Angle(15, 0, 0)
@@ -78,7 +80,7 @@ SWEP.AnimList = {
 }
 
 SWEP.DamageType = DMG_SLASH
-SWEP.DamagePrimary = 51
+SWEP.DamagePrimary = 48
 SWEP.DamageSecondary = 14
 SWEP.HitCooldownEnabled = true
 SWEP.HitCooldown = 1.5
@@ -123,16 +125,36 @@ SWEP.ChargeAttackHitFlesh = "snd_jack_hmcd_axehit.wav"
 SWEP.DeploySnd = "physics/wood/wood_plank_impact_soft2.wav"
 
 SWEP.hitsoundbrutalize = {
-    {"axe/axehit1.wav", 70, {111, 155}},
-    {"axe/axehit2.wav", 75, {111, 155}},
-    {"axe/axehit3.wav", 75, {111, 115}},
-    {"axe/axehit4.wav", 75, {111, 155}},
+    {"axe/AxeChopNEW-01.wav", 95, {95, 105}},
+    {"axe/AxeChopNEW-02.wav", 95, {95, 105}},
+    {"axe/AxeChopNEW-03.wav", 95, {95, 105}},
+    {"axe/AxeChopNEW-04.wav", 95, {95, 105}},
 }
 
 SWEP.hitsoundextra = {
-    {"hardimpact/body_medium_break2.wav", 70, {85, 102}},
-    {"hardimpact/body_medium_break3.wav", 70, {85, 102}},
-    {"hardimpact/body_medium_break4.wav", 70, {85, 102}},
+    {"axe/AxeBigBite-01.wav", 95, {95, 105}},
+    {"axe/AxeBigBite-02.wav", 95, {95, 105}},
+    {"axe/AxeBigBite-03.wav", 95, {95, 105}},
+    {"axe/AxeBigBite-04.wav", 95, {95, 105}},
+    {"axe/AxeBigBite-05.wav", 95, {95, 105}},
+    {"axe/AxeBigBite-06.wav", 95, {95, 105}},
+    {"axe/AxeBigBite-07.wav", 95, {95, 105}},
+    {"axe/AxeBigBite-08.wav", 95, {95, 105}},
+    {"axe/AxeBigBite-09.wav", 95, {95, 105}},
+    {"axe/AxeBigBite-10.wav", 95, {95, 105}},
+}
+
+SWEP.hitsoundplus = {
+    {"axe/AxeBigOut-01.wav", 70, {95, 105}},
+    {"axe/AxeBigOut-02.wav", 75, {95, 105}},
+    {"axe/AxeBigOut-03.wav", 75, {95, 105}},
+    {"axe/AxeBigOut-04.wav", 75, {95, 105}},
+    {"axe/AxeBigOut-05.wav", 70, {95, 105}},
+    {"axe/AxeBigOut-06.wav", 75, {95, 105}},
+    {"axe/AxeBigOut-07.wav", 75, {95, 105}},
+    {"axe/AxeBigOut-08.wav", 75, {95, 105}},
+    {"axe/AxeBigOut-09.wav", 70, {95, 105}},
+    {"axe/AxeBigOut-10.wav", 75, {95, 105}},
 }
 
 SWEP.swingsoundextra = {
@@ -146,6 +168,7 @@ SWEP.AttackPos = Vector(0,0,0)
 SWEP.BlockTier = 4
 SWEP.BlockMaterial = "wood"
 SWEP.BlockSound = {"physics/wood/wood_plank_impact_hard1.wav", 70, {96, 104}}
+SWEP.BlockDirectionalCharge = "overhead" --left, right, overhead, center, neutral
 
 SWEP.NoHolster = true
 

@@ -2,14 +2,14 @@
 SWEP.Base = "weapon_m4super"
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
-SWEP.PrintName = "Long 870"
+SWEP.PrintName = "Long Barrel Remington 870"
 SWEP.Author = "Remington Arms"
 SWEP.Instructions = "Pump-action shotgun chambered in 12/70 caliber"
 SWEP.Category = "Weapons - Shotguns"
 SWEP.Slot = 2
 SWEP.SlotPos = 10
 SWEP.ViewModel = ""
-SWEP.WorldModel = "models/long_870/c_ud_870.mdl"
+SWEP.WorldModel = "models/weapons/w_shot_m3super90.mdl"
 SWEP.WorldModelFake = "models/long_870/c_ud_870.mdl"
 
 
@@ -57,7 +57,7 @@ SWEP.FakeVPShouldUseHand = false
 SWEP.WepSelectIcon2 = Material("vgui/wep_jack_hmcd_shotgun.png")
 SWEP.IconOverride = "vgui/wep_jack_hmcd_shotgun.png"
 
-SWEP.LocalMuzzlePos = Vector(33.739,0.09,5.098)
+SWEP.LocalMuzzlePos = Vector(45.739,0.09,5.098)
 SWEP.LocalMuzzleAng = Angle(0.2,-0.0,0)
 SWEP.WeaponEyeAngles = Angle(-0.7,0.1,0)
 
@@ -102,7 +102,7 @@ SWEP.Penetration = 9
 SWEP.WorldPos = Vector(0.2, -0.5, 1.2)
 SWEP.WorldAng = Angle(0.7, -0.1, 0)
 SWEP.UseCustomWorldModel = true
-SWEP.attPos = Vector(0.4, -0.15, 0)
+SWEP.attPos = Vector(17, -0.15, 0)
 SWEP.attAng = Angle(0, 0.2, 0)
 SWEP.lengthSub = 20
 

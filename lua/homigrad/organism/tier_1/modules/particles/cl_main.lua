@@ -7,7 +7,7 @@ local bloodparticles_hook = bloodparticles_hook
 
 local hg_blood_fps = ConVarExists("hg_blood_fps") and GetConVar("hg_blood_fps") or CreateClientConVar("hg_blood_fps", 24, true, nil, "fps to draw blood", 12, 165)
 
-hook.Add("PreDrawEffects", "bloodpartciels", function()
+hook.Add("PostDrawTranslucentRenderables", "bloodpartciels", function()
 	local time = CurTime()
 	local fps = 1 / hg_blood_fps:GetInt()-- / game.GetTimeScale()
 	if not bloodparticles_hook then return end

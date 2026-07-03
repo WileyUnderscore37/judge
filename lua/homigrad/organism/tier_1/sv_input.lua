@@ -17,6 +17,9 @@ local head_otrub_consciousness_cap = 0.04
 local instant_pain_shock_scale = 0.75
 local player_limb_gib_threshold = 160
 local player_head_gib_threshold = 175
+local ragdoll_fall_skull_damage_mul = 1.2
+local ragdoll_fall_jaw_damage_mul = 0.45
+local ragdoll_fall_skull_break_blood_mul = 1.15
 local function Trace_Bullet(box, hit, ricochet, org, organs, dmg, dmgInfo, dir)
 	dmg = dmgInfo:GetDamage() / 25
 	local organ = box[6] and organs[box[6]][box[7]]
@@ -157,6 +160,18 @@ local limbs = {
 	["larm"] = "ValveBiped.Bip01_L_Forearm",
 	["rarm"] = "ValveBiped.Bip01_R_Forearm",
 }
+
+local function getHeadImpactPos(ent, fallback)
+	local headBone = ent:LookupBone("ValveBiped.Bip01_Head1")
+	if headBone then
+		local matrix = ent:GetBoneMatrix(headBone)
+		if matrix then return matrix:GetTranslation() end
+		local pos = ent:GetBonePosition(headBone)
+		if pos and pos ~= ent:GetPos() then return pos end
+	end
+
+	return fallback
+end
 
 local sounds = {
 	Sound("player/zombie_head_explode_01.wav"),
@@ -1409,7 +1424,7 @@ local function velocityDamage(ent, data)
 		--print(bleedSurfaces[surfaceType])
 		dmgInfo:SetDamageType(DMG_SLASH)
 	else]]
-		dmgInfo:SetDamageType(DMG_CRUSH)
+		dmgInfo:SetDamageType(DMG_CRUSH + DMG_FALL)
 	--end
 	local att = data.HitObject:GetEntity():GetPhysicsAttacker(15)
 	att = IsValid(att) and att or ent:GetPhysicsAttacker(15)
@@ -1468,10 +1483,13 @@ local function velocityDamage(ent, data)
 		if hitgroup == HITGROUP_HEAD then
 			local hadhelmet = org.owner.armors and org.owner.armors["head"] != nil
 			local head_otrub_chance = math.Clamp((dmg - head_otrub_min_damage) * head_otrub_chance_mul, 0, head_otrub_max_chance)
+			local headDamageMul = hadhelmet and 0.2 or 1
+			local oldSkull = org.skull
 			
-			hg.organism.input_list.skull(org, bone, dmg * 6 * (hadhelmet and 0.2 or 1), dmgInfo)
+			hg.organism.input_list.skull(org, bone, dmg * 6 * headDamageMul * ragdoll_fall_skull_damage_mul, dmgInfo)
+			hg.organism.input_list.jaw(org, bone, dmg * headDamageMul * ragdoll_fall_jaw_damage_mul, dmgInfo)
 			
-			org.consciousness = math.Approach(org.consciousness, 0, dmg * head_consciousness_mul * (hadhelmet and 0.2 or 1))
+			org.consciousness = math.Approach(org.consciousness, 0, dmg * head_consciousness_mul * headDamageMul)
 			
 			local neck_not_broken = org.spine3 < 0.8
 			
@@ -1486,6 +1504,15 @@ local function velocityDamage(ent, data)
 
 			if neck_not_broken and org.spine3 >= 0.8 then
 				hg.BreakNeck(ent)
+			end
+
+			if oldSkull < 1 and org.skull == 1 then
+				net.Start("hg_bloodimpact")
+				net.WriteVector(getHeadImpactPos(ent, data.HitPos))
+				net.WriteVector((data.OurOldVelocity - data.TheirOldVelocity):GetNormalized() / 10)
+				net.WriteFloat(math.max(dmg * ragdoll_fall_skull_break_blood_mul, 1))
+				net.WriteInt(1, 8)
+				net.Broadcast()
 			end
 		end
 	else

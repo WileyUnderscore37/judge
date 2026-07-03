@@ -131,6 +131,7 @@ SWEP.AttackLen2 = 45
 SWEP.DamageType = DMG_SLASH
 SWEP.DamagePrimary = 15
 SWEP.DamageSecondary = 8
+SWEP.ArteryChance = 1
 SWEP.ComboEnabled = false
 SWEP.ComboResetTime = 1.1
 SWEP.ComboDamageMul1 = 1
@@ -139,6 +140,7 @@ SWEP.ComboDamageMul3 = 1.65
 SWEP.PlayerKnockbackMul = 2
 SWEP.PlayerKnockbackUpMul = 0.45
 SWEP.PlayerSecondaryKnockbackMul = 0.75
+SWEP.SwingForwardBoostMinSpeed = 20
 SWEP.RagdollHitForceMul = 0.5
 SWEP.HeadTraceFallbackRadius = 10
 SWEP.HeadRagdollChance = 0.55
@@ -214,6 +216,7 @@ SWEP.hitsoundplus = nil
 SWEP.hitsoundbrutalize = nil
 SWEP.BrutalizeSkullThreshold = 0.99
 SWEP.BrutalizeHitVolumeMul = 0.5
+SWEP.BrutalizeExtraHitVolumeMul = 0.82
 
 SWEP.setlh = false
 SWEP.setrh = true
@@ -984,6 +987,7 @@ function SWEP:StartChargeAttack()
     self.HitEnts = nil
     self.FirstAttackTick = false
     self.AttackHitPlayed = false
+    self.SoftHitPlayed = false
     self.HitWorld = false
     self.ComboAppliedThisAttack = nil
     self.Charging = true
@@ -1016,6 +1020,7 @@ function SWEP:ReleaseChargeAttack()
     self.HitEnts = nil
     self.FirstAttackTick = false
     self.AttackHitPlayed = false
+    self.SoftHitPlayed = false
     self.HitWorld = false
     self.ComboAppliedThisAttack = nil
     self:PlayAnim(self:GetAttackAnimToken("charge_end", "Attack_Charge_End"), (self.ChargeAnimTimeEnd or self.AnimTime1 or 1) / mul, false, nil, false, false)
@@ -1174,6 +1179,10 @@ function SWEP:EmitConfiguredHitSoundLayer(owner, layer, volumeMul)
     end
 end
 
+function SWEP:EmitConfiguredHitSoundChoice(owner, layer, volumeMul)
+    self:EmitConfiguredHitSound(owner, self:GetRandomConfiguredHitSound(layer), volumeMul)
+end
+
 function SWEP:GetRandomConfiguredHitSound(layer)
     if isstring(layer) then return layer end
     if not istable(layer) then return nil end
@@ -1190,8 +1199,8 @@ function SWEP:GetRandomConfiguredHitSound(layer)
 end
 
 function SWEP:PlayExtraHitSounds(owner, volumeMul)
-    self:EmitConfiguredHitSoundLayer(owner, self.hitsoundextra, volumeMul)
-    self:EmitConfiguredHitSoundLayer(owner, self.hitsoundplus, volumeMul)
+    self:EmitConfiguredHitSoundChoice(owner, self.hitsoundextra, volumeMul)
+    self:EmitConfiguredHitSoundChoice(owner, self.hitsoundplus, volumeMul)
 end
 
 function SWEP:PlaySwingSound(owner, attacktype)
@@ -1274,6 +1283,35 @@ function SWEP:IsHeadTrace(ent, trace)
     return false
 end
 
+function SWEP:IsLegHitGroup(hitGroup)
+    return hitGroup == HITGROUP_LEFTLEG or hitGroup == HITGROUP_RIGHTLEG
+end
+
+function SWEP:IsLegTrace(ent, trace)
+    if not trace then return false end
+    if self:IsLegHitGroup(trace.HitGroup) then return true end
+    if not IsValid(ent) then return false end
+
+    if trace.PhysicsBone ~= nil and ent.TranslatePhysBoneToBone and ent.GetBoneName then
+        local bone = ent:TranslatePhysBoneToBone(trace.PhysicsBone)
+        if bone and bone >= 0 then
+            local hitGroup = hg.bonetohitgroup and hg.bonetohitgroup[ent:GetBoneName(bone)]
+            if self:IsLegHitGroup(hitGroup) then
+                return true
+            end
+        end
+    end
+
+    if trace.HitBoxBone ~= nil and ent.GetBoneName then
+        local hitGroup = hg.bonetohitgroup and hg.bonetohitgroup[ent:GetBoneName(trace.HitBoxBone)]
+        if self:IsLegHitGroup(hitGroup) then
+            return true
+        end
+    end
+
+    return false
+end
+
 function SWEP:ShouldHeadRagdoll(ent, trace)
     local victim = self:GetHitVictim(ent)
     local damageThreshold = self.HeadRagdollMinDamage or 20
@@ -1312,19 +1350,23 @@ end
 function SWEP:PlaySoftHitSounds(owner, ent, trace, attacktype)
     if not IsValid(owner) then return end
     if not IsValid(ent) then return end
+    if self.SoftHitPlayed then return end
+
+    self.SoftHitPlayed = true
 
     local victim = self:GetHitVictim(ent)
     local brutalize = self:ShouldPlayBrutalizeHitSound(ent, victim, trace, attacktype)
     local volumeMul = brutalize and (self.BrutalizeHitVolumeMul or 0.5) or 1
+    local extraVolumeMul = brutalize and (self.BrutalizeExtraHitVolumeMul or volumeMul) or 1
 
     owner:EmitSound(self:GetAttackFleshHitSound(attacktype), 50 * volumeMul)
 
     if not self:IsSecondaryAttackType(attacktype) then
-        self:PlayExtraHitSounds(owner, volumeMul)
+        self:PlayExtraHitSounds(owner, extraVolumeMul)
     end
 
     if brutalize then
-        self:EmitConfiguredHitSound(owner, self:GetRandomConfiguredHitSound(self.hitsoundbrutalize))
+        self:EmitConfiguredHitSoundChoice(owner, self.hitsoundbrutalize)
     end
 end
 
@@ -1411,6 +1453,12 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
 
         tr.mins = -Vector(size, size, size)
         tr.maxs = Vector(size, size, size)
+
+        local clashTrace = self:FindMeleeClash(owner, ent, attacktype, inattackLength, tr)
+
+        if clashTrace then
+            return clashTrace
+        end
 
         trace = util.TraceLine(tr)
 
@@ -1538,11 +1586,143 @@ function SWEP:GetBlockMaterial()
 end
 
 function SWEP:GetBlockParryWindow()
-    return math.max(self.BlockParryWindow or 0.35, 0)
+    return math.max((self.BlockParryWindow or 0.35) + (self.BlockParryWindowBonus or 0), 0)
 end
 
 function SWEP:GetBlockSound()
     return self.BlockSound
+end
+
+function SWEP:GetClashMaterial()
+    local material = self.BlockMaterial
+
+    if isstring(material) and material ~= "" then
+        return material
+    end
+end
+
+function SWEP:CanClashWeapon()
+    if self.CantClash then return false end
+
+    return self:GetClashMaterial() ~= nil
+end
+
+function SWEP:GetClashDamageType(attacktype)
+    if self:IsChargeAttackType(attacktype) then
+        return self.ChargeDamageType or self.DamageType
+    end
+
+    if self:IsSecondaryAttackType(attacktype) then
+        return self.SecondaryDamageType or self.DamageType
+    end
+
+    return self.PrimaryDamageType or self.DamageType
+end
+
+function SWEP:GetClashSoundType(attacktype)
+    return self:GetClashDamageType(attacktype) == DMG_SLASH and "sharp" or "blunt"
+end
+
+function SWEP:GetClashSoundData(otherWep, attacktype, otherAttacktype)
+    local selfMaterial = self:GetClashMaterial()
+    local otherMaterial = IsValid(otherWep) and otherWep.GetClashMaterial and otherWep:GetClashMaterial() or otherWep and otherWep.BlockMaterial
+
+    if selfMaterial == "wood" or otherMaterial == "wood" then
+        return self:GetDefaultBlockSound("wood", "parry")
+    end
+
+    local sharp = self:GetClashSoundType(attacktype) == "sharp" or IsValid(otherWep) and otherWep.GetClashSoundType and otherWep:GetClashSoundType(otherAttacktype) == "sharp"
+
+    if sharp then
+        return {
+            {"clash/rem_clashsharp1.wav", 72, {85, 105}},
+            {"clash/rem_clashsharp2.wav", 72, {85, 105}},
+            {"clash/rem_clashsharp3.wav", 72, {85, 105}},
+        }
+    end
+
+    return {"clash/rem_clashblunt.wav", 72, {85, 105}}
+end
+
+function SWEP:GetCurrentAttackTimeLengthForType(attacktype)
+    if self:IsChargeAttackType(attacktype) then
+        return self.ChargeAttackTimeLength or self.AttackTimeLength
+    end
+
+    if self:IsSecondaryAttackType(attacktype) then
+        return self.Attack2TimeLength
+    end
+
+    return self.AttackTimeLength
+end
+
+function SWEP:GetCurrentAttackLengthFraction()
+    local attacktype = self.GetAttackType and self:GetAttackType() or 1
+    local length = math.max(self:GetCurrentAttackTimeLengthForType(attacktype) or 0, 0.001)
+    return math.Clamp(math.max(self:GetAttackTime() - CurTime(), 0) / length, 0, 1)
+end
+
+function SWEP:GetClashSweep(owner, ent, attacktype, inattackLength)
+    if not IsValid(owner) or not IsValid(ent) then return end
+
+    local speedAdd = math.min(owner:GetVelocity():Length() * 0.05, 40)
+    local attackLength = self:GetAttackLength() + speedAdd
+    local eyetr = hg.eyeTrace(owner, attackLength, ent, owner:GetAimVector())
+
+    if not eyetr then return end
+
+    local normal = eyetr.Normal:Angle()
+    local swingAng = self:GetAttackConfigValue(self.SwingAng, self.SwingAng2, self.ChargeSwingAng, attacktype) or -90
+    local attackRads = self:GetAttackConfigValue(self.AttackRads, self.AttackRads2, self.ChargeAttackRads, attacktype) or 65
+    local lengthMul = self:IsSecondaryAttackType(attacktype) and 1 or math.max(0.5, 1 - math.abs((0.5 - inattackLength) * 2))
+
+    normal:RotateAroundAxis(normal:Forward(), swingAng)
+    normal:RotateAroundAxis(normal:Up(), (0.5 - inattackLength) * attackRads)
+
+    local startPos = eyetr.StartPos
+    local endPos = startPos + normal:Forward() * lengthMul * attackLength
+
+    return startPos, endPos, eyetr
+end
+
+local function GetSegmentDistance(lineStart, lineEnd, point)
+    local distance, nearest, fraction = util.DistanceToLine(lineStart, lineEnd, point)
+
+    if not isnumber(distance) or not nearest or fraction == nil then return end
+    if fraction < 0 or fraction > 1 then return end
+
+    return distance, nearest, fraction
+end
+
+function SWEP:FindClashPoint(startPos, endPos, otherStart, otherEnd)
+    local bestDist, bestPos
+
+    local function try(lineStart, lineEnd, point)
+        local dist, nearest = GetSegmentDistance(lineStart, lineEnd, point)
+        if not dist or dist > (self.ClashDistance or 12) then return end
+        if bestDist and dist >= bestDist then return end
+
+        bestDist = dist
+        bestPos = (nearest + point) * 0.5
+    end
+
+    try(startPos, endPos, otherEnd)
+    try(otherStart, otherEnd, endPos)
+    try(startPos, endPos, otherStart)
+    try(otherStart, otherEnd, startPos)
+
+    return bestPos, bestDist
+end
+
+function SWEP:GetClashChance(otherWep)
+    local selfTier = math.max(self:GetBlockTier() or 1, 0.1)
+    local otherTier = math.max(IsValid(otherWep) and otherWep.GetBlockTier and otherWep:GetBlockTier() or otherWep and otherWep.BlockTier or 1, 0.1)
+    local lowerTier = math.min(selfTier, otherTier)
+    local higherTier = math.max(selfTier, otherTier)
+    local ratio = lowerTier / higherTier
+    local chance = math.pow(ratio, self.ClashTierChancePower or 2.35) * (self.ClashBaseChance or 0.95)
+
+    return math.Clamp(chance, 0, 1)
 end
 
 function SWEP:GetDefaultBlockSound(material, state)
@@ -1578,18 +1758,10 @@ function SWEP:PlayConfiguredWorldSound(layer, pos, volumeMul)
     sound.Play(snd, pos, volume, pitch)
 end
 
-function SWEP:PlayBlockImpactEffect(trace, blockWep, state)
-    if not trace or not trace.HitPos then return end
-
-    local material = IsValid(blockWep) and blockWep.GetBlockMaterial and blockWep:GetBlockMaterial() or blockWep and blockWep.BlockMaterial or self:GetBlockMaterial()
-    local soundData = IsValid(blockWep) and blockWep.GetBlockSound and blockWep:GetBlockSound() or blockWep and blockWep.BlockSound or self:GetDefaultBlockSound(material, state)
-
-    if soundData then
-        self:PlayConfiguredWorldSound(soundData, trace.HitPos, state == "break" and 1.18 or state == "parry" and 1.06 or state == "weaken" and 1.02 or 1)
-    end
-
+function SWEP:DispatchBlockImpactFx(trace, blockWep, state)
     if SERVER then
         local normal = trace.HitNormal and trace.HitNormal ~= vector_origin and trace.HitNormal or -self:GetOwner():GetAimVector()
+        local material = IsValid(blockWep) and blockWep.GetBlockMaterial and blockWep:GetBlockMaterial() or blockWep and blockWep.BlockMaterial or self:GetBlockMaterial()
 
         net.Start("hg_melee_block_fx")
         net.WriteVector(trace.HitPos)
@@ -1610,16 +1782,160 @@ function SWEP:PlayBlockImpactEffect(trace, blockWep, state)
     end
 end
 
+function SWEP:PlayBlockImpactEffect(trace, blockWep, state)
+    if not trace or not trace.HitPos then return end
+
+    local material = IsValid(blockWep) and blockWep.GetBlockMaterial and blockWep:GetBlockMaterial() or blockWep and blockWep.BlockMaterial or self:GetBlockMaterial()
+    local soundData = IsValid(blockWep) and blockWep.GetBlockSound and blockWep:GetBlockSound() or blockWep and blockWep.BlockSound or self:GetDefaultBlockSound(material, state)
+
+    if soundData then
+        self:PlayConfiguredWorldSound(soundData, trace.HitPos, state == "break" and 1.18 or state == "parry" and 1.06 or state == "weaken" and 1.02 or 1)
+    end
+
+    self:DispatchBlockImpactFx(trace, blockWep, state)
+end
+
 function SWEP:AbortBlockedAttack()
     self:SetInAttack(false)
     self.HitEnts = nil
     self.FirstAttackTick = false
     self.AttackHitPlayed = false
+    self.SoftHitPlayed = false
     self.ComboAppliedThisAttack = nil
+end
+
+function SWEP:AbortClashAttack()
+    local recoverTime = self.ClashCooldown ~= nil and self.ClashCooldown or self.WaitTime1 or 0.28
+    self:SetInAttack(false)
+    self.HitEnts = nil
+    self.FirstAttackTick = false
+    self.AttackHitPlayed = false
+    self.SoftHitPlayed = false
+    self.ComboAppliedThisAttack = nil
+    self.HitWorld = true
+    self.Charging = nil
+    self.ChargeIdleLooping = nil
+    self.ChargeReleasedAt = nil
+    self.ReleasedChargeDamageMul = nil
+    self.ReleasedChargeBoneMul = nil
+    self.ChargeStaminaMul = nil
+    self.ClashAbortUntil = CurTime() + 0.12
+    self:SetLastAttack(CurTime())
+    self:SetAttackTime(CurTime())
+    self:SetAttackWait(recoverTime)
+    self.lastattack = CurTime()
+    self.attackwait = recoverTime
+end
+
+function SWEP:ShouldAbortForClash()
+    return (self.ClashAbortUntil or 0) > CurTime()
+end
+
+function SWEP:SendClashAnimStop(wep, normal)
+    if not SERVER or not IsValid(wep) then return end
+
+    net.Start("hg_melee_clash_stop")
+    net.WriteEntity(wep)
+    net.WriteVector(normal and normal:GetNormalized() or vector_up)
+    net.SendPVS(wep:GetPos())
+end
+
+function SWEP:HandleMeleeClash(otherWep, clashPos, hitNormal, attacktype, otherAttacktype)
+    if not IsValid(otherWep) or not clashPos then return end
+    if (self.NextClashTime or 0) > CurTime() or (otherWep.NextClashTime or 0) > CurTime() then return end
+
+    self.NextClashTime = CurTime() + 0.08
+    otherWep.NextClashTime = CurTime() + 0.08
+
+    local clashTrace = {
+        HitPos = clashPos,
+        HitNormal = hitNormal and hitNormal:GetNormalized() or vector_up,
+        HGPreventHeadRagdoll = true,
+    }
+
+    self:PlayConfiguredWorldSound(self:GetClashSoundData(otherWep, attacktype, otherAttacktype), clashPos, 1)
+    self:DispatchBlockImpactFx(clashTrace, self, "parry")
+    self:DispatchBlockImpactFx(clashTrace, otherWep, "parry")
+    self:AbortClashAttack()
+    otherWep:AbortClashAttack()
+    self:SendClashAnimStop(self, clashTrace.HitNormal)
+    self:SendClashAnimStop(otherWep, -clashTrace.HitNormal)
+
+    return {
+        Entity = NULL,
+        HitPos = clashPos,
+        HitNormal = clashTrace.HitNormal,
+        HGClash = true,
+        HGPreventHeadRagdoll = true,
+    }
+end
+
+function SWEP:FindMeleeClash(owner, ent, attacktype, inattackLength, tr)
+    if not SERVER then return end
+    if not IsValid(owner) or not IsValid(ent) then return end
+    if not self:CanClashWeapon() then return end
+
+    local searchPos = tr.endpos
+    local radius = self.ClashSearchRadius or 22
+
+    for _, candidate in ipairs(ents.FindInSphere(searchPos, radius)) do
+        local clashOwner = hg.RagdollOwner(candidate) or candidate
+
+        if not IsValid(clashOwner) or clashOwner == owner then continue end
+        if not clashOwner:IsPlayer() and not clashOwner:IsNPC() then continue end
+
+        local otherWep = clashOwner.GetActiveWeapon and clashOwner:GetActiveWeapon()
+
+        if not IsValid(otherWep) or otherWep == self then continue end
+        if not otherWep.ismelee2 and otherWep.Base ~= "weapon_melee" then continue end
+        if not otherWep.CanClashWeapon or not otherWep:CanClashWeapon() then continue end
+        if not otherWep.GetInAttack or not otherWep:GetInAttack() then continue end
+
+        local otherAttacktype = otherWep.GetAttackType and otherWep:GetAttackType() or 1
+        local otherEnt = hg.GetCurrentCharacter(clashOwner)
+
+        if not IsValid(otherEnt) then continue end
+
+        local otherStart, otherEnd = otherWep:GetClashSweep(clashOwner, otherEnt, otherAttacktype, otherWep:GetCurrentAttackLengthFraction())
+
+        if not otherStart or not otherEnd then continue end
+
+        local clashPos = self:FindClashPoint(tr.start, tr.endpos, otherStart, otherEnd)
+
+        if not clashPos then continue end
+        if math.Rand(0, 1) > self:GetClashChance(otherWep) then continue end
+
+        local hitNormal = (otherEnd - tr.endpos)
+
+        if hitNormal:LengthSqr() <= 0.001 then
+            hitNormal = (clashPos - owner:EyePos())
+        end
+
+        if hitNormal:LengthSqr() <= 0.001 then
+            hitNormal = owner:GetAimVector() * -1
+        end
+
+        return self:HandleMeleeClash(otherWep, clashPos, hitNormal, attacktype, otherAttacktype)
+    end
 end
 
 function SWEP:GetAttackSwingAngle(attacktype)
     return self:GetAttackConfigValue(self.SwingAng, self.SwingAng2, self.ChargeSwingAng, attacktype) or -90
+end
+
+function SWEP:GetAttackBlockDirection(attacktype)
+    local direction = self:GetAttackConfigValue(self.BlockDirectionalPrimary, self.BlockDirectionalSecondary, self.BlockDirectionalCharge, attacktype)
+
+    if direction == "right" or direction == "left" or direction == "overhead" or direction == "center" or direction == "neutral" then
+        return direction
+    end
+
+    local swingAng = self:GetAttackSwingAngle(attacktype)
+    if math.abs(swingAng) < (self.BlockDirectionalMinSwingAng or 3) then
+        return "neutral"
+    end
+
+    return swingAng < 0 and "right" or "left"
 end
 
 function SWEP:CanDirectionalBlock(blockWep, defender, attacker, attacktype, hierarchyAdvantage)
@@ -1641,7 +1957,8 @@ function SWEP:CanDirectionalBlock(blockWep, defender, attacker, attacktype, hier
     defenderAim = defenderAim:GetNormalized()
 
     local frontDot = defenderAim:Dot(toAttacker)
-    if frontDot < (blockWep.BlockDirectionalFrontDot or self.BlockDirectionalFrontDot or 0.05) then
+    local frontDotNeeded = (blockWep.BlockDirectionalFrontDot or self.BlockDirectionalFrontDot or 0.05) - (blockWep.BlockDirectionalFrontLeniency or self.BlockDirectionalFrontLeniency or 0)
+    if frontDot < frontDotNeeded then
         return false
     end
 
@@ -1649,15 +1966,44 @@ function SWEP:CanDirectionalBlock(blockWep, defender, attacker, attacktype, hier
         return true
     end
 
-    local swingAng = self:GetAttackSwingAngle(attacktype)
-    if math.abs(swingAng) < (blockWep.BlockDirectionalMinSwingAng or self.BlockDirectionalMinSwingAng or 3) then
+    local direction = self:GetAttackBlockDirection(attacktype)
+    if direction == "neutral" then
         return true
     end
 
     local sideDot = defender:EyeAngles():Right():Dot(toAttacker)
-    local neededSign = swingAng < 0 and 1 or -1
+    local absSideDot = math.abs(sideDot)
+    local sideLeniency = blockWep.BlockDirectionalSideLeniency or self.BlockDirectionalSideLeniency or 0
 
-    return sideDot * neededSign >= (blockWep.BlockDirectionalSideDot or self.BlockDirectionalSideDot or 0.1)
+    if direction == "center" then
+        return absSideDot <= ((blockWep.BlockDirectionalCenterDot or self.BlockDirectionalCenterDot or 0.16) + sideLeniency)
+    end
+
+    if direction == "overhead" then
+        return absSideDot <= ((blockWep.BlockDirectionalOverheadDot or self.BlockDirectionalOverheadDot or 0.28) + sideLeniency)
+    end
+
+    local neededSign = direction == "right" and 1 or -1
+
+    return sideDot * neededSign >= ((blockWep.BlockDirectionalSideDot or self.BlockDirectionalSideDot or 0.1) - sideLeniency)
+end
+
+function SWEP:IsBlockTraceCovered(defender, trace, eyePos, aimvec, blockWep)
+    local blockDist = (blockWep.BlockTraceDist or self.BlockTraceDist or 10) + (blockWep.BlockTraceCoverageBonus or self.BlockTraceCoverageBonus or 0)
+    local dist = util.DistanceToLine(eyePos + aimvec * 100, eyePos, trace.HitPos)
+    if dist < blockDist then
+        return true
+    end
+
+    if not defender.Crouching or not defender:Crouching() then return false end
+    if not self:IsLegTrace(trace.Entity or defender, trace) then return false end
+
+    local crouchDown = blockWep.BlockCrouchLegCoverageDown or self.BlockCrouchLegCoverageDown or 28
+    local crouchDist = (blockWep.BlockCrouchLegCoverageDist or self.BlockCrouchLegCoverageDist or blockDist + 4) + (blockWep.BlockCrouchTraceCoverageBonus or self.BlockCrouchTraceCoverageBonus or 0)
+    local loweredPos = eyePos - Vector(0, 0, crouchDown)
+    local loweredDist = util.DistanceToLine(loweredPos + aimvec * 100, loweredPos, trace.HitPos)
+
+    return loweredDist < crouchDist
 end
 
 function SWEP:BlockingLogic(ent, mul, attacktype, trace)
@@ -1676,11 +2022,14 @@ function SWEP:BlockingLogic(ent, mul, attacktype, trace)
 
         if not aimvec or not aimvec2 or not trace or not trace.HitPos then return 1, "none" end
 
-        local dist, posHit, distLine = util.DistanceToLine(pos + aimvec * 100, pos, trace.HitPos)
         local selfdmg = math.max(self:GetAttackDamageBase(attacktype), 1)
         local swingStamina = self:GetAttackConfigValue(self.StaminaPrimary, self.StaminaSecondary, self.ChargeStamina, attacktype) or 0
 
-        if wep.GetBlocking and wep:GetBlocking() and wep.SetStartedBlocking and dist < 10 then
+        if wep.GetBlocking and wep:GetBlocking() and wep.SetStartedBlocking and self:IsBlockTraceCovered(ent, trace, pos, aimvec, wep) then
+            if wep.CanBlockWeapon and not wep:CanBlockWeapon(self) then
+                return 1, "none"
+            end
+
             local attackerTier = self:GetBlockTier()
             local defenderTier = wep.GetBlockTier and wep:GetBlockTier() or math.max(wep.BlockTier or 1, 1)
             local hierarchyAdvantage = defenderTier > attackerTier
@@ -1767,9 +2116,10 @@ end
 
 local matBlood = Material("zbattle/blood")
 SWEP.BlockTier = 1
-SWEP.BlockMaterial = "metal"
+SWEP.BlockMaterial = nil
 SWEP.BlockSound = nil
 SWEP.BlockParryWindow = 0.35
+SWEP.BlockParryWindowBonus = 0.08
 SWEP.BlockWeakenDamageMul = 0.35
 SWEP.BlockBreakTierDiff = 2
 SWEP.BlockBreakCooldown = 0.65
@@ -1777,9 +2127,19 @@ SWEP.BlockBreakStaminaMul = 0.75
 SWEP.BlockStaminaTierMul = 0.35
 SWEP.BlockHitStaminaMul = 0.5
 SWEP.BlockParryStaminaMul = 0.5
+SWEP.BlockMinStamina = 70
 SWEP.BlockRecoverDelay = 0.35
 SWEP.BlockDirectionalFrontDot = 0.05
 SWEP.BlockDirectionalSideDot = 0.12
+SWEP.BlockDirectionalFrontLeniency = 0.08
+SWEP.BlockDirectionalSideLeniency = 0.08
+SWEP.BlockTraceDist = 10
+SWEP.BlockTraceCoverageBonus = 4
+SWEP.BlockCrouchLegCoverageDown = 28
+SWEP.BlockCrouchLegCoverageDist = 14
+SWEP.BlockCrouchTraceCoverageBonus = 6
+SWEP.BlockDirectionalCenterDot = 0.16
+SWEP.BlockDirectionalOverheadDot = 0.28
 SWEP.BlockDirectionalMinSwingAng = 3
 SWEP.BlockHierarchyIgnoreSide = false
 SWEP.BlockHitShakeMul = 1.7
@@ -1797,6 +2157,13 @@ SWEP.BlockFxSizeMul = 1.25
 SWEP.BlockFxFlareMul = 1.25
 SWEP.BlockFxSmokeMul = 1.2
 SWEP.BlockFxLifeMul = 1.25
+SWEP.CantClash = false
+SWEP.ClashBaseChance = 0.95
+SWEP.ClashTierChancePower = 2.35
+SWEP.ClashDistance = 12
+SWEP.ClashSearchRadius = 22
+SWEP.ClashCooldown = nil
+SWEP.noreverse = false
 SWEP.blockPoseSoundState = nil
 SWEP.ShouldAttackOnce = true
 
@@ -1965,7 +2332,7 @@ function SWEP:CustomThink()
 
     //if SERVER then
         local oldblocking = self:GetBlocking()
-        local blocking = self:GetBlockDisabledUntil() < CurTime() and owner.organism and owner.organism.stamina[1] > 90 and !self:GetInAttack() and (self:GetAttackTime() - CurTime() - 0) < 0 and self:CanBlock() and hg.KeyDown(owner, IN_ATTACK2)
+        local blocking = self:GetBlockDisabledUntil() < CurTime() and owner.organism and owner.organism.stamina[1] >= (self.BlockMinStamina or 90) and !self:GetInAttack() and (self:GetAttackTime() - CurTime() - 0) < 0 and self:CanBlock() and hg.KeyDown(owner, IN_ATTACK2)
         --if self:CutDuct() then return end
         self:SetBlocking(blocking)
         
@@ -2035,7 +2402,10 @@ function SWEP:CustomThink()
 
             owner:LagCompensation(false)
 
-            if SERVER and (owner:OnGround() or owner.organism.superfighter) then -- ранбуст для супербойцов
+            local ownerVel = owner:GetVelocity()
+            ownerVel.z = 0
+
+            if SERVER and ownerVel:LengthSqr() >= math.pow(self.SwingForwardBoostMinSpeed or 20, 2) and (owner:OnGround() or owner.organism.superfighter) then -- ранбуст для супербойцов
                 local vec = owner:GetAimVector() * math.min(self.DamagePrimary * 0.5, 20)
                 vec[3] = 0
 
@@ -2043,6 +2413,8 @@ function SWEP:CustomThink()
             end
 
             if !trace then return end
+            if self:ShouldAbortForClash() then return end
+            if trace.HGClash then return end
 
             local ent = trace.Entity
 
@@ -2067,9 +2439,9 @@ function SWEP:CustomThink()
 
 			if CLIENT and IsFirstTimePredicted() and self.weight > 0.4 and (!self.stopanim or (!soft and !self.HitWorld)) and !hg_nomeleestop:GetBool() then
 				if !soft or self.AnimAlwaysBack or self.HitWorld then   
-                    QueueMeleeHitStop(self, self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, true, self.HitStopWorldStop or 0.12)
+                    QueueMeleeHitStop(self, self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, not self.noreverse, self.HitStopWorldStop or 0.12)
                     util.ScreenShake(self:GetPos(), 35, 1, 1, 100)
-					self.reverseanim = true
+					self.reverseanim = not self.noreverse
                     self.HitWorld = true
 				else
                     QueueMeleeHitStop(self, self.HitStopSoftSpeedMul or 1.9, self.HitStopSoftPause or 0.05, false, self.HitStopSoftStop or 0.1)
@@ -2165,6 +2537,7 @@ function SWEP:CustomThink()
                 self.HitEnts = nil
                 self.FirstAttackTick = false
                 self.AttackHitPlayed = false
+                self.SoftHitPlayed = false
                 self.ComboAppliedThisAttack = nil
             end
         elseif self:GetAttackType() == 2 and inattack2 == 0 then
@@ -2175,6 +2548,8 @@ function SWEP:CustomThink()
             owner:LagCompensation(false)
 
             if !trace then return end
+            if self:ShouldAbortForClash() then return end
+            if trace.HGClash then return end
 
             local ent = trace.Entity
 
@@ -2289,6 +2664,7 @@ function SWEP:CustomThink()
                 self.HitEnts = nil
                 self.FirstAttackTick = false
                 self.AttackHitPlayed = false
+                self.SoftHitPlayed = false
                 self.ComboAppliedThisAttack = nil
             end
         elseif self:GetAttackType() == 3 and inattack3 == 0 then
@@ -2298,7 +2674,10 @@ function SWEP:CustomThink()
 
             owner:LagCompensation(false)
 
-            if SERVER and (owner:OnGround() or owner.organism.superfighter) then
+            local ownerVel = owner:GetVelocity()
+            ownerVel.z = 0
+
+            if SERVER and ownerVel:LengthSqr() >= math.pow(self.SwingForwardBoostMinSpeed or 20, 2) and (owner:OnGround() or owner.organism.superfighter) then
                 local vec = owner:GetAimVector() * math.min(self:GetAttackDamageBase(3) * 0.5, 24)
                 vec[3] = 0
 
@@ -2306,6 +2685,8 @@ function SWEP:CustomThink()
             end
 
             if !trace then return end
+            if self:ShouldAbortForClash() then return end
+            if trace.HGClash then return end
 
             local ent = trace.Entity
 
@@ -2427,6 +2808,7 @@ function SWEP:CustomThink()
                 self.HitEnts = nil
                 self.FirstAttackTick = false
                 self.AttackHitPlayed = false
+                self.SoftHitPlayed = false
                 self.ComboAppliedThisAttack = nil
                 self.ChargeReleasedAt = nil
                 self.ReleasedChargeDamageMul = nil
@@ -2436,6 +2818,7 @@ function SWEP:CustomThink()
         end
     else
         self.attackedOnce = nil
+        self.SoftHitPlayed = false
         self.ComboAppliedThisAttack = nil
     end
 
@@ -2514,6 +2897,7 @@ function SWEP:PrimaryAttack()
     self.HitEnts = nil
     self.FirstAttackTick = false
     self.AttackHitPlayed = false
+    self.SoftHitPlayed = false
     self.HitWorld = false
     self.ComboAppliedThisAttack = nil
     self:PlayAnim("attack", self.AnimTime1 / mul,false,nil,false,false)
@@ -2622,6 +3006,7 @@ function SWEP:SecondaryAttack(override)
     self.HitEnts = nil
     self.FirstAttackTick = false
     self.AttackHitPlayed = false
+    self.SoftHitPlayed = false
     self.HitWorld = false
     self.ComboAppliedThisAttack = nil
     self:PlayAnim("attack2",self.AnimTime2 / mul,false,nil,false,false)
@@ -2723,6 +3108,10 @@ function SWEP:Initialize()
     util.PrecacheSound(self.AttackHitFlesh)
     util.PrecacheSound(self.Attack2HitFlesh)
     util.PrecacheSound(self.DeploySnd)
+    util.PrecacheSound("clash/rem_clashblunt.wav")
+    util.PrecacheSound("clash/rem_clashsharp1.wav")
+    util.PrecacheSound("clash/rem_clashsharp2.wav")
+    util.PrecacheSound("clash/rem_clashsharp3.wav")
     self:PrecacheConfiguredHitSoundLayer(self.swingsoundextra)
     self:PrecacheConfiguredHitSoundLayer(self.hitsoundextra)
     self:PrecacheConfiguredHitSoundLayer(self.hitsoundplus)
@@ -2751,6 +3140,7 @@ if SERVER then
     util.AddNetworkString("melee_attack")
     util.AddNetworkString("hg_melee_block_fx")
     util.AddNetworkString("hg_melee_block_shake")
+    util.AddNetworkString("hg_melee_clash_stop")
 elseif CLIENT then
     net.Receive("hg_melee_block_shake", function()
         local wep = net.ReadEntity()
@@ -2890,6 +3280,19 @@ elseif CLIENT then
         end
 
         emitter:Finish()
+    end)
+
+    net.Receive("hg_melee_clash_stop", function()
+        local wep = net.ReadEntity()
+        local normal = net.ReadVector()
+
+        if not IsValid(wep) then return end
+
+        if wep.AddBlockHitShake then
+            wep:AddBlockHitShake("parry", normal)
+        end
+
+        QueueMeleeHitStop(wep, wep.HitStopWorldSpeedMul or 2.35, wep.HitStopWorldPause or 0.12, not wep.noreverse, wep.HitStopWorldStop or 0.12)
     end)
 
     net.Receive("melee_attack",function()
@@ -3039,6 +3442,7 @@ function SWEP:NPCThink()
         local trEnt = IsValid(trace.Entity) and trace.Entity
 		if IsValid(trEnt) then
 			self.LastNPCAttack = CurTime() + (self.AnimTime1 or 1)
+            self.SoftHitPlayed = false
 			self:PlaySwingSound(npc)
 
             npc:SetSchedule(SCHED_MELEE_ATTACK1)

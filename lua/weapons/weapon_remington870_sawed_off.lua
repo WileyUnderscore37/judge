@@ -2,14 +2,14 @@
 SWEP.Base = "weapon_m4super"
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
-SWEP.PrintName = "Sawed-off 870"
+SWEP.PrintName = "Sawed-off Remington 870"
 SWEP.Author = "Remington Arms"
 SWEP.Instructions = "Pump-action shotgun chambered in 12/70 caliber"
 SWEP.Category = "Weapons - Shotguns"
 SWEP.Slot = 2
 SWEP.SlotPos = 10
 SWEP.ViewModel = ""
-SWEP.WorldModel = "models/c_ud_870.mdl"
+SWEP.WorldModel = "models/weapons/w_shot_m3super90.mdl"
 SWEP.WorldModelFake = "models/c_ud_870.mdl"
 
 
@@ -57,7 +57,7 @@ SWEP.FakeVPShouldUseHand = false
 SWEP.WepSelectIcon2 = Material("vgui/wep_jack_hmcd_shotgun.png")
 SWEP.IconOverride = "vgui/wep_jack_hmcd_shotgun.png"
 
-SWEP.LocalMuzzlePos = Vector(33.739,0.09,5.098)
+SWEP.LocalMuzzlePos = Vector(26.739,0.09,5.098)
 SWEP.LocalMuzzleAng = Angle(0.2,-0.0,0)
 SWEP.WeaponEyeAngles = Angle(-0.7,0.1,0)
 

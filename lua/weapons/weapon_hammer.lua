@@ -54,13 +54,19 @@ SWEP.AnimList = {
 }
 
 SWEP.hitsoundextra = {
-    {"hardimpact/body_medium_break2.wav", 70, {110, 115}},
-    {"hardimpact/body_medium_break3.wav", 70, {110, 115}},
-    {"hardimpact/body_medium_break4.wav", 70, {110, 115}},
+    {"hammer/BodyHit-1.wav", 70, {115, 125}},
+    {"hammer/BodyHit-2.wav", 70, {115, 125}},
+    {"hammer/BodyHit-3.wav", 70, {115, 125}},
+    {"hammer/BodyHit-4.wav", 70, {115, 125}},
+    {"hammer/BodyHit-5.wav", 70, {115, 125}},
+    {"hammer/BodyHit-6.wav", 70, {115, 125}},
 }
 
 SWEP.hitsoundbrutalize = {
-    {"bat/hitplus.ogg", 55, {105, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize1.wav", 70, {110, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize2.wav", 70, {110, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize3.wav", 70, {110, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize4.wav", 70, {110, 115}},
 }
 
 SWEP.hitsoundplus = {
@@ -82,6 +88,7 @@ SWEP.Attack2Hit = "Concrete.ImpactHard"
 SWEP.AttackHitFlesh = "Flesh.ImpactHard"
 SWEP.Attack2HitFlesh = "Flesh.ImpactHard"
 SWEP.DeploySnd = "physics/metal/metal_solid_impact_soft1.wav"
+SWEP.BlockDirectionalPrimary = "overhead"
 SWEP.AttackTimeLength = 0.155
 SWEP.Attack2TimeLength = 0.1
 SWEP.AttackRads = 55
@@ -89,9 +96,9 @@ SWEP.AttackRads2 = 65
 SWEP.SwingAng = -90
 SWEP.SwingAng2 = 0
 SWEP.AttackPos = Vector(0, 0, 0)
-SWEP.BlockTier = 1
+SWEP.BlockTier = 1.5
 SWEP.BlockMaterial = "metal"
-SWEP.BlockSound = {"physics/wood/wood_plank_impact_hard1.wav", 68, {95, 102}}
+SWEP.BlockSound = {"physics/metal/metal_solid_impact_hard1.wav", 68, {95, 102}}
 SWEP.UnNailables = {MAT_METAL, MAT_SAND, MAT_SLOSH, MAT_GLASS}
 game.AddDecal("hmcd_jackanail", "decals/mat_jack_hmcd_nailhead")
 function hgCheckBindObjects(ent1)

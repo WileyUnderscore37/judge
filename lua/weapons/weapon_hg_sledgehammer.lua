@@ -38,7 +38,7 @@ SWEP.basebone = 94
 SWEP.weaponPos = Vector(0,0,0)
 SWEP.weaponAng = Angle(0,-90,0)
 
-SWEP.DamagePrimary = 70
+SWEP.DamagePrimary = 67
 SWEP.DamageSecondary = 34
 SWEP.HitCooldownEnabled = true
 SWEP.HitCooldown = 2.5
@@ -67,9 +67,11 @@ SWEP.ChargeFullTime = 0.65
 SWEP.ChargeAttackTime = 0.29
 SWEP.ChargeWaitTime = 2.5
 SWEP.ChargeAttackLen = 70
-SWEP.ChargeAttackTimeLength = 0.34
+SWEP.ChargeAttackTimeLength = 0.28
 SWEP.ChargeAttackRads = 85
 SWEP.ChargeSwingAng = -105
+SWEP.BlockDirectionalPrimary = "left"
+SWEP.BlockDirectionalCharge = "overhead"
 SWEP.ChargeStamina = 75
 SWEP.ChargePenetration = 8
 SWEP.ChargePenetrationSize = 6.5
@@ -114,9 +116,17 @@ SWEP.swingsoundextra = {
 }
 
 SWEP.hitsoundextra = {
-    {"hardimpact/body_medium_break2.wav", 70, {72, 82}},
-    {"hardimpact/body_medium_break3.wav", 70, {72, 82}},
-    {"hardimpact/body_medium_break4.wav", 70, {72, 82}},
+    {"sledgehammer/rem_maul1.wav", 70, {72, 82}},
+    {"sledgehammer/rem_maul2.wav", 70, {72, 82}},
+    {"sledgehammer/rem_maul3.wav", 70, {72, 82}},
+    {"sledgehammer/rem_maul4.wav", 70, {72, 82}},
+}
+
+SWEP.hitsoundbrutalize = {
+    {"hammerbrutalize/rem_hammerbrutalize1.wav", 70, {90, 100}},
+    {"hammerbrutalize/rem_hammerbrutalize2.wav", 70, {90, 100}},
+    {"hammerbrutalize/rem_hammerbrutalize3.wav", 70, {90, 100}},
+    {"hammerbrutalize/rem_hammerbrutalize4.wav", 70, {90, 100}},
 }
 
 SWEP.AttackPos = Vector(0,0,0)

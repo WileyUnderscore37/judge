@@ -97,21 +97,27 @@ local function decalBlood(pos, normal, tr, artery, owner)
 	if artery then
 		if !hg_old_blood:GetBool() then
 			local howmuch = 1
+			local playArteryImpactSound = math_random(3) != 1
 			
 			//timer.Simple(0.1, function()
 				hg.bloodpositions[vec] = (hg.bloodpositions[vec] or 0) + 1
 				if hg.bloodpositions[vec] < 6 then
 					util.Decal("Arterial.Blood2"..math.Clamp(hg.bloodpositions[vec], 1, 5), pos + normal, pos - normal, owner)
 				end
-				sound.Play("homigrad/blooddrip" .. math_random(1, 4) .. ".wav", pos, math.random(10, 60), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
-				if tr.MatType == MAT_METAL then
+				if playArteryImpactSound then
+					sound.Play("newblooddrip/sndBloodDrip" .. math_random(1, 3) .. ".wav", pos, math.random(10, 60), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
+				end
+				if playArteryImpactSound and tr.MatType == MAT_METAL then
 					sound.Play("zbattle/blood_drop_metal.mp3", pos, math.random(10, 40), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
 				end
 			//end)
 		else
+			local playArteryImpactSound = math_random(3) != 1
 			util.Decal("Arterial.Blood1", pos + normal, pos - normal, owner)
-			sound.Play("homigrad/blooddrip" .. math_random(1, 4) .. ".wav", pos, math.random(10, 60), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
-			if tr.MatType == MAT_METAL then
+			if playArteryImpactSound then
+				sound.Play("newblooddrip/sndBloodDrip" .. math_random(1, 3) .. ".wav", pos, math.random(10, 60), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
+			end
+			if playArteryImpactSound and tr.MatType == MAT_METAL then
 				sound.Play("zbattle/blood_drop_metal.mp3", pos, math.random(10, 40), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
 			end
 		end
@@ -122,7 +128,7 @@ local function decalBlood(pos, normal, tr, artery, owner)
 			//timer.Simple(0.1, function()
 				hg.bloodpositions[vec] = (hg.bloodpositions[vec] or 0) + 1
 				
-				sound.Play("homigrad/blooddrip" .. math_random(1, 4) .. ".wav", pos, math.random(10, 60), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
+				sound.Play("newblooddrip/sndBloodDrip" .. math_random(1, 3) .. ".wav", pos, math.random(10, 60), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
 				if tr.MatType == MAT_METAL then
 					sound.Play("zbattle/blood_drop_metal.mp3", pos, math.random(10, 40), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
 				end
@@ -138,7 +144,7 @@ local function decalBlood(pos, normal, tr, artery, owner)
 			//end)
 		else
 			util.Decal("Normal.Blood1", pos + normal, pos - normal, owner)
-			sound.Play("homigrad/blooddrip" .. math_random(1, 4) .. ".wav", pos, math.random(10, 60), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
+			sound.Play("newblooddrip/sndBloodDrip" .. math_random(1, 3) .. ".wav", pos, math.random(10, 60), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
 			if tr.MatType == MAT_METAL then
 				sound.Play("zbattle/blood_drop_metal.mp3", pos, math.random(10, 40), tr.MatType == MAT_METAL and math.random(100, 120) or math.random(80, 120))
 			end

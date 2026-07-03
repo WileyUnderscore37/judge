@@ -36,9 +36,24 @@ local bonefracture_sounds = {
 	"bonefracture/rem_bonebreak3.wav",
 }
 
+local skullfracture_sounds = {
+	"skullfracture/SkullFracture-1.wav",
+	"skullfracture/SkullFracture-2.wav",
+	"skullfracture/SkullFracture-3.wav",
+	"skullfracture/SkullFracture-4.wav",
+	"skullfracture/SkullFracture-5.wav",
+	"skullfracture/SkullFracture-6.wav",
+	"skullfracture/SkullFracture-7.wav",
+}
+
 local function playBoneFractureSound(ent)
 	if not IsValid(ent) then return end
 	ent:EmitSound(bonefracture_sounds[math.random(#bonefracture_sounds)], 75, math.random(135, 155), 1, CHAN_AUTO)
+end
+
+local function playSkullFractureSound(ent)
+	if not IsValid(ent) then return end
+	ent:EmitSound(skullfracture_sounds[math.random(#skullfracture_sounds)], 75, math.random(90, 110), 1, CHAN_AUTO)
 end
 
 local huyasd = {
@@ -337,7 +352,7 @@ input_list.skull = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricoch
 		org.shock = org.shock + dmg * 40
 		org.avgpain = org.avgpain + dmg * 30
 
-		if oldDmg != 1 then playBoneFractureSound(org.owner) end
+		if oldDmg != 1 then playSkullFractureSound(org.owner) end
 	end
 
 	org.shock = org.shock + dmg * 3

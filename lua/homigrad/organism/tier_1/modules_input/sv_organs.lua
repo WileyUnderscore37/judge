@@ -160,10 +160,31 @@ local arteryMessages ={
 	"I'm bleeding out of my neck!"
 }
 
+local slashToArtery = {
+	["rarmup"] = "rarmartery",
+	["rarmdown"] = "rarmartery",
+	["larmup"] = "larmartery",
+	["larmdown"] = "larmartery",
+	["rlegup"] = "rlegartery",
+	["rlegdown"] = "rlegartery",
+	["llegup"] = "llegartery",
+	["llegdown"] = "llegartery",
+}
+
+local function getArteryChanceMul(dmgInfo)
+	local inflictor = dmgInfo:GetInflictor()
+	return IsValid(inflictor) and inflictor.ArteryChance or 1
+end
+
 local function hitArtery(artery, org, dmg, dmgInfo, boneindex, dir, hit)
 	if isCrush(dmgInfo) then return 1 end
 	if dmgInfo:IsDamageType(DMG_BLAST) then return 1 end
-	if dmgInfo:IsDamageType(DMG_SLASH) and (math.random(5) != 1) and dmg < 2 then return end
+	if dmgInfo:IsDamageType(DMG_SLASH) and dmg < 2 then
+		local arteryChanceMul = getArteryChanceMul(dmgInfo)
+		local arteryChance = arteryChanceMul >= 2 and 1 or math.Clamp(0.2 * arteryChanceMul, 0, 1)
+
+		if math.Rand(0, 1) > arteryChance then return end
+	end
 	org.painadd = org.painadd + dmg * 1
 	if org[artery] == 1 then return 0 end
 	if org[string.Replace(artery, "artery", "").."amputated"] then return end
@@ -188,6 +209,19 @@ local function hitArtery(artery, org, dmg, dmgInfo, boneindex, dir, hit)
 	--if IsValid(owner:GetNWEntity("RagdollDeath")) then owner:GetNWEntity("RagdollDeath"):SetNetVar("wounds",org.arterialwounds) end
 	return 0
 end
+
+hook.Add("PreTraceOrganBulletDamage", "hg_melee_artery_chance", function(org, bone, dmg, dmgInfo, box, dir, hit, ricochet, organ)
+	if not dmgInfo:IsDamageType(DMG_SLASH) then return end
+
+	local artery = organ and slashToArtery[organ[1]]
+	if not artery then return end
+	if getArteryChanceMul(dmgInfo) <= 1 then return end
+
+	local arteryChance = math.Clamp(getArteryChanceMul(dmgInfo) - 1, 0, 1)
+	if math.Rand(0, 1) > arteryChance then return end
+
+	hitArtery(artery, org, dmg, dmgInfo, box[6], dir, hit)
+end)
 
 input_list.arteria = function(org, bone, dmg, dmgInfo, boneindex, dir, hit)
 	return hitArtery("arteria", org, dmg, dmgInfo, "ValveBiped.Bip01_Neck1", dir, hit)

@@ -51,7 +51,7 @@ SWEP.weaponPos = Vector(0, 0, -19)
 SWEP.weaponAng = Angle(0, -90, 0)
 
 SWEP.DamageType = DMG_CLUB
-SWEP.DamagePrimary = 33
+SWEP.DamagePrimary = 27
 SWEP.DamageSecondary = 12
 
 SWEP.HitCooldownEnabled = true
@@ -59,8 +59,8 @@ SWEP.HitCooldown = 1.4
 SWEP.ComboEnabled = true
 SWEP.ComboResetTime = 1.4
 SWEP.ComboDamageMul1 = 1
-SWEP.ComboDamageMul2 = 1.25
-SWEP.ComboDamageMul3 = 1.65
+SWEP.ComboDamageMul2 = 1.15
+SWEP.ComboDamageMul3 = 1.25
 
 SWEP.canchargeattack = true
 SWEP.ChargeAnimTimeBegin = 1
@@ -89,9 +89,22 @@ SWEP.swingsoundextra = {
     {"bat/baseball_swing_1st_layer_04.wav", 60, {80, 90}},
 }
 
-SWEP.hitsoundextra = {
+SWEP.hitsoundplus = {
     {"shovelcrowbarshared/shovelhit1.ogg", 70, {100, 105}},
     {"shovelcrowbarshared/shovelhit2.ogg", 70, {100, 105}},
+}
+
+SWEP.hitsoundextra = {
+    {"punch/Punch-01.wav", 55, {105, 115}},
+    {"punch/Punch-02.wav", 55, {105, 115}},
+    {"punch/Punch-03.wav", 55, {105, 115}},
+    {"punch/Punch-04.wav", 55, {105, 115}},
+    {"punch/Punch-05.wav", 55, {105, 115}},
+    {"punch/Punch-06.wav", 55, {105, 115}},
+    {"punch/Punch-07.wav", 55, {105, 115}},
+    {"punch/Punch-08.wav", 55, {105, 115}},
+    {"punch/Punch-09.wav", 55, {105, 115}},
+    {"punch/Punch-10.wav", 55, {105, 115}},
 }
 
 SWEP.PenetrationPrimary = 3
@@ -158,6 +171,8 @@ SWEP.AttackRads2 = 0
 
 SWEP.SwingAng = -15
 SWEP.SwingAng2 = 0
+SWEP.BlockDirectionalCharge = "overhead" --left, right, overhead, center, neutral
+
 
 
 function SWEP:PrimaryAttack()

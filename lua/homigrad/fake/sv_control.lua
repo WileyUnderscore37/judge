@@ -554,7 +554,7 @@ hook.Add("Think", "Fake", function()
 				angl:RotateAroundAxis(angl:Up(), 90)
 				angl:RotateAroundAxis(angl:Forward(), ishgweapon(wep) and not wep:IsPistolHoldType() and 120 or 180)
 				angl:RotateAroundAxis(angl:Up(), ishgweapon(wep) and wep:IsResting() and 50 - ply:EyeAngles().p or 0)
-				shadowControl(ragdoll, 1, 0.1, angl, 250, 20)
+				shadowControl(ragdoll, 1, 0.1, angl, 110, 20)
 			end
 
 			if org.canmovehead then

@@ -6,10 +6,10 @@ SWEP.Category = "Weapons - Melee"
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
 
-SWEP.WorldModel = "models/weapons/combatknife/tactical_knife_iw7_wm.mdl"
+SWEP.WorldModel = "models/zcity/weapons/w_sog_knife.mdl"
 SWEP.WorldModelReal = "models/weapons/gleb/c_knife_t.mdl"
 SWEP.WorldModelExchange = "models/zcity/weapons/w_sog_knife.mdl"
-SWEP.DontChangeDropped = true
+SWEP.DontChangeDropped = false
 SWEP.modelscale = 1.4
 SWEP.modelscale2 = 1
 
@@ -20,11 +20,23 @@ SWEP.SuicideCutAng = Angle(10, 0, 0)
 SWEP.SuicideTime = 0.5
 SWEP.CanSuicide = true
 
+SWEP.PenetrationSizePrimary = 2
+SWEP.PenetrationSizeSecondary = 0
+
+
+SWEP.PenetrationPrimary = 4
+SWEP.PenetrationSecondary = 0
+
 SWEP.BleedMultiplier = 1.5
 SWEP.PainMultiplier = 1.8
 
-SWEP.DamagePrimary = 20
+SWEP.DamagePrimary = 23
 SWEP.DamageSecondary = 10
+
+SWEP.BlockTier = 2
+SWEP.BlockMaterial = "metal"
+SWEP.BlockSound = {"physics/metal/metal_sheet_impact_hard2.wav", 85, {145, 155}}
+
 
 SWEP.setlh = false
 SWEP.setrh = true
@@ -52,8 +64,7 @@ if CLIENT then
 	SWEP.BounceWeaponIcon = false
 end
 
-SWEP.BreakBoneMul = 0.5
-SWEP.ImmobilizationMul = 0.45
+SWEP.BreakBoneMul = 0.25
 SWEP.StaminaMul = 0.5
 SWEP.HadBackBonus = true
 
@@ -72,12 +83,26 @@ function SWEP:Initialize()
     self:InitAdd()
 end
 
-SWEP.AttackTime = 0.01
-SWEP.AnimTime1 = 0.8
-SWEP.WaitTime1 = 0.6
+SWEP.swingsoundextra = {
+    {"knife/knife_bayonet_swing1.ogg", 60, {80, 90}},
+    {"knife/knife_bayonet_swing2.ogg", 60, {80, 90}},
+}
 
-SWEP.AnimTime2 = 1
-SWEP.WaitTime2 = 0.4
+SWEP.hitsoundextra = {
+    {"knife/KnifeStabIn-1.wav", 55, {105, 115}},
+    {"knife/KnifeStabIn-2.wav", 55, {105, 115}},
+    {"knife/KnifeStabIn-3.wav", 55, {105, 115}},
+}
+
+SWEP.AttackTime = 0.2
+SWEP.AnimTime1 = 1
+SWEP.WaitTime1 = 0.76
+
+SWEP.AnimTime2 = 0.85
+SWEP.Attack2Time = 0.15
+SWEP.WaitTime2 = 0.56
+
+SWEP.Attack2HitFlesh = "knife/NEWRapierSlash1.wav"
 
 SWEP.AnimList = {
     ["idle"] = "idle",
@@ -119,14 +144,19 @@ function SWEP:CustomBlockAnim(addPosLerp, addAngLerp)
 end
 
 function SWEP:CanSecondaryAttack()
-    return self.allowsec and true or false
+    if not self.allowsec then return false end
+    self.Attack2HitFlesh = "knife/NEWRapierSlash"..math.random(1, 6)..".wav"
+    return true
 end
 
-SWEP.AttackTimeLength = 0.15
+SWEP.AttackTimeLength = 0.16
 SWEP.Attack2TimeLength = 0.1
 
 SWEP.AttackRads = 35
 SWEP.AttackRads2 = 45
+SWEP.CantClash = true
+
+SWEP.ArteryChance = 100
 
 SWEP.SwingAng = -90
 SWEP.SwingAng2 = 0
