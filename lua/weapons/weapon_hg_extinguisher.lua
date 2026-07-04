@@ -1,4 +1,10 @@
 ﻿if SERVER then AddCSLuaFile() end
+if SERVER then
+    util.AddNetworkString("hg_extinguisher_explode_fx")
+end
+
+local EXTINGUISHER_CLASS = "weapon_hg_extinguisher"
+
 SWEP.Base = "weapon_melee"
 SWEP.PrintName = "Fire Extinguisher"
 SWEP.Instructions = "This is a hand-held cylindrical pressure vessel containing an agent that can be discharged to extinguish a fire.\n\nLMB to attack.\nR to change mode.\nRMB to block."
@@ -22,9 +28,9 @@ SWEP.weight = 4
 SWEP.HoldPos = Vector(-15,1,2)
 SWEP.HoldAng = Angle()
 
-SWEP.AttackTime = 0.45
-SWEP.AnimTime1 = 1.9
-SWEP.WaitTime1 = 1.3
+SWEP.AttackTime = 0.47
+SWEP.AnimTime1 = 2
+SWEP.WaitTime1 = 1.85
 SWEP.ViewPunch1 = Angle(1,2,0)
 
 SWEP.Attack2Time = 0.25
@@ -41,10 +47,10 @@ SWEP.weaponPos = Vector(0,2,0.3)
 SWEP.weaponAng = Angle(0,0,0)
 
 SWEP.DamageType = DMG_CLUB
-SWEP.DamagePrimary = 38
+SWEP.DamagePrimary = 32
 SWEP.DamageSecondary = 15
 
-SWEP.PenetrationPrimary = 6
+SWEP.PenetrationPrimary = 5
 SWEP.PenetrationSecondary = 4
 
 SWEP.MaxPenLen = 5
@@ -52,11 +58,16 @@ SWEP.MaxPenLen = 5
 SWEP.PenetrationSizePrimary = 3
 SWEP.PenetrationSizeSecondary = 1.25
 
-SWEP.StaminaPrimary = 45
+SWEP.StaminaPrimary = 40
 SWEP.StaminaSecondary = 15
 
-SWEP.AttackLen1 = 65
+SWEP.AttackLen1 = 48
 SWEP.AttackLen2 = 30
+
+SWEP.BlockTier = 5
+SWEP.BlockMaterial = "metal"
+SWEP.BlockSound = {"physics/metal/metal_solid_impact_hard1.wav", 68, {95, 102}}
+
 
 SWEP.AnimList = {
     ["idle"] = "Idle",
@@ -83,6 +94,36 @@ SWEP.AttackHitFlesh = "Flesh.ImpactHard"
 SWEP.Attack2HitFlesh = "Flesh.ImpactHard"
 SWEP.DeploySnd = "physics/metal/metal_grenade_impact_soft1.wav"
 
+SWEP.hitsoundextra = {
+    {"hammer/BodyHit-1.wav", 70, {115, 125}},
+    {"hammer/BodyHit-2.wav", 70, {115, 125}},
+    {"hammer/BodyHit-3.wav", 70, {115, 125}},
+    {"hammer/BodyHit-4.wav", 70, {115, 125}},
+    {"hammer/BodyHit-5.wav", 70, {115, 125}},
+    {"hammer/BodyHit-6.wav", 70, {115, 125}},
+}
+
+SWEP.hitsoundbrutalize = {
+    {"hammerbrutalize/rem_hammerbrutalize1.wav", 70, {110, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize2.wav", 70, {110, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize3.wav", 70, {110, 115}},
+    {"hammerbrutalize/rem_hammerbrutalize4.wav", 70, {110, 115}},
+}
+
+SWEP.hitsoundplus = {
+    {"fireextinguisher/rem_extinhit1.wav", 75, {95, 105}},
+    {"fireextinguisher/rem_extinhit2.wav", 75, {95, 105}},
+    {"fireextinguisher/rem_extinhit3.wav", 75, {95, 105}},
+    {"fireextinguisher/rem_extinhit4.wav", 75, {95, 105}},
+}
+
+SWEP.swingsoundextra = {
+    {"bat/baseball_swing_1st_layer_01.wav", 60, {80, 95}},
+    {"bat/baseball_swing_1st_layer_02.wav", 60, {80, 95}},
+    {"bat/baseball_swing_1st_layer_03.wav", 60, {80, 95}},
+    {"bat/baseball_swing_1st_layer_04.wav", 60, {80, 95}},
+}
+
 SWEP.AttackPos = Vector(0,0,0)
 
 SWEP.AttackTimeLength = 0.15
@@ -93,6 +134,255 @@ SWEP.AttackRads2 = 0
 
 SWEP.SwingAng = -30
 SWEP.SwingAng2 = 0
+
+SWEP.BulletBlockExplodeChance = 0.2
+SWEP.DroppedExplodeChance = 0.5
+SWEP.BulletBlockFrontDot = 0.12
+SWEP.ExplosionRadius = 140
+SWEP.ExplosionDamage = 2
+SWEP.ExplosionFireOutRadius = 140
+
+local function GetExtinguisherImpactPos(ent, dmginfo)
+    local pos = dmginfo.GetDamagePosition and dmginfo:GetDamagePosition() or vector_origin
+
+    if isvector(pos) and pos ~= vector_origin then
+        return pos
+    end
+
+    local attacker = dmginfo:GetAttacker()
+
+    if IsValid(attacker) then
+        local attackPos = attacker.GetShootPos and attacker:GetShootPos() or attacker.WorldSpaceCenter and attacker:WorldSpaceCenter() or attacker:GetPos()
+
+        if isvector(attackPos) then
+            return ent:NearestPoint(attackPos)
+        end
+    end
+
+    return ent.WorldSpaceCenter and ent:WorldSpaceCenter() or ent:GetPos()
+end
+
+local function GetExtinguisherAttackPos(ent, dmginfo, hitPos)
+    local attacker = dmginfo:GetAttacker()
+
+    if IsValid(attacker) then
+        return attacker.GetShootPos and attacker:GetShootPos() or attacker.WorldSpaceCenter and attacker:WorldSpaceCenter() or attacker:GetPos()
+    end
+
+    local force = dmginfo.GetDamageForce and dmginfo:GetDamageForce() or vector_origin
+
+    if isvector(force) and force:LengthSqr() > 0.001 then
+        return hitPos - force:GetNormalized() * 128
+    end
+
+    return hitPos - ent:GetForward() * 64
+end
+
+local function ExtinguishExplosionTarget(ent)
+    if not IsValid(ent) then return end
+
+    local class = ent:GetClass()
+
+    if class == "vfire" or class == "vfire_ball" then
+        if ent.ChangeLife then
+            ent:ChangeLife(0)
+        else
+            ent:Remove()
+        end
+
+        return
+    end
+
+    if class == "vfire_cluster" then
+        if ent.fires then
+            for fire in pairs(ent.fires) do
+                if IsValid(fire) then
+                    fire:Remove()
+                end
+            end
+        end
+
+        return
+    end
+
+    if ent.fires or ent:IsOnFire() then
+        ent:Extinguish()
+    end
+end
+
+local function ExtinguishNearbyFires(pos, radius)
+    for _, ent in ipairs(ents.FindInSphere(pos, radius)) do
+        if not IsValid(ent) then continue end
+
+        local class = ent:GetClass()
+
+        if class == "vfire" or class == "vfire_ball" or class == "vfire_cluster" or ent.fires or ent:IsOnFire() then
+            ExtinguishExplosionTarget(ent)
+        end
+    end
+end
+
+local function SendExtinguisherExplosionFx(pos)
+    if not SERVER then return end
+
+    net.Start("hg_extinguisher_explode_fx")
+    net.WriteVector(pos)
+    net.Broadcast()
+end
+
+local function ExplodeExtinguisher(wep, attacker, pos)
+    if not SERVER or not IsValid(wep) or wep.ExtinguisherExploded then return end
+
+    wep.ExtinguisherExploded = true
+
+    local owner = wep.GetOwner and wep:GetOwner() or nil
+    local explodePos = pos or wep.WorldSpaceCenter and wep:WorldSpaceCenter() or wep:GetPos()
+    local blastRadius = wep.ExplosionRadius or 140
+    local blastDamage = wep.ExplosionDamage or 85
+    local fireRadius = wep.ExplosionFireOutRadius or 220
+
+    if wep.StopLoopingSound and wep.sound then
+        wep:StopLoopingSound(wep.sound)
+    end
+
+    if IsValid(wep.particleeffect) then
+        wep.particleeffect:StopEmission()
+    end
+
+    if wep.SetBlocking then
+        wep:SetBlocking(false)
+    end
+
+    sound.Play("rem_extinguisherexp.mp3", explodePos, 95, math.random(115, 125), 0.8)
+    sound.Play("physics/metal/metal_barrel_impact_hard5.wav", explodePos, 85, math.random(85, 95), 0.9)
+    util.ScreenShake(explodePos, 18, 80, 0.6, 360)
+    SendExtinguisherExplosionFx(explodePos)
+    ExtinguishNearbyFires(explodePos, fireRadius)
+    util.BlastDamage(wep, IsValid(attacker) and attacker or IsValid(owner) and owner or wep, explodePos, blastRadius, blastDamage)
+
+    if IsValid(wep) then
+        wep:Remove()
+    end
+end
+
+local function CanBlockBulletWithExtinguisher(wep, defender, hitEnt, dmginfo)
+    if not IsValid(wep) or not IsValid(defender) or not wep.GetBlocking or not wep:GetBlocking() then return false end
+
+    local hitPos = GetExtinguisherImpactPos(hitEnt, dmginfo)
+    local attackPos = GetExtinguisherAttackPos(hitEnt, dmginfo, hitPos)
+    local eyePos, aimVec = hg.eye(defender)
+
+    if not eyePos or not aimVec then return false end
+
+    local toAttacker = attackPos - eyePos
+
+    if toAttacker:LengthSqr() <= 0.001 then return false end
+
+    toAttacker:Normalize()
+
+    if aimVec:GetNormalized():Dot(toAttacker) < (wep.BulletBlockFrontDot or 0.12) then
+        return false
+    end
+
+    local trace = {
+        HitPos = hitPos,
+        HitNormal = (hitPos - attackPos):GetNormalized(),
+        Entity = hitEnt,
+        HGPreventHeadRagdoll = true,
+    }
+
+    if wep.IsBlockTraceCovered and not wep:IsBlockTraceCovered(defender, trace, eyePos, aimVec, wep) then
+        return false
+    end
+
+    return true, trace, hitPos
+end
+
+if SERVER then
+    hook.Add("EntityTakeDamage", "hg_extinguisher_damage_logic", function(target, dmginfo)
+        if not IsValid(target) or not dmginfo or (dmginfo.GetDamage and dmginfo:GetDamage() <= 0) then return end
+
+        local defender = hg.RagdollOwner(target) or target
+
+        if IsValid(defender) and defender:IsPlayer() and dmginfo:IsDamageType(DMG_BULLET) then
+            local wep = defender:GetActiveWeapon()
+
+            if IsValid(wep) and wep:GetClass() == EXTINGUISHER_CLASS then
+                local blocked, trace, hitPos = CanBlockBulletWithExtinguisher(wep, defender, target, dmginfo)
+
+                if blocked then
+                    wep:PlayBlockImpactEffect(trace, wep, "block")
+
+                    if wep.SetLastBlocked then
+                        wep:SetLastBlocked(CurTime())
+                    end
+
+                    if math.Rand(0, 1) <= (wep.BulletBlockExplodeChance or 0.5) then
+                        ExplodeExtinguisher(wep, dmginfo:GetAttacker(), hitPos)
+                    end
+
+                    dmginfo:SetDamage(0)
+                    return true
+                end
+            end
+        end
+
+        if target:GetClass() ~= EXTINGUISHER_CLASS or IsValid(target:GetOwner()) or target.ExtinguisherExploded then return end
+        if not (dmginfo:IsDamageType(DMG_BULLET) or dmginfo:IsDamageType(DMG_BLAST) or dmginfo:IsDamageType(DMG_BURN) or dmginfo:IsDamageType(DMG_DIRECT)) then return end
+
+        if math.Rand(0, 1) <= (target.DroppedExplodeChance or 0.5) then
+            ExplodeExtinguisher(target, dmginfo:GetAttacker(), GetExtinguisherImpactPos(target, dmginfo))
+        end
+    end)
+elseif CLIENT then
+    net.Receive("hg_extinguisher_explode_fx", function()
+        local pos = net.ReadVector()
+        local emitter = ParticleEmitter(pos)
+
+        if not emitter then return end
+
+        for i = 1, 28 do
+            local smoke = emitter:Add("particle/smokesprites_000" .. math.random(1, 9), pos + VectorRand() * 6)
+
+            if smoke then
+                local dir = (VectorRand() + vector_up * math.Rand(0.45, 0.95)):GetNormalized()
+                smoke:SetVelocity(dir * math.Rand(90, 220) + VectorRand() * 55)
+                smoke:SetDieTime(math.Rand(1.6, 2.7))
+                smoke:SetStartAlpha(math.random(220, 245))
+                smoke:SetEndAlpha(0)
+                smoke:SetStartSize(math.Rand(14, 26))
+                smoke:SetEndSize(math.Rand(60, 110))
+                smoke:SetRoll(math.Rand(0, 360))
+                smoke:SetRollDelta(math.Rand(-1.2, 1.2))
+                smoke:SetAirResistance(150)
+                smoke:SetGravity(VectorRand() * 20 + Vector(0, 0, math.Rand(45, 110)))
+                smoke:SetColor(240, 240, 240)
+                smoke:SetCollide(true)
+                smoke:SetBounce(0.05)
+            end
+        end
+
+        for i = 1, 14 do
+            local puff = emitter:Add("particle/smokesprites_000" .. math.random(1, 9), pos + VectorRand() * 10)
+
+            if puff then
+                puff:SetVelocity(VectorRand() * math.Rand(70, 170) + Vector(0, 0, math.Rand(25, 90)))
+                puff:SetDieTime(math.Rand(0.65, 1.15))
+                puff:SetStartAlpha(math.random(180, 220))
+                puff:SetEndAlpha(0)
+                puff:SetStartSize(math.Rand(8, 14))
+                puff:SetEndSize(math.Rand(28, 46))
+                puff:SetRoll(math.Rand(0, 360))
+                puff:SetRollDelta(math.Rand(-1.8, 1.8))
+                puff:SetAirResistance(120)
+                puff:SetGravity(Vector(0, 0, math.Rand(40, 90)))
+                puff:SetColor(255, 255, 255)
+            end
+        end
+
+        emitter:Finish()
+    end)
+end
 
 function SWEP:Reload()
     if SERVER then

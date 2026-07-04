@@ -128,7 +128,7 @@ local tblotheritems = {
 		"weapon_medkit_sh", 
 		"weapon_tourniquet",
 		"weapon_walkie_talkie",
-        "weapon_melee",
+        "weapon_combatknife",
 		"weapon_handcuffs",
 		"weapon_hg_flashbang_tpik"
 	},

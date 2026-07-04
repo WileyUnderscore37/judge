@@ -6,7 +6,7 @@ SWEP.Category = "Weapons - Melee"
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
 
-SWEP.WorldModel = "models/weapons/combatknife/tactical_knife_iw7_wm.mdl"
+SWEP.WorldModel = "models/weapons/hammer/w.mdl"
 SWEP.WorldModelReal = "models/weapons/gleb/c_knife_t.mdl"
 SWEP.WorldModelExchange = "models/zcity/weapons/custom_knife/buck.mdl"
 SWEP.DontChangeDropped = true
@@ -104,6 +104,7 @@ SWEP.ArteryChance = 1.85
 SWEP.AnimTime2 = 0.85
 SWEP.Attack2Time = 0.15
 SWEP.WaitTime2 = 0.56
+SWEP.noreverse = true
 
 SWEP.Attack2HitFlesh = "knife/NEWRapierSlash1.wav"
 

@@ -1,9 +1,8 @@
 if SERVER then AddCSLuaFile() end
-SWEP.PrintName = "Combat Knife"
-SWEP.Instructions = "A military grade combat knife designed to neutralize the enemy during combat operations and special operations."
+SWEP.PrintName = "Melee Base"
+SWEP.Instructions = ""
 SWEP.Category = "Weapons - Melee"
-SWEP.Instructions = "This is your trusty carbon-steel fixed-blade knife.\n\nLMB to attack.\nR + LMB to change attack mode.\nRMB to block."
-SWEP.Spawnable = true
+SWEP.Spawnable = false
 SWEP.AdminOnly = false
 SWEP.Slot = 1
 
@@ -137,7 +136,7 @@ SWEP.ComboResetTime = 1.1
 SWEP.ComboDamageMul1 = 1
 SWEP.ComboDamageMul2 = 1.25
 SWEP.ComboDamageMul3 = 1.65
-SWEP.PlayerKnockbackMul = 2
+SWEP.PlayerKnockbackMul = 1.55
 SWEP.PlayerKnockbackUpMul = 0.45
 SWEP.PlayerSecondaryKnockbackMul = 0.75
 SWEP.SwingForwardBoostMinSpeed = 20
@@ -1685,33 +1684,81 @@ function SWEP:GetClashSweep(owner, ent, attacktype, inattackLength)
     return startPos, endPos, eyetr
 end
 
-local function GetSegmentDistance(lineStart, lineEnd, point)
-    local distance, nearest, fraction = util.DistanceToLine(lineStart, lineEnd, point)
+local function GetSegmentClosestPoints(startA, endA, startB, endB)
+    local dirA = endA - startA
+    local dirB = endB - startB
+    local startDelta = startA - startB
+    local lenA = dirA:Dot(dirA)
+    local lenB = dirB:Dot(dirB)
+    local dotAB = dirA:Dot(dirB)
+    local dotAStart = dirA:Dot(startDelta)
+    local dotBStart = dirB:Dot(startDelta)
+    local fractionA = 0
+    local fractionB = 0
+    local epsilon = 0.0001
 
-    if not isnumber(distance) or not nearest or fraction == nil then return end
-    if fraction < 0 or fraction > 1 then return end
+    if lenA <= epsilon and lenB <= epsilon then
+        return startA, startB, startA:Distance(startB)
+    end
 
-    return distance, nearest, fraction
+    if lenA <= epsilon then
+        fractionB = math.Clamp(dotBStart / lenB, 0, 1)
+    elseif lenB <= epsilon then
+        fractionA = math.Clamp(-dotAStart / lenA, 0, 1)
+    else
+        local denom = lenA * lenB - dotAB * dotAB
+
+        if math.abs(denom) > epsilon then
+            fractionA = math.Clamp((dotAB * dotBStart - dotAStart * lenB) / denom, 0, 1)
+        end
+
+        local projectedB = dotAB * fractionA + dotBStart
+
+        if projectedB < 0 then
+            fractionB = 0
+            fractionA = math.Clamp(-dotAStart / lenA, 0, 1)
+        elseif projectedB > lenB then
+            fractionB = 1
+            fractionA = math.Clamp((dotAB - dotAStart) / lenA, 0, 1)
+        else
+            fractionB = projectedB / lenB
+        end
+    end
+
+    local closestA = startA + dirA * fractionA
+    local closestB = startB + dirB * fractionB
+
+    return closestA, closestB, closestA:Distance(closestB)
 end
 
 function SWEP:FindClashPoint(startPos, endPos, otherStart, otherEnd)
-    local bestDist, bestPos
+    local closestA, closestB, dist = GetSegmentClosestPoints(startPos, endPos, otherStart, otherEnd)
 
-    local function try(lineStart, lineEnd, point)
-        local dist, nearest = GetSegmentDistance(lineStart, lineEnd, point)
-        if not dist or dist > (self.ClashDistance or 12) then return end
-        if bestDist and dist >= bestDist then return end
+    if not dist or dist > (self.ClashDistance or 12) then return end
 
-        bestDist = dist
-        bestPos = (nearest + point) * 0.5
-    end
+    return (closestA + closestB) * 0.5, dist, closestA, closestB
+end
 
-    try(startPos, endPos, otherEnd)
-    try(otherStart, otherEnd, endPos)
-    try(startPos, endPos, otherStart)
-    try(otherStart, otherEnd, startPos)
+function SWEP:IsClashPointValid(owner, otherOwner, clashPos, otherWep)
+    if not IsValid(owner) or not IsValid(otherOwner) or not clashPos then return false end
 
-    return bestPos, bestDist
+    local toClash = clashPos - owner:EyePos()
+    local toOtherClash = clashPos - otherOwner:EyePos()
+
+    if toClash:LengthSqr() <= 0.001 or toOtherClash:LengthSqr() <= 0.001 then return false end
+
+    toClash:Normalize()
+    toOtherClash:Normalize()
+
+    local frontDot = math.max(self.ClashFrontDot or 0.2, IsValid(otherWep) and otherWep.ClashFrontDot or 0.2)
+    local facingDot = math.max(self.ClashFacingDot or -0.2, IsValid(otherWep) and otherWep.ClashFacingDot or -0.2)
+
+    if owner:GetAimVector():Dot(toClash) < frontDot then return false end
+    if otherOwner:GetAimVector():Dot(toOtherClash) < frontDot then return false end
+    if owner:GetAimVector():Dot((otherOwner:EyePos() - owner:EyePos()):GetNormalized()) < facingDot then return false end
+    if otherOwner:GetAimVector():Dot((owner:EyePos() - otherOwner:EyePos()):GetNormalized()) < facingDot then return false end
+
+    return true
 end
 
 function SWEP:GetClashChance(otherWep)
@@ -1802,6 +1849,63 @@ function SWEP:AbortBlockedAttack()
     self.AttackHitPlayed = false
     self.SoftHitPlayed = false
     self.ComboAppliedThisAttack = nil
+    self.HitWorld = true
+    self:ClearChargeState()
+end
+
+function SWEP:ShouldStopAttackOnBlockState(state)
+    if state == "block" or state == "parry" then
+        return self.StopOnBlockedHit ~= false
+    end
+
+    if state == "weaken" then
+        return self.StopOnWeakenedBlock ~= false
+    end
+
+    return false
+end
+
+function SWEP:GetAttackHitStopReverse(attacktype)
+    if self:IsSecondaryAttackType(attacktype) or self:IsChargeAttackType(attacktype) then
+        return false
+    end
+
+    return not self.noreverse
+end
+
+function SWEP:GetAttackHitStopData(attacktype)
+    return self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, self:GetAttackHitStopReverse(attacktype), self.HitStopWorldStop or 0.12
+end
+
+function SWEP:ShouldStopAttackOnWorldHit(attacktype)
+    return self.StopOnWorldHit ~= false and not self.noreverse
+end
+
+function SWEP:HandleChargeWorldHit(trace, attacktype)
+    if not self:IsChargeAttackType(attacktype) then return false end
+    if self.HitWorld then return true end
+
+    self.HitWorld = true
+    self:PlayEffects(trace, attacktype)
+    self:SendMeleeHitStop(attacktype, trace.HitNormal)
+
+    return true
+end
+
+function SWEP:SendMeleeHitStop(attacktype, normal, shakeState)
+    if not SERVER then return end
+
+    local speedMul, pause, reverse, stopanim = self:GetAttackHitStopData(attacktype)
+
+    net.Start("hg_melee_hit_stop")
+    net.WriteEntity(self)
+    net.WriteFloat(speedMul)
+    net.WriteFloat(pause)
+    net.WriteBool(reverse)
+    net.WriteFloat(stopanim or 0)
+    net.WriteVector(normal and normal:GetNormalized() or vector_up)
+    net.WriteString(shakeState or "")
+    net.SendPVS(self:GetPos())
 end
 
 function SWEP:AbortClashAttack()
@@ -1856,10 +1960,19 @@ function SWEP:HandleMeleeClash(otherWep, clashPos, hitNormal, attacktype, otherA
     self:PlayConfiguredWorldSound(self:GetClashSoundData(otherWep, attacktype, otherAttacktype), clashPos, 1)
     self:DispatchBlockImpactFx(clashTrace, self, "parry")
     self:DispatchBlockImpactFx(clashTrace, otherWep, "parry")
-    self:AbortClashAttack()
-    otherWep:AbortClashAttack()
-    self:SendClashAnimStop(self, clashTrace.HitNormal)
-    self:SendClashAnimStop(otherWep, -clashTrace.HitNormal)
+    if self:IsChargeAttackType(attacktype) then
+        self:SendMeleeHitStop(attacktype, clashTrace.HitNormal, "parry")
+    else
+        self:AbortClashAttack()
+        self:SendClashAnimStop(self, clashTrace.HitNormal)
+    end
+
+    if otherWep.IsChargeAttackType and otherWep:IsChargeAttackType(otherAttacktype) then
+        otherWep:SendMeleeHitStop(otherAttacktype, -clashTrace.HitNormal, "parry")
+    else
+        otherWep:AbortClashAttack()
+        self:SendClashAnimStop(otherWep, -clashTrace.HitNormal)
+    end
 
     return {
         Entity = NULL,
@@ -1875,8 +1988,8 @@ function SWEP:FindMeleeClash(owner, ent, attacktype, inattackLength, tr)
     if not IsValid(owner) or not IsValid(ent) then return end
     if not self:CanClashWeapon() then return end
 
-    local searchPos = tr.endpos
-    local radius = self.ClashSearchRadius or 22
+    local searchPos = tr.start + (tr.endpos - tr.start) * 0.5
+    local radius = math.max(self.ClashSearchRadius or 22, tr.start:Distance(tr.endpos) * 0.5 + (self.ClashDistance or 12))
 
     for _, candidate in ipairs(ents.FindInSphere(searchPos, radius)) do
         local clashOwner = hg.RagdollOwner(candidate) or candidate
@@ -1903,6 +2016,7 @@ function SWEP:FindMeleeClash(owner, ent, attacktype, inattackLength, tr)
         local clashPos = self:FindClashPoint(tr.start, tr.endpos, otherStart, otherEnd)
 
         if not clashPos then continue end
+        if not self:IsClashPointValid(owner, clashOwner, clashPos, otherWep) then continue end
         if math.Rand(0, 1) > self:GetClashChance(otherWep) then continue end
 
         local hitNormal = (otherEnd - tr.endpos)
@@ -2157,11 +2271,16 @@ SWEP.BlockFxSizeMul = 1.25
 SWEP.BlockFxFlareMul = 1.25
 SWEP.BlockFxSmokeMul = 1.2
 SWEP.BlockFxLifeMul = 1.25
+SWEP.StopOnWorldHit = true
+SWEP.StopOnBlockedHit = true
+SWEP.StopOnWeakenedBlock = true
 SWEP.CantClash = false
 SWEP.ClashBaseChance = 0.95
 SWEP.ClashTierChancePower = 2.35
 SWEP.ClashDistance = 12
 SWEP.ClashSearchRadius = 22
+SWEP.ClashFrontDot = 0.2
+SWEP.ClashFacingDot = -0.2
 SWEP.ClashCooldown = nil
 SWEP.noreverse = false
 SWEP.blockPoseSoundState = nil
@@ -2437,19 +2556,14 @@ function SWEP:CustomThink()
                 self:ApplyHitCooldown()
             end
 
-			if CLIENT and IsFirstTimePredicted() and self.weight > 0.4 and (!self.stopanim or (!soft and !self.HitWorld)) and !hg_nomeleestop:GetBool() then
-				if !soft or self.AnimAlwaysBack or self.HitWorld then   
-                    QueueMeleeHitStop(self, self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, not self.noreverse, self.HitStopWorldStop or 0.12)
-                    util.ScreenShake(self:GetPos(), 35, 1, 1, 100)
-					self.reverseanim = not self.noreverse
-                    self.HitWorld = true
-				else
-                    QueueMeleeHitStop(self, self.HitStopSoftSpeedMul or 1.9, self.HitStopSoftPause or 0.05, false, self.HitStopSoftStop or 0.1)
-                    util.ScreenShake(self:GetPos(), 35, 1, 1, 100)
-				end
-			end
-
             if CLIENT then goto meleeskip1 end
+
+            if not soft and self:ShouldStopAttackOnWorldHit(1) then
+                self:PlayEffects(trace, false)
+                self:SendMeleeHitStop(1, trace.HitNormal)
+                self:AbortBlockedAttack()
+                return
+            end
 
             ent:PrecacheGibs()
 
@@ -2524,6 +2638,12 @@ function SWEP:CustomThink()
                 self:PrimaryAttackAdd(ent, trace)
             end
 
+            if self:ShouldStopAttackOnBlockState(blockState) then
+                self:SendMeleeHitStop(1, trace.HitNormal, blockState)
+                self:AbortBlockedAttack()
+                return
+            end
+
             ::meleeskip1::
             
             if not ent:IsWorld() and self:IsEntSoft(ent) then
@@ -2555,6 +2675,7 @@ function SWEP:CustomThink()
 
             local shouldhit = (IsValid(ent) or ent:IsWorld())
             local dmg = math.random(self.DamageSecondary - 3, self.DamageSecondary + 3)
+            local soft = self:IsEntSoft(ent)
             local blockState = "none"
             local blockMul = 1
 
@@ -2571,6 +2692,13 @@ function SWEP:CustomThink()
             end
 
             if CLIENT then goto meleeskip2 end
+
+            if not soft and self:ShouldStopAttackOnWorldHit(2) then
+                self:PlayEffects(trace, true)
+                self:SendMeleeHitStop(2, trace.HitNormal)
+                self:AbortBlockedAttack()
+                return
+            end
 
             ent:PrecacheGibs()
 
@@ -2651,6 +2779,12 @@ function SWEP:CustomThink()
                 self:SecondaryAttackAdd(ent, trace)
             end
 
+            if self:ShouldStopAttackOnBlockState(blockState) then
+                self:SendMeleeHitStop(2, trace.HitNormal, blockState)
+                self:AbortBlockedAttack()
+                return
+            end
+
             ::meleeskip2::
 
             if not ent:IsWorld() and self:IsEntSoft(ent) then
@@ -2710,18 +2844,20 @@ function SWEP:CustomThink()
                 self:ApplyHitCooldown()
             end
 
-			if CLIENT and IsFirstTimePredicted() and self.weight > 0.4 and (!self.stopanim or (!soft and !self.HitWorld)) and !hg_nomeleestop:GetBool() then
-				if !soft or self.AnimAlwaysBack or self.HitWorld then
-                    QueueMeleeHitStop(self, self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, false, self.HitStopWorldStop or 0.12)
-                    util.ScreenShake(self:GetPos(), 35, 1, 1, 100)
-                    self.HitWorld = true
-				else
-                    QueueMeleeHitStop(self, self.HitStopSoftSpeedMul or 1.9, self.HitStopSoftPause or 0.05, false, self.HitStopSoftStop or 0.1)
-                    util.ScreenShake(self:GetPos(), 35, 1, 1, 100)
-				end
-			end
-
             if CLIENT then goto meleeskip3 end
+
+            if not soft then
+                if self:HandleChargeWorldHit(trace, 3) then
+                    goto meleeskip3
+                end
+
+                if self:ShouldStopAttackOnWorldHit(3) then
+                    self:PlayEffects(trace, 3)
+                    self:SendMeleeHitStop(3, trace.HitNormal)
+                    self:AbortBlockedAttack()
+                    return
+                end
+            end
 
             ent:PrecacheGibs()
 
@@ -2793,6 +2929,12 @@ function SWEP:CustomThink()
                 end
 
                 self:ChargeAttackAdd(ent, trace)
+            end
+
+            if self:ShouldStopAttackOnBlockState(blockState) then
+                self:SendMeleeHitStop(3, trace.HitNormal, blockState)
+                self:AbortBlockedAttack()
+                return
             end
 
             ::meleeskip3::
@@ -3138,6 +3280,7 @@ SWEP.tries = 10
 
 if SERVER then
     util.AddNetworkString("melee_attack")
+    util.AddNetworkString("hg_melee_hit_stop")
     util.AddNetworkString("hg_melee_block_fx")
     util.AddNetworkString("hg_melee_block_shake")
     util.AddNetworkString("hg_melee_clash_stop")
@@ -3280,6 +3423,31 @@ elseif CLIENT then
         end
 
         emitter:Finish()
+    end)
+
+    net.Receive("hg_melee_hit_stop", function()
+        local wep = net.ReadEntity()
+        local speedMul = net.ReadFloat()
+        local pause = net.ReadFloat()
+        local reverse = net.ReadBool()
+        local stopanim = net.ReadFloat()
+        local normal = net.ReadVector()
+        local shakeState = net.ReadString()
+
+        if not IsValid(wep) then return end
+
+        if shakeState ~= "" and wep.AddBlockHitShake then
+            wep:AddBlockHitShake(shakeState, normal)
+        end
+
+        if not hg_nomeleestop:GetBool() then
+            QueueMeleeHitStop(wep, speedMul, pause, reverse, stopanim > 0 and stopanim or nil)
+        end
+
+        local owner = wep.GetOwner and wep:GetOwner()
+        if IsValid(owner) and owner == LocalPlayer() then
+            util.ScreenShake(wep:GetPos(), 35, 1, 1, 100)
+        end
     end)
 
     net.Receive("hg_melee_clash_stop", function()

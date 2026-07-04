@@ -43,7 +43,7 @@ SWEP.StaminaSecondary = 10
 SWEP.HoldPos = Vector(-8,0,0)
 SWEP.HoldAng = Angle(0,0,-10)
 
-SWEP.AttackTime = 0.29
+SWEP.AttackTime = 0.33
 SWEP.AnimTime1 = 1.45
 SWEP.WaitTime1 = 0.9
 SWEP.AttackLen1 = 55

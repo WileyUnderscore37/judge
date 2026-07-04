@@ -171,7 +171,7 @@ end
 
 function SWEP:CanPrimaryAttack()
     self.DamageType = DMG_SLASH
-    self.AttackHit = "snd_jack_hmcd_axehit.wav"
+    self.AttackHit = "Canister.ImpactHard"
     self.Attack2Hit = "snd_jack_hmcd_axehit.wav"
     self.AttackHitFlesh = "snd_jack_hmcd_axehit.wav"
     return true

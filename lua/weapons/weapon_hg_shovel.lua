@@ -22,8 +22,8 @@ SWEP.weight = 3
 SWEP.HoldPos = Vector(-12,0,1)
 SWEP.HoldAng = Angle(0,0,0)
 
-SWEP.AttackTime = 0.6
-SWEP.AnimTime1 = 1.95
+SWEP.AttackTime = 0.475
+SWEP.AnimTime1 = 1.65
 SWEP.WaitTime1 = 1.55
 SWEP.ViewPunch1 = Angle(1,2,0)
 
@@ -144,7 +144,7 @@ function SWEP:CanPrimaryAttack()
     return true
 end
 
-SWEP.AttackTimeLength = 0.3
+SWEP.AttackTimeLength = 0.5
 SWEP.Attack2TimeLength = 0.01
 
 SWEP.AttackRads = 120

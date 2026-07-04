@@ -155,6 +155,7 @@ SWEP.Attack2TimeLength = 0.1
 SWEP.AttackRads = 35
 SWEP.AttackRads2 = 45
 SWEP.CantClash = true
+SWEP.noreverse = true
 
 SWEP.ArteryChance = 100
 

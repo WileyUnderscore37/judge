@@ -467,7 +467,7 @@ function MODE:SpawnDeltaSquad(count)
 		ply:Give("weapon_walkie_talkie")
 		ply:Give("weapon_naloxone")
 		ply:Give("weapon_painkillers")
-		ply:Give("weapon_melee")
+		ply:Give("weapon_combatknife")
 
 		local gunString = DeltaGuns[i % 5]
 

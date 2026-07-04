@@ -96,6 +96,7 @@ SWEP.AttackRads2 = 65
 SWEP.SwingAng = -90
 SWEP.SwingAng2 = 0
 SWEP.AttackPos = Vector(0, 0, 0)
+SWEP.noreverse = true
 SWEP.BlockTier = 1.5
 SWEP.BlockMaterial = "metal"
 SWEP.BlockSound = {"physics/metal/metal_solid_impact_hard1.wav", 68, {95, 102}}
