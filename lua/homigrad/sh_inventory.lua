@@ -179,6 +179,23 @@ if CLIENT then
 	end)
 
 	local clr_text = Color(255,255,255,45)
+	local function drawBouncingText(pnl, text, font, x, y, maxW, col)
+		surface.SetFont(font)
+		local textW, textH = surface.GetTextSize(text)
+		if textW <= maxW then
+			draw.SimpleText(text, font, x, y, col, TEXT_ALIGN_CENTER)
+			return
+		end
+
+		local left = x - maxW / 2
+		local sx, sy = pnl:LocalToScreen(left, y)
+		local offset = (textW - maxW) * ((1 - math.cos(CurTime() * 1.4)) / 2)
+		render.SetScissorRect(sx, sy, sx + maxW, sy + textH, true)
+		surface.SetTextColor(col)
+		surface.SetTextPos(left - offset, y)
+		surface.DrawText(text)
+		render.SetScissorRect(0, 0, 0, 0, false)
+	end
 	OpenInv = function(ent)
 		if IsValid(plyMenu) then
 			plyMenu:Remove()
@@ -546,9 +563,7 @@ if CLIENT then
 					surface.SetDrawColor(button.col1, button.col1, button.col1, button.col1)
 					surface.DrawOutlinedRect(0, 0, w, h, 1)
 					local Text = (tab == "Ammo" and game.GetAmmoName(name)) or language.GetPhrase(name)
-					local SubText = utf8.sub(Text, 17)
-					Text = utf8.sub(Text, 1, 17) .. "\n" .. utf8.sub(Text, 18)
-					draw.DrawText(Text, "ZCity_Tiny", w / 2, (HaveIcon and h / ((#SubText > 0 and 1.65) or 1.3)) or h / 3, color_white, TEXT_ALIGN_CENTER)
+					drawBouncingText(self, Text, "ZCity_Tiny", w / 2, (HaveIcon and h / 1.3) or h / 3, w - 10, color_white)
 				end
 			end
 		end
