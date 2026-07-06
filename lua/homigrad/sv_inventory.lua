@@ -428,6 +428,11 @@ hook.Add("Player Think", "loot-fellows",function(ply)
         if not trace then return end
         local ent = trace.Entity
         ent = IsValid(hg.RagdollOwner(ent)) and hg.RagdollOwner(ent) or ent
+		if IsValid(ent) and ent:IsPlayer() and ent ~= ply and ent:Alive() and ent.organism and not ent.organism.otrub then
+			if not ply.keypressed then ply:ChatPrint("You cant loot them, they are awake.") end
+			ply.keypressed = true
+			return
+		end
 		local _ply, _ent, canloot = hook.Run("ZB_CanLootInventory", ply, ent, canloot)
 		if canloot ~= nil and canloot == false then
 			ply.keypressed = true

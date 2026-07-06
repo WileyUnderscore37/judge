@@ -522,6 +522,7 @@ hook.Add("HomigradDamage", "PanicAttackDamage", function(ply, dmgInfo)
 	local attacker = resolve_panic_attacker(ply, dmgInfo:GetAttacker())
 
 	hg.organism.AddPanicAttack(ply.organism, amount)
+	if dmgInfo:GetDamage() <= 0 and not dmgInfo:IsDamageType(DMG_BLAST) then return end
 	panic_witness_event(ply, attacker, math.Clamp(amount * 0.75, 0.04, 0.2), panicattack_witness_radius)
 end)
 

@@ -49,6 +49,66 @@ end)
 
 local colGray = Color(122,122,122,255)
 local BlurBackground = hg.BlurBackground
+local guiltMenuOutline = Color(255, 255, 255, 255)
+local guiltMenuFill = Color(0, 0, 0, 245)
+local guiltMenuGradient = Color(40, 40, 40, 55)
+local guiltMenuButtonIdle = Color(20, 20, 20, 235)
+local guiltMenuButtonHover = Color(34, 34, 34, 235)
+local gradient_u = Material("vgui/gradient-u")
+local gradient_d = Material("vgui/gradient-d")
+
+local function ScaleMenu(v)
+    return math.Round(v * math.Clamp(ScrH() / 1080, 0.75, 1.15))
+end
+
+local function PaintGuiltBlur(self)
+    if hg.DrawBlur then
+        hg.DrawBlur(self)
+    elseif BlurBackground then
+        BlurBackground(self)
+    end
+end
+
+local function PaintGuiltFrame(self, w, h)
+    PaintGuiltBlur(self)
+    surface.SetDrawColor(guiltMenuFill)
+    surface.DrawRect(0, 0, w, h)
+    surface.SetDrawColor(guiltMenuGradient)
+    surface.SetMaterial(gradient_d)
+    surface.DrawTexturedRect(0, 0, w, h)
+    surface.SetDrawColor(guiltMenuOutline)
+    surface.DrawOutlinedRect(0, 0, w, h, 1)
+end
+
+local function PaintGuiltButton(self, w, h)
+    if self:IsHovered() then
+        surface.SetDrawColor(guiltMenuButtonHover)
+        surface.DrawRect(0, 0, w, h)
+    end
+
+    if self.guiltText then
+        draw.SimpleText(self.guiltText, "ZCity_Menu_Settings_Tiny", ScaleMenu(8), h * 0.5, color_white, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+    end
+end
+
+local function PaintGuiltClose(self, w, h)
+    PaintGuiltButton(self, w, h)
+    draw.SimpleText(self:GetText(), "ZCity_Menu_Settings_Small", w * 0.5, h * 0.5, color_white, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+end
+
+local function PaintGuiltScrollBar(self, w, h)
+    surface.SetDrawColor(16, 16, 16, 220)
+    surface.DrawRect(0, 0, w, h)
+    surface.SetDrawColor(guiltMenuOutline)
+    surface.DrawOutlinedRect(0, 0, w, h, 1)
+end
+
+local function PaintGuiltScrollGrip(self, w, h)
+    self.lerpcolor = Lerp(FrameTime() * 10, self.lerpcolor or 0.3, self:IsHovered() and 0.5 or 0.3)
+    local col = 255 * self.lerpcolor
+    surface.SetDrawColor(col, col, col, 255)
+    surface.DrawRect(0, 0, w, h)
+end
 
 local function harmdone(harm)
     if harm >= 9 then
@@ -103,34 +163,46 @@ OpenMenu = function(tbl)
 		guiltMenu = nil
 	end
     
-	local sizeX,sizeY = ScrW() / 2 ,ScrH() / 3
-	local posX,posY = ScrW() / 2 - sizeX / 2,ScrH() / 2 - sizeY / 2
+	local playerCount = 0
+	for ply, harm in pairs(tbl) do
+		if IsValid(ply) and harm > 0.01 then playerCount = playerCount + 1 end
+	end
 
-	guiltMenu = vgui.Create("DScrollPanel")
-	guiltMenu:SetPos(posX, posY)
+	local rowH = ScaleMenu(34)
+	local margin = math.max(8, math.min(ScaleMenu(20), ScrW() * 0.05, ScrH() * 0.05))
+	local maxX = ScrW() - margin * 2
+	local maxY = ScrH() - margin * 2
+	local sizeX = math.Clamp(ScrW() * 0.4, math.min(ScaleMenu(480), maxX), math.min(ScaleMenu(640), maxX))
+	local sizeY = math.Clamp(ScaleMenu(70) + math.max(playerCount, 3) * (rowH + ScaleMenu(5)) + ScaleMenu(16), math.min(ScaleMenu(210), maxY), math.min(ScrH() * 0.46, maxY))
+
+	guiltMenu = vgui.Create("ZFrame")
+	guiltMenu:SetTitle("")
 	guiltMenu:SetSize(sizeX, sizeY)
+	guiltMenu:Center()
     guiltMenu:MakePopup()
     guiltMenu:SetKeyboardInputEnabled(false)
+	if guiltMenu.SetColorBG then guiltMenu:SetColorBG(guiltMenuFill) end
+	if guiltMenu.SetColorBR then guiltMenu:SetColorBR(guiltMenuOutline) end
+
+    if IsValid(guiltMenu.btnClose) then
+        guiltMenu.btnClose:SetVisible(false)
+        guiltMenu.btnClose:SetMouseInputEnabled(false)
+    end
+
+    local title = vgui.Create("DLabel", guiltMenu)
+    title:SetPos(ScaleMenu(12), ScaleMenu(8))
+    title:SetTextColor(color_white)
+    title:SetText("karma")
+    title:SetFont("ZCity_Menu_Settings_Small")
+    title:SizeToContents()
 
     local button = vgui.Create("DButton", guiltMenu)
-    button:SetPos(sizeX - ScreenScale(25),ScreenScale(5))
-    button:SetSize(ScreenScale(20),ScreenScale(10))
-    button:SetText("")
-
-    function button:Paint(w,h)
-        BlurBackground(self)
-
-        surface.SetDrawColor( 255, 0, 0, 128)
-        surface.DrawOutlinedRect( 0, 0, w, h, 2.5 )
-
-        local x, y = w / 2, h / 2
-        local txt = "Exit"
-        surface.SetFont("HomigradFont")
-        surface.SetTextColor(255,255,255,255)
-        local w, h = surface.GetTextSize(txt)
-        surface.SetTextPos(x - w / 2, y - h / 2)
-        surface.DrawText(txt)
-    end
+    button:SetSize(ScaleMenu(22), ScaleMenu(22))
+    button:SetPos(sizeX - ScaleMenu(30), ScaleMenu(8))
+    button:SetText("X")
+    button:SetFont("ZCity_Menu_Settings_Small")
+    button:SetTextColor(color_white)
+    button.Paint = PaintGuiltClose
 
     function button:DoClick()
         if IsValid(guiltMenu) then
@@ -139,52 +211,56 @@ OpenMenu = function(tbl)
     end
 
 	function guiltMenu:Paint( w, h )
-		BlurBackground(self)
-
-		surface.SetDrawColor( 255, 0, 0, 128)
-        surface.DrawOutlinedRect( 0, 0, w, h, 2.5 )
+		PaintGuiltFrame(self, w, h)
 	end
+
+    local scroll = vgui.Create("DScrollPanel", guiltMenu)
+    scroll:Dock(FILL)
+    scroll:DockMargin(ScaleMenu(8), ScaleMenu(34), ScaleMenu(8), ScaleMenu(8))
+    scroll.Paint = nil
+
+    local sbar = scroll:GetVBar()
+    sbar:SetHideButtons(true)
+    sbar.Paint = PaintGuiltScrollBar
+    sbar.btnGrip.Paint = PaintGuiltScrollGrip
+
+    if playerCount == 0 then
+        local empty = vgui.Create("DLabel", scroll)
+        empty:Dock(FILL)
+        empty:SetText("no punishments given")
+        empty:SetFont("ZCity_Menu_Settings_Tiny")
+        empty:SetTextColor(color_white)
+        empty:SetContentAlignment(5)
+        return
+    end
 
     local first = true
     for ply, harm in pairs(tbl) do
         if not IsValid(ply) then continue end
         if harm <= 0.01 then continue end
 
-        local but = vgui.Create("DButton", guiltMenu)
-		but:SetSize(sizeX / 2,ScreenScaleH(22))
+        local but = vgui.Create("DButton")
+		but:SetSize(0, rowH)
 		but:Dock(TOP)
-        local mg = ScreenScale(5)
-		but:DockMargin(mg, first and ScreenScale(20) or mg / 2, mg, mg / 2)
+        local mg = ScaleMenu(4)
+		but:DockMargin(mg, first and mg or 0, mg, ScaleMenu(4))
         first = false
 		but:SetText("")
+		but.guiltText = "Forgive "..ply:Name().."? You will forgive him "..math.Round(harm,1).." karma."
+		but:SetTextColor(color_white)
         but.ply = ply
         but.name = ply:Name()
         but.harm = harm
-        local txt = "Forgive "..but.name.."? You will forgive him "..math.Round(but.harm,1).." karma."
-        local clr = 255
-        but.Paint = function(self,w,h)
-            BlurBackground(self)
-            clr = LerpFT(0.1, clr, self:IsHovered() and 0 or 255)
-            surface.SetDrawColor( 255, 0, 0, 128)
-            surface.DrawOutlinedRect( 0, 0, w, h, 2.5 )
-
-            local x, y = 0, h / 2
-            surface.SetFont("HomigradFont")
-            surface.SetTextColor(clr,255,clr,255)
-            local w, h = surface.GetTextSize(txt)
-            surface.SetTextPos(x + ScreenScale(5), y - h / 2)
-            surface.DrawText(txt)
-		end
+        but.Paint = PaintGuiltButton
 
 		function but:DoClick()
             net.Start("forgive_player")
             net.WriteEntity(ply)
             net.SendToServer()
-            --self:Remove()
             tbl[ply] = nil
             OpenMenu(tbl)
         end
 
-		guiltMenu:AddItem(but)
+		scroll:AddItem(but)
 	end
 end
