@@ -30,6 +30,10 @@ if CLIENT then
 	local colBlack2 = Color(100, 100, 100)
 	local colBlack3 = Color(50, 50, 50, 120)
 	local colBlue = Color(150, 150, 150)
+	local flashlightIcon = Material("vgui/hud/hmcd_flash")
+	local slingIcon = Material("vgui/inventory/tactical_sling")
+	local brassKnucklesIcon = Material("vgui/inventory/weapon_brassknuckles")
+	local ammoIcons = {}
 	local buttons = {}
 	local function nameThings(i, thing)
 		local weps = weapons.Get(i)
@@ -42,7 +46,34 @@ if CLIENT then
 		return tostring(i)
 	end
 
+	local function getAmmoIcon(i)
+		local ammoName = game.GetAmmoName(tonumber(i) or i) or tostring(i)
+		local ammoKey = string.lower(string.gsub(ammoName, "%s+", ""))
+		local ammoData = hg.ammoents and hg.ammoents[ammoKey]
+		local icon = ammoData and ammoData.Icon
+		if not icon then
+			local entData = scripted_ents.Get("ent_ammo_" .. ammoKey)
+			icon = entData and entData.IconOverride
+		end
+		icon = icon or "vgui/hud/bullets/high_caliber.png"
+		ammoIcons[icon] = ammoIcons[icon] or Material(icon)
+		return ammoIcons[icon]
+	end
+
 	local function getIconThing(i, thing, tab)
+		if i == "hg_flashlight" then
+			return flashlightIcon, true, false, true
+		end
+		if i == "hg_sling" then
+			return slingIcon, true, false, true
+		end
+		if i == "hg_brassknuckles" then
+			return brassKnucklesIcon, true, false, true
+		end
+		if tab == "Ammo" then
+			return getAmmoIcon(i), true, false, true
+		end
+
 		if tab == "Weapons" and weapons.Get(i) then
 			local GunTable = weapons.Get(i)
 			--print(GunTable.WepSelectIcon2)
@@ -131,6 +162,7 @@ if CLIENT then
 	local chooseButton
 	local chooseButtonHuy
 	local blurMat = Material("pp/blurscreen")
+	local lootMenuGradient = Material("vgui/gradient-d")
 	local Dynamic = 0
 	BlurBackground = BlurBackground or hg.DrawBlur
 
@@ -160,21 +192,25 @@ if CLIENT then
 		local ply = LocalPlayer()
 		Dynamic = 0
 		local inv = ent:GetNetVar("Inventory")
+		if not inv then return end
 		inv["Money"] = {}
 		-- local entmoney = ent:GetNetVar("zb_Scrappers_RaidMoney") or 0
 		-- if entmoney > 0 then inv["Money"]["Money"] = entmoney end
 		local armor = ent:GetNetVar("Armor")
 		inv["Armor"] = armor
-		if not inv then return end
+		ent.foundloot = ent.foundloot or {}
 
-		local nameStr = "Unknown"
+		local nameStr = "Container"
+		local isBodyInventory = false
 		if IsValid(ent) then
 			if (ent:IsPlayer() or ent:IsRagdoll()) then
+				isBodyInventory = true
 				nameStr = ent:GetPlayerName() or string.NiceName(ent:GetClass())
 			end
 		end
-		local name = nameStr .. "'s inventory" or "Container"
-		local sizeX, sizeY = ScrW() / 3, ScrH() / 2.5
+		local name = isBodyInventory and (nameStr .. "'s inventory") or nameStr
+		local sizeX = math.floor(math.min(math.max(ScrW() * 0.62, 420), ScrW() - 20, 980))
+		local sizeY = math.floor(math.min(math.max(ScrH() * 0.74, 360), ScrH() - 20, 760))
 		plyMenu = vgui.Create("ZFrame")
 		plyMenu.ent = ent
 		plyMenu.entindex = ent:EntIndex()
@@ -186,12 +222,41 @@ if CLIENT then
 		plyMenu:SetKeyBoardInputEnabled(false)
 		plyMenu:ShowCloseButton(true)
 		plyMenu:SetVisible(true)
+		plyMenu:SetColorBG(Color(0, 0, 0, 245))
+		plyMenu:SetColorBR(Color(255, 255, 255, 255))
 		plyMenu.Created = CurTime()
-		--plyMenu.OldPaint = 
+		plyMenu.Paint = function(self, w, h)
+			hg.DrawBlur(self, 2)
+			surface.SetDrawColor(0, 0, 0, 245)
+			surface.DrawRect(0, 0, w, h)
+			surface.SetDrawColor(40, 40, 40, 55)
+			surface.SetMaterial(lootMenuGradient)
+			surface.DrawTexturedRect(0, 0, w, h)
+			surface.SetDrawColor(255, 255, 255, 255)
+			surface.DrawOutlinedRect(0, 0, w, h, 1)
+		end
+		if IsValid(plyMenu.btnClose) then
+			plyMenu.btnClose:SetVisible(false)
+			plyMenu.btnClose:SetMouseInputEnabled(false)
+		end
+		local close = plyMenu:Add("DButton")
+		close:SetPos(sizeX - 38, 10)
+		close:SetSize(28, 28)
+		close:SetText("X")
+		close.Paint = function(self, w, h)
+			surface.SetDrawColor(self:IsHovered() and Color(34, 34, 34, 235) or Color(20, 20, 20, 235))
+			surface.DrawRect(0, 0, w, h)
+			surface.SetDrawColor(255, 255, 255, 255)
+			surface.DrawOutlinedRect(0, 0, w, h, 1)
+			draw.SimpleText(self:GetText(), "ZCity_Menu_Settings_Small", w * 0.5, h * 0.5, color_white, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		end
+		close.DoClick = function()
+			plyMenu:Close()
+		end
 		plyMenu.PaintOver = function(self, w, h)
-			draw.DrawText(name, "HomigradFontSmall", w / 2, 10, color_white, TEXT_ALIGN_CENTER)
+			draw.DrawText(name, "ZCity_Menu_Settings_Small", 14, 12, color_white, TEXT_ALIGN_LEFT)
 
-			draw.DrawText("R - Close | LMB - Take | RMB - Item menu", "HomigradFontSmall", w / 2, h - h*0.055 , clr_text, TEXT_ALIGN_CENTER)
+			draw.DrawText("Hold LMB - Search | LMB - Take | RMB - Item menu", "ZCity_Tiny", w / 2, h - h*0.04 , clr_text, TEXT_ALIGN_CENTER)
 		end
 		function plyMenu:Think()
 			local ent = self.ent
@@ -204,65 +269,123 @@ if CLIENT then
 			end
 		end
 
+		local cols = ScrW() < 900 and 5 or 6
+		local gap = math.max(math.floor(ScrH() * 0.004), 4)
+		local scrollLane = 16
+		local minRows = ScrH() < 720 and 6 or 7
+		local boardMaxW = sizeX - 28 - scrollLane
+		local boardMaxH = sizeY - 88
+		local cell = math.floor(math.max(math.min((boardMaxW - (cols + 1) * gap) / cols, (boardMaxH - (minRows + 1) * gap) / minRows), 42))
+		local boardW = cols * cell + (cols + 1) * gap
+		local boardH = minRows * cell + (minRows + 1) * gap
 		local DScrollPanel = vgui.Create("DScrollPanel", plyMenu)
-		DScrollPanel:SetPos(sizeX / 30, sizeY / 12)
-		DScrollPanel:SetSize(sizeX - sizeX / 16, sizeY - sizeY / 7)
-		DScrollPanel:Dock(FILL)
-		DScrollPanel:DockMargin(2,8,2,20)
-		--function DScrollPanel:Paint(w, h)
-		--	draw.RoundedBox(0, 0, 0, w, h, Color(0, 0, 0, 100))
-		--	surface.SetDrawColor(255, 0, 0, 128)
-		--	surface.DrawOutlinedRect(0, 0, w, h, 2.5)
-		--end
-
-		--local sbar = DScrollPanel:GetVBar()
-		--sbar:SetHideButtons( true )
-		--function sbar:Paint(w, h)
-		--	draw.RoundedBox(0, 0, 0, w, h, Color(0, 0, 0, 100))
-		--	surface.SetDrawColor(255, 0, 0, 128)
-		--	surface.DrawOutlinedRect(0, 0, w, h, 2.5)
-		--end
---
-		--function sbar.btnUp:Paint(w, h)
-		--end
---
-		--function sbar.btnDown:Paint(w, h)
-		--end
---
-		--function sbar.btnGrip:Paint(w, h)
-		--	draw.RoundedBox(0, 0, 0, w, h, Color(148, 0, 0, 100))
-		--	surface.SetDrawColor(255, 0, 0, 128)
-		--	surface.DrawOutlinedRect(0, 0, w, h, 2.5)
-		--end
-
-		local grid = vgui.Create("DGrid", DScrollPanel)
-		grid:Dock(FILL)
-		grid:DockMargin(12, 10, 0, 0)
-		grid:SetCols(5)
-		grid:SetColWide(sizeX / 5 - sizeX / 16 / 9)
-		grid:SetRowHeight(sizeY / 6.5 + sizeY / 32)
-		local count = 0
-		for tab, things in pairs(inv) do
-			if not istable(things) then continue end
-			for i, thing in pairs(things) do
-				ent.foundloot = ent.foundloot or {}
-				count = count + ((ent:IsPlayer() or ent:IsRagdoll()) and ((hg.TraitorLoot[i] and ent:IsPlayer()) and 2 or 0.5) or 1) * (not ent.foundloot[i] and 1 or 0)
-			end
+		DScrollPanel:SetPos(math.floor((sizeX - boardW - scrollLane) / 2), 44)
+		DScrollPanel:SetSize(boardW + scrollLane, boardH)
+		DScrollPanel.Paint = function(self, w, h)
+			surface.SetDrawColor(0, 0, 0, 245)
+			surface.DrawRect(0, 0, boardW, boardH)
+			surface.SetDrawColor(40, 40, 40, 55)
+			surface.SetMaterial(lootMenuGradient)
+			surface.DrawTexturedRect(0, 0, boardW, boardH)
+			surface.SetDrawColor(255, 255, 255, 255)
+			surface.DrawOutlinedRect(0, 0, boardW, boardH, 1)
 		end
-		local time = CurTime() + 3
-		function DScrollPanel:Paint(w, h)
-			txt = "Searching"
-			if time > 0 then
-				for i = 1, 3 - math.Round(time-CurTime(),0) do
-					txt = txt .. "."
-				end
-				if time < CurTime() then
-					time = CurTime() + 3
+
+		local sbar = DScrollPanel:GetVBar()
+		sbar:SetHideButtons(true)
+		sbar.Paint = function(self, w, h) draw.RoundedBox(0, w - 4, 0, 4, h, Color(30, 30, 30, 180)) end
+		sbar.btnGrip.Paint = function(self, w, h) draw.RoundedBox(0, w - 4, 0, 4, h, Color(115, 115, 115, 230)) end
+
+		local grid = vgui.Create("DPanel", DScrollPanel)
+		local used = {}
+		local maxRow = 1
+		ent.lootGridLayout = ent.lootGridLayout or {real = {}, fake = nil}
+		local lootLayout = ent.lootGridLayout
+		grid:SetWide(boardW)
+		grid.Paint = function(self, w, h)
+			draw.RoundedBox(0, 0, 0, w, h, Color(24, 24, 24, 245))
+			for y = 0, math.ceil(h / (cell + gap)) do
+				for x = 0, cols - 1 do
+					surface.SetDrawColor(42, 42, 42, 175)
+					surface.DrawOutlinedRect(gap + x * (cell + gap), gap + y * (cell + gap), cell, cell, 1)
 				end
 			end
-			draw.DrawText((plyMenu.Created + count + 3) < CurTime() and "" or txt, "ZCity_Small", w / 2, h / 2.8, Color(255,255,255,15), TEXT_ALIGN_CENTER)
+			surface.SetDrawColor(85, 85, 85, 230)
+			surface.DrawOutlinedRect(0, 0, w, h, 1)
 		end
-		local count2 = 0
+		DScrollPanel:AddItem(grid)
+
+		local function getLootWeight(tab, i, thing)
+			if tab == "Weapons" then
+				local wep = weapons.Get(i)
+				if wep then return wep.weight or wep.Weight or ((wep.weaponInvCategory == 1) and 8 or 3) end
+				return 3
+			elseif tab == "Ammo" then
+				local amt = tonumber(istable(thing) and thing[1] or thing) or 1
+				return math.Clamp((game.GetAmmoForce(tonumber(i) or 0) * amt) / 1500, 0.8, 6)
+			elseif tab == "Armor" then
+				return (hg.armor and hg.armor[i] and hg.armor[i][thing] and hg.armor[i][thing].mass) or 4
+			elseif tab == "Attachments" then
+				return 1
+			end
+			return 1
+		end
+
+		local function getLootSize(weight)
+			if weight == "armor" then return 2, 2 end
+			if weight >= 8 then return 3, 2 end
+			if weight >= 5 then return 2, 2 end
+			if weight >= 2.5 then return 2, 1 end
+			return 1, 1
+		end
+
+		local function canPlace(x, y, w, h)
+			if x + w - 1 > cols then return false end
+			for yy = y, y + h - 1 do
+				for xx = x, x + w - 1 do
+					if used[yy] and used[yy][xx] then return false end
+				end
+			end
+			return true
+		end
+
+		local function occupyBlock(x, y, w, h)
+			for yy = y, y + h - 1 do
+				used[yy] = used[yy] or {}
+				for xx = x, x + w - 1 do
+					used[yy][xx] = true
+				end
+			end
+			maxRow = math.max(maxRow, y + h - 1)
+		end
+
+		local function placeBlock(w, h)
+			local candidates = {}
+			local rows = math.max(minRows, maxRow + 3)
+			for y = 1, rows do
+				for x = 1, cols do
+					if canPlace(x, y, w, h) then candidates[#candidates + 1] = {x, y} end
+				end
+			end
+			if #candidates > 0 then
+				local pos = candidates[math.random(#candidates)]
+				occupyBlock(pos[1], pos[2], w, h)
+				return pos[1], pos[2]
+			end
+
+			for y = rows + 1, 80 do
+				for x = 1, cols do
+					if canPlace(x, y, w, h) then
+						occupyBlock(x, y, w, h)
+						return x, y
+					end
+				end
+			end
+			occupyBlock(1, maxRow + 1, w, h)
+			return 1, maxRow
+		end
+
+		local realCount = 0
 		
 		for tab, things in pairs(inv) do
 			if not istable(things) then continue end
@@ -283,26 +406,47 @@ if CLIENT then
 				ent.foundloot = ent.foundloot or {}
 
 				if ent:IsPlayer() and IsValid(ent:GetActiveWeapon()) and ent:GetActiveWeapon():GetClass() == i then continue end
-				count2 = count2 + (!ent.foundloot[i] and 1 or 0)//((ent:IsPlayer() or ent:IsRagdoll()) and ((hg.TraitorLoot[i] and ent:IsPlayer()) and 2 or 0.5) or 1) * (not ent.foundloot[i] and 1 or 0)
+				realCount = realCount + 1
+				local revealWeight = getLootWeight(tab, i, thing)
+				local sizeWeight = (tab == "Armor" and "armor") or revealWeight
+				if i == "hg_flashlight" or i == "hg_brassknuckles" then sizeWeight = 1 revealWeight = 1 end
+				local blockW, blockH = getLootSize(sizeWeight)
+				local layoutKey = tab .. ":" .. tostring(i)
+				local saved = lootLayout.real[layoutKey]
+				local blockX, blockY
+				if saved and canPlace(saved.x, saved.y, blockW, blockH) then
+					blockX, blockY = saved.x, saved.y
+					occupyBlock(blockX, blockY, blockW, blockH)
+				else
+					blockX, blockY = placeBlock(blockW, blockH)
+					lootLayout.real[layoutKey] = {x = blockX, y = blockY}
+				end
 
-				local button = vgui.Create("DButton", plyMenu)
+				local button = vgui.Create("DButton", grid)
 				button:SetText("")
-				button:DockMargin(5, 0, 2, 0)
-				button:SetSize(0,0)
-				--button:SetSize(sizeX / 5.8, sizeY / 5.8)
-				button.Created = CurTime() + (!ent.foundloot[i] and 2 or 0) + count2
+				button:SetPos(gap + (blockX - 1) * (cell + gap), gap + (blockY - 1) * (cell + gap))
+				button:SetSize(blockW * cell + (blockW - 1) * gap, blockH * cell + (blockH - 1) * gap)
+				button.RevealTime = math.Clamp(0.45 + revealWeight * 0.24, 0.65, 4)
 				button.Think = function(self)
-					if self.Created and (self.Created < CurTime()) then
-						self:SetSize(sizeX / 5.8, sizeY / 5.8)
-						self:SetAlpha(0)
-						surface.PlaySound("arc9_eft_shared/generic_mag_pouch_in" .. math.random(7) .. ".ogg")
-						self:AlphaTo(255,0.3,0)
-						ent.foundloot[i] = true
-						self.Created = nil
+					if ent.foundloot[i] then return end
+					if self:IsHovered() and input.IsMouseDown(MOUSE_LEFT) then
+						self.RevealStart = self.RevealStart or CurTime()
+						self.RevealProgress = math.Clamp((CurTime() - self.RevealStart) / self.RevealTime, 0, 1)
+						if self.RevealProgress >= 1 then
+							ent.foundloot[i] = true
+							self.HoldLock = true
+							surface.PlaySound("arc9_eft_shared/generic_mag_pouch_in" .. math.random(7) .. ".ogg")
+						end
+					else
+						self.RevealStart = nil
+						self.RevealProgress = 0
+						if not input.IsMouseDown(MOUSE_LEFT) then self.HoldLock = nil end
 					end
 				end
 				
 				button.DoClick = function()
+					if button.HoldLock then button.HoldLock = nil return end
+					if not ent.foundloot[i] then return end
 					if cooldown > CurTime() then return end
 
 					cooldown = CurTime() + 0.5
@@ -327,6 +471,7 @@ if CLIENT then
 				end
 
 				button.DoRightClick = function()
+					if not ent.foundloot[i] then return end
 					if cooldown > CurTime() then return end
 
 					cooldown = CurTime() + 0.5
@@ -356,15 +501,32 @@ if CLIENT then
 				local name = nameThings(i, thing)
 				button.col1 = 100
 				button.Paint = function(self, w, h)
-					button.col1 = Lerp(0.1, button.col1, button:IsHovered() and 255 or 100)
+					local found = ent.foundloot[i]
+					button.col1 = Lerp(0.1, button.col1, button:IsHovered() and 180 or 100)
 					if button:IsHovered() then
 						button.SoundKD = button.SoundKD or 0
 						if (grid.SoundKD or 0) < CurTime() and button.SoundKD < CurTime() then surface.PlaySound("arc9_eft_shared/generic_mag_pouch_out" .. math.random(7) .. ".ogg") end
 						button.SoundKD = CurTime() + 0.1
 					end
 
-					surface.SetDrawColor(button.col1, 0, 0, 15)
+					surface.SetDrawColor(38 + button.col1 / 8, 38 + button.col1 / 8, 38 + button.col1 / 8, 235)
 					surface.DrawRect(0, 0, w, h)
+					for yy = 0, blockH - 1 do
+						for xx = 0, blockW - 1 do
+							surface.SetDrawColor(70, 70, 70, 145)
+							surface.DrawOutlinedRect(xx * (cell + gap), yy * (cell + gap), cell, cell, 1)
+						end
+					end
+					if not found then
+						draw.SimpleText("?", "ZCity_Small", w / 2, h / 2, Color(225, 225, 225), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+						if (button.RevealProgress or 0) > 0 then
+							surface.SetDrawColor(150, 150, 150, 210)
+							surface.DrawRect(6, h - 10, (w - 12) * button.RevealProgress, 4)
+						end
+						surface.SetDrawColor(button.col1, button.col1, button.col1, 210)
+						surface.DrawOutlinedRect(0, 0, w, h, 1)
+						return
+					end
 					local Icon, HaveIcon, Overide, Quad = getIconThing(i, thing, tab)
 					if Icon then
 						button.Icon = button.Icon or (isstring(Icon) and Material(Icon)) or Icon -- Ну тут так, без выбора если что материал будет
@@ -381,16 +543,72 @@ if CLIENT then
 						surface.DrawTexturedRect(Quad and w / 5 + 5 or 0 - 5, 5, Quad and (w / 2 + 2.5) or (w + 10), Quad and h / 1.3 or h - 10)
 					end
 
-					surface.SetDrawColor(button.col1,0,0,button.col1)
+					surface.SetDrawColor(button.col1, button.col1, button.col1, button.col1)
 					surface.DrawOutlinedRect(0, 0, w, h, 1)
 					local Text = (tab == "Ammo" and game.GetAmmoName(name)) or language.GetPhrase(name)
 					local SubText = utf8.sub(Text, 17)
 					Text = utf8.sub(Text, 1, 17) .. "\n" .. utf8.sub(Text, 18)
-					draw.DrawText(Text, "ZCity_VerySuperTiny", w / 2, (HaveIcon and h / ((#SubText > 0 and 1.65) or 1.3)) or h / 3, color_white, TEXT_ALIGN_CENTER)
+					draw.DrawText(Text, "ZCity_Tiny", w / 2, (HaveIcon and h / ((#SubText > 0 and 1.65) or 1.3)) or h / 3, color_white, TEXT_ALIGN_CENTER)
 				end
-				grid:AddItem(button)
 			end
 		end
+
+		if not lootLayout.fake then
+			lootLayout.fake = {}
+			local fakeCount = realCount > 0 and math.random(0, math.Clamp(math.ceil(realCount * 0.35), 1, 5)) or 0
+			for i = 1, fakeCount do
+				local blockW, blockH = math.random(1, 3) == 1 and 2 or 1, math.random(1, 4) == 1 and 2 or 1
+				local blockX, blockY = placeBlock(blockW, blockH)
+				lootLayout.fake[i] = {x = blockX, y = blockY, w = blockW, h = blockH, revealed = false}
+			end
+		end
+
+		for i, fake in ipairs(lootLayout.fake) do
+			if fake.revealed then continue end
+			local blockW, blockH = fake.w, fake.h
+			local blockX, blockY = fake.x, fake.y
+			if not canPlace(blockX, blockY, blockW, blockH) then continue end
+			occupyBlock(blockX, blockY, blockW, blockH)
+			local button = vgui.Create("DButton", grid)
+			button:SetText("")
+			button:SetPos(gap + (blockX - 1) * (cell + gap), gap + (blockY - 1) * (cell + gap))
+			button:SetSize(blockW * cell + (blockW - 1) * gap, blockH * cell + (blockH - 1) * gap)
+			button.RevealTime = math.Rand(0.7, 1.8)
+			button.Think = function(self)
+				if self.Revealed then return end
+				if self:IsHovered() and input.IsMouseDown(MOUSE_LEFT) then
+					self.RevealStart = self.RevealStart or CurTime()
+					self.RevealProgress = math.Clamp((CurTime() - self.RevealStart) / self.RevealTime, 0, 1)
+					if self.RevealProgress >= 1 then
+						self.Revealed = true
+						fake.revealed = true
+						self:AlphaTo(0, 0.2, 0, function(_, pnl) if IsValid(pnl) then pnl:Remove() end end)
+						surface.PlaySound("arc9_eft_shared/generic_mag_pouch_out" .. math.random(7) .. ".ogg")
+					end
+				else
+					self.RevealStart = nil
+					self.RevealProgress = 0
+				end
+			end
+			button.Paint = function(self, w, h)
+				surface.SetDrawColor(self:IsHovered() and 62 or 45, self:IsHovered() and 62 or 45, self:IsHovered() and 62 or 45, 235)
+				surface.DrawRect(0, 0, w, h)
+				for yy = 0, blockH - 1 do
+					for xx = 0, blockW - 1 do
+						surface.SetDrawColor(70, 70, 70, 145)
+						surface.DrawOutlinedRect(xx * (cell + gap), yy * (cell + gap), cell, cell, 1)
+					end
+				end
+				draw.SimpleText("?", "ZCity_Small", w / 2, h / 2, Color(225, 225, 225), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+				if (self.RevealProgress or 0) > 0 then
+					surface.SetDrawColor(150, 150, 150, 210)
+					surface.DrawRect(6, h - 10, (w - 12) * self.RevealProgress, 4)
+				end
+				surface.SetDrawColor(120, 120, 120, 210)
+				surface.DrawOutlinedRect(0, 0, w, h, 1)
+			end
+		end
+		grid:SetTall(math.max(maxRow, minRows) * cell + (math.max(maxRow, minRows) + 1) * gap)
 	--plyMenu:SlideDown(0.5)
 	end
 end

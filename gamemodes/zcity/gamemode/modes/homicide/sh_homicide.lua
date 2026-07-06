@@ -65,8 +65,27 @@ local function ParseLoadoutString(dataStr)
 	return loadout
 end
 
+local LegacyTraitorLoadout = {
+	skillset = "none",
+	weapons = {
+		"weapon_p22",
+		"weapon_p22_silencer",
+		"weapon_buck200knife",
+		"weapon_hg_rgd_tpik",
+		"weapon_adrenaline",
+		"weapon_hg_shuriken",
+		"weapon_hg_smokenade_tpik",
+		"weapon_traitor_ied",
+		"weapon_traitor_poison1",
+		"weapon_traitor_suit",
+		"weapon_hg_jam",
+		"weapon_walkie_talkie"
+	}
+}
+
 local function ApplyTraitorLoadout(ply)
 	local loadout = ParseLoadoutString(ply:GetInfo("hmcd_traitor_loadout"))
+	if not loadout.skillset and not istable(loadout.weapons) then loadout = LegacyTraitorLoadout end
 
 	local skillset = loadout.skillset or "none"
 	local weaponsList = loadout.weapons or {}

@@ -327,7 +327,7 @@ local RoleConfigs = {
                 }
             },
             {
-                name = "Shotgun Rush",
+                name = "Shotgunner",
                 loadout = {
                     weapons = {
                         "weapon_remington870",

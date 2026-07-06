@@ -22,6 +22,10 @@ SWEP.SuicideNoLH = true
 SWEP.BreakBoneMul = 0.1
 SWEP.weight = 0.5
 
+SWEP.noreverse = true
+SWEP.BlockTier = 1.5
+SWEP.BlockMaterial = "none"
+
 SWEP.AnimTime1 = 1.0
 SWEP.AttackTime = 0.2
 SWEP.WaitTime1 = 0.5

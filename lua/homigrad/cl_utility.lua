@@ -445,6 +445,14 @@ players : 1 humans, 0 bots (20 max)
 		end
 	end)
 --//
+--\\ Flinching net (WHY THE HELL WE FORGOT TO ADD THIS :skull:)
+	net.Receive("DoPlayerFlinch", function(len)
+		local gest = net.ReadInt(32)
+		local ply = net.ReadEntity()
+		if !IsValid( ply ) or not gest then return end
+		ply:AnimRestartGesture( GESTURE_SLOT_FLINCH, gest, true )
+	end)
+--//
 --\\ Custom emitsound
 	local vectorZero = Vector(0,0,0)
 	oldEmitSound = oldEmitSound or EmitSound

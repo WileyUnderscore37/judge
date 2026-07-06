@@ -1,10 +1,41 @@
 --
 local PANEL = {}
 
-local blurMat = Material("pp/blurscreen")
-local Dynamic = 0
+local gradient_r = surface.GetTextureID("vgui/gradient-r")
+local gradient_l = surface.GetTextureID("vgui/gradient-l")
+local col_bg = Color(18, 18, 24, 190)
+local col_bg_hover = Color(32, 32, 38, 220)
+local col_accent = Color(155, 155, 155, 220)
+local col_gray = Color(135, 135, 135)
 
 BlurBackground = BlurBackground or hg.DrawBlur
+
+local function RTVUnit(num)
+    return math.floor(num * math.min(ScrW(), ScrH()) / 1000)
+end
+
+local function CreateRTVButtonFonts()
+    surface.CreateFont("ZCity_RTV_Button", {
+        font = "Verily Serif Mono",
+        size = ScreenScale(14),
+        weight = 200
+    })
+
+    surface.CreateFont("ZCity_RTV_ButtonTiny", {
+        font = "Verily Serif Mono",
+        size = ScreenScale(7),
+        weight = 200
+    })
+
+    surface.CreateFont("ZCity_RTV_Voted", {
+        font = "Verily Serif Mono",
+        size = ScreenScale(18),
+        weight = 800
+    })
+end
+
+hook.Add("OnScreenSizeChanged", "ZCity_RTV_ButtonFonts", CreateRTVButtonFonts)
+CreateRTVButtonFonts()
 
 function PANEL:Init()
     self.Map = ""
@@ -15,7 +46,8 @@ function PANEL:Init()
     self.hovered = false
     self.alpha = 0
     self.setalpha = 0
-    self:SetFont("ZB_ScrappersMedium")
+
+    self:SetFont("ZCity_RTV_Button")
 	self:SetPaintBackground(false)
 	self:SetContentAlignment(5)
     self:SetTextColor(color_white)
@@ -28,27 +60,28 @@ end
 function PANEL:Paint(w, h)
     if self.disabled then return end
 
-    surface.SetDrawColor(255,255,255,255)
-    surface.SetMaterial(self.MapIcon)
-    surface.DrawTexturedRect(0,-w/2,w+15,w+15)
+    self.HoverFrac = Lerp(FrameTime() * 8, self.HoverFrac or 0, self:IsHovered() and 1 or 0)
 
-    BlurBackground(self)
-
-    surface.SetDrawColor(0, 0, 0, 50)
+    surface.SetDrawColor(col_bg.r + (col_bg_hover.r - col_bg.r) * self.HoverFrac, col_bg.g + (col_bg_hover.g - col_bg.g) * self.HoverFrac, col_bg.b + (col_bg_hover.b - col_bg.b) * self.HoverFrac, col_bg.a + (col_bg_hover.a - col_bg.a) * self.HoverFrac)
     surface.DrawRect(0, 0, w, h)
 
-    if self.disabled then
-        surface.SetDrawColor(255, 255, 255, 50)
+    surface.SetDrawColor(0, 0, 0, 170)
+    surface.SetTexture(gradient_l)
+    surface.DrawTexturedRect(0, 0, w, h)
+
+    local iconSize = math.min(h - RTVUnit(12), RTVUnit(74))
+    surface.SetDrawColor(0, 0, 0, 180)
+    surface.DrawRect(RTVUnit(8), h / 2 - iconSize / 2, iconSize, iconSize)
+
+    if self.MapIcon then
+        surface.SetDrawColor(255, 255, 255, 210)
+        surface.SetMaterial(self.MapIcon)
+        surface.DrawTexturedRect(RTVUnit(8), h / 2 - iconSize / 2, iconSize, iconSize)
     else
-        surface.SetDrawColor(239, 47, 47)
+        draw.SimpleText("?", "ZCity_RTV_Button", RTVUnit(8) + iconSize / 2, h / 2, color_white, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
     end
 
-    surface.DrawOutlinedRect(0, 0, w, h, ScreenScale(0.5))
-
-    self.lerp = Lerp( FrameTime() * 5, self.lerp, w * (self.Votes / player.GetCount()) )
-
-    surface.SetDrawColor(169, 0, 0, 100)
-    surface.DrawRect( 0, 0, self.lerp, h )
+    local progressStart = iconSize + RTVUnit(18)
 
     if self.Win and self.BipCD < CurTime() then
         self.alpha = 255
@@ -64,8 +97,25 @@ function PANEL:Paint(w, h)
         })
     end
 
-    surface.SetDrawColor(239, 47, 47, self.alpha)
+    surface.SetDrawColor(col_accent.r, col_accent.g, col_accent.b, 95 + 80 * self.HoverFrac)
+    surface.DrawOutlinedRect(0, 0, w, h, 1)
+
+    surface.SetDrawColor(col_accent.r, col_accent.g, col_accent.b, self.alpha)
     surface.DrawRect(0, 0, w, h)
+
+    local titleX = progressStart
+    draw.SimpleTextOutlined(self:GetText(), "ZCity_RTV_Button", titleX, h / 2 - RTVUnit(8), color_white, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, 1, color_black)
+    draw.SimpleText(tostring(self.Votes) .. " VOTES", "ZCity_RTV_ButtonTiny", w - RTVUnit(14), h / 2 + RTVUnit(11), col_gray, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+
+    if self.Win then
+        draw.SimpleText("LEADING", "ZCity_RTV_ButtonTiny", w - RTVUnit(14), h / 2 - RTVUnit(12), color_white, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+    end
+
+    if self.selected then
+        draw.SimpleTextOutlined("VOTED", "ZCity_RTV_Voted", w / 2, h / 2, color_white, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, color_black)
+    end
+
+    return true
 
 end
 
@@ -83,8 +133,6 @@ function PANEL:OnCursorEntered()
 end
 
 function PANEL:OnCursorExited()
-    if self.selected then return end
-
     self:CreateAnimation(0.3, {
         index = 1,
         target = {
@@ -98,8 +146,7 @@ end
 
 function PANEL:SetSelected(value)
     self.selected = value
-    if value then self:OnCursorEntered()
-    else self:OnCursorExited() end
+    self:OnCursorExited()
 end
 
 function PANEL:Disabled(bool)

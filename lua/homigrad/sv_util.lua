@@ -425,7 +425,7 @@ end)
 util.AddNetworkString( "DoPlayerFlinch" )
 
 hook.Add( "ScalePlayerDamage", "FlinchPlayersOnHit", function(ply, grp)
-	if ply:IsPlayer() then
+	if IsValid(ply) and ply:Alive() then
 		--could maybe return end,
 		--but would that override other Scale hooks? -- no.
 		local group = nil

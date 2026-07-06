@@ -269,7 +269,7 @@ local info_stat_rows = {
 local info_social_links = {
     {
         title = "Lapse",
-        subtitle = "In judgement. (Official)",
+        subtitle = "In judgement. (Official Community Server)",
         url = DISCORD_URL or "https://discord.gg/Tgz7N58PzV",
         icon = Material("vgui/lapseinjudgement.png", "smooth")
     },
@@ -284,6 +284,12 @@ local info_social_links = {
         subtitle = "Official community server for the Z-CITY repository. (RUS)",
         url = "https://discord.gg/475EmEdTgH",
         icon = Material("vgui/zcityrus.png", "smooth")
+    },
+    {
+        title = "Community Hub (RENCHDEDSEX'S ZCITY SERVER)",
+        subtitle = "If you are looking for a more vanilla-ish BETTER alternative.",
+        url = "https://discord.gg/3UrJapj6kF",
+        icon = Material("vgui/communhub.png", "smooth")
     }
 }
 local info_social_icon_size = MenuUnit(24)
@@ -1388,7 +1394,7 @@ function InfoRefreshContent()
                 xpLabel:SetText(newExp .. " XP")
                 skillLabel:SetText(newSkill .. " Skill")
                 medalLabel:SetText("Medal: " .. string.upper((medal and medal.name) or "UNRANKED"))
-                bandLabel:SetText("Band: " .. ((band and band.name and band.name ~= "") and string.upper(band.name) or "CURRENT XP TIER"))
+                bandLabel:SetText("Band: " .. ((band and band.name and band.name ~= "") and string.upper(band.name) or "SOON"))
                 lastExp = newExp
                 lastSkill = newSkill
                 profileBlock:InvalidateLayout(true)

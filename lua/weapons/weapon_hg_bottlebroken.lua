@@ -68,6 +68,10 @@ SWEP.AnimList = {
     ["inspect"] = "inspect"
 }
 
+SWEP.noreverse = true
+SWEP.BlockTier = 1.5
+SWEP.BlockMaterial = "none"
+
 SWEP.HoldPos = Vector(-4,0,-1)
 SWEP.HoldAng = Angle(0,0,0)
 SWEP.weaponPos = Vector(-0,0.5,1)

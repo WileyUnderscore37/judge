@@ -29,6 +29,10 @@ SWEP.WaitTime1 = 0.5
 SWEP.modelscale = 0.5
 SWEP.modelscale2 = 1
 
+SWEP.noreverse = true
+SWEP.BlockTier = 1.5
+SWEP.BlockMaterial = "none"
+
 if CLIENT then
 	SWEP.WepSelectIcon = Material("entities/zcity/glassshard.png")
 	SWEP.IconOverride = "entities/zcity/glassshard.png"

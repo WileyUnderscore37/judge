@@ -170,9 +170,9 @@ MODE.TypeObjectives.standard = {
 	},
 
 	gunner = {
-		objective = "You are a bystander with a concealed firearm. You've tasked yourself to help police find the criminal faster.",
-		name = "a Bystander",
-		color1 = Color(0,120,190),
+		objective = "You are a hero. You've tasked yourself to help police find the criminal faster.",
+		name = "a Hero",
+		color1 = Color(158,0,190),
 		color2 = Color(158,0,190)
 	},
 

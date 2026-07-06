@@ -320,6 +320,13 @@ if SERVER then
 					steamid = ply:IsBot() and "0" or (ply:SteamID64() or "0")
 					spec = ply:Team() == TEAM_SPECTATOR
 				end
+			local hasAppearance = IsValid(ply) and istable(ply.CurAppearance) and ply.CurAppearance.AModel ~= nil
+			local exp, skill = -1, 0
+			if IsValid(ply) then
+				local instance = zb.Experience and zb.Experience.PlayerInstances and zb.Experience.PlayerInstances[ply:SteamID64()]
+				exp = math.floor(tonumber((instance and instance.experience) or ply.exp or -1) or -1)
+				skill = tonumber((instance and instance.skill) or ply.skill or 0) or 0
+			end
 
 				net.WriteEntity(ply)
 				net.WriteString(model)
@@ -328,8 +335,11 @@ if SERVER then
 				net.WriteString(f.key)
 				net.WriteUInt(math.Clamp(f.value, 0, 65535), 16)
 				net.WriteBool(spec)
-				net.WriteTable(IsValid(ply) and istable(ply.CurAppearance) and table.Copy(ply.CurAppearance) or {})
+				net.WriteTable(hasAppearance and table.Copy(ply.CurAppearance) or {})
 				net.WriteString(IsValid(ply) and (ply.PlayerClassName or "") or "")
+				net.WriteInt(math.Clamp(exp, -1, 2147483647), 32)
+				net.WriteFloat(skill)
+				net.WriteBool(hasAppearance)
 			end
 
 		net.Broadcast()
@@ -382,7 +392,7 @@ local RS_FallbackMedal = { icon = Material("vgui/mats_jack_awards/pt") }
 
 
 local POSES = {
-	{ seqs = { "idle_all_02", "idle_all_01", "idle_suitcase" },        ang = Angle(0, 12, 0),  cam = Vector(66, -9, 37), fov = 36, target = Vector(0, 0, 38), hy = 0.4,  hp = 0.05 },
+	{ seqs = { "idle_all_angry", "idle_all_02", "idle_all_01" },       ang = Angle(0, 0, 0),   cam = Vector(68, 0, 37),  fov = 36, target = Vector(0, 0, 38), hy = 0,    hp = 0 },
 	{ seqs = { "idle_suitcase", "idle_all_01", "idle_all_02" },        ang = Angle(0, -16, 0), cam = Vector(70, 7, 35),  fov = 33, target = Vector(0, 0, 37), hy = -0.45, hp = 0 },
 	{ seqs = { "idle_all_scared", "idle_all_angry", "idle_all_01" },   ang = Angle(0, 24, 0),  cam = Vector(63, -12, 34), fov = 40, target = Vector(0, 0, 35), hy = 0.25, hp = 0.15 },
 	{ seqs = { "idle_all_angry", "idle_all_01", "idle_all_02" },       ang = Angle(0, -9, 0),  cam = Vector(68, 11, 36), fov = 35, target = Vector(0, 0, 38), hy = -0.3, hp = -0.05 },
@@ -420,6 +430,66 @@ local function GetAppearanceModelData(appearance)
 	return hg.Appearance.PlayerModels[1][appearance.AModel] or hg.Appearance.PlayerModels[2][appearance.AModel]
 end
 
+local function GetFallbackAppearance()
+	if hg and hg.Appearance and istable(hg.Appearance.FallbackAppearanceTable) then
+		return table.Copy(hg.Appearance.FallbackAppearanceTable)
+	end
+	return { AModel = "Male 09", AClothes = { main = "normal", pants = "normal", boots = "normal", hands = "normal" }, AColor = Color(0, 0, 0), AAttachments = {}, ABodygroups = {}, AFacemap = "Default" }
+end
+
+local function FindMaterialSlot(mats, mat)
+	if not mat then return end
+	local want = string.lower(mat)
+	for i = 1, #mats do
+		if string.lower(mats[i] or "") == want then return i - 1 end
+	end
+end
+
+local function GetClothesMaterial(modelData, clothes, key)
+	local sexID = modelData.sex and 2 or 1
+	local clothesSet = hg.Appearance.Clothes and hg.Appearance.Clothes[sexID]
+	if not clothesSet then return end
+	return clothesSet[clothes[key] or "normal"] or clothesSet.normal
+end
+
+local function ApplyAppearanceClothes(ent, modelData, appearance, mats)
+	local clothes = istable(appearance.AClothes) and appearance.AClothes or {}
+	for key, mat in SortedPairs(modelData.submatSlots or {}) do
+		local slot = FindMaterialSlot(mats, mat)
+		local clothMat = slot and GetClothesMaterial(modelData, clothes, key)
+		if clothMat then ent:SetSubMaterial(slot, clothMat) end
+	end
+end
+
+local function ApplyAppearanceFacemap(ent, modelData, appearance, mats)
+	if not hg.Appearance.FacemapsSlots then return end
+	local facemapSlot = hg.Appearance.FacemapsModels and hg.Appearance.FacemapsModels[modelData.mdl]
+	if not facemapSlot then return end
+	for i = 1, #mats do
+		local facemapSet = hg.Appearance.FacemapsSlots[mats[i]]
+		local facemap = facemapSet and facemapSet[appearance.AFacemap]
+		if facemap then ent:SetSubMaterial(i - 1, facemap) end
+	end
+end
+
+local function ApplyAppearanceBodygroups(ent, modelData, appearance)
+	if not hg.Appearance.Bodygroups then return end
+	local bodygroups = istable(appearance.ABodygroups) and appearance.ABodygroups or {}
+	for _, bg in ipairs(ent:GetBodyGroups()) do
+		local selected = bodygroups[bg.name]
+		if not selected then continue end
+		local bodygroupData = hg.Appearance.Bodygroups[bg.name]
+		local bodygroupSet = bodygroupData and bodygroupData[modelData.sex and 2 or 1] and bodygroupData[modelData.sex and 2 or 1][selected]
+		if not bodygroupSet then continue end
+		for i = 0, #bg.submodels do
+			if bodygroupSet[1] == bg.submodels[i] then
+				ent:SetBodygroup(bg.id, i)
+				break
+			end
+		end
+	end
+end
+
 local function ApplyAppearanceData(ent, ply, appearance, playerClassName)
 	if not IsValid(ent) then return false end
 	local modelData = GetAppearanceModelData(appearance)
@@ -428,7 +498,7 @@ local function ApplyAppearanceData(ent, ply, appearance, playerClassName)
 	local clr = appearance.AColor or color_white
 	ent:SetNWVector("PlayerColor", Vector((clr.r or 255) / 255, (clr.g or 255) / 255, (clr.b or 255) / 255))
 
-	if playerClassName and playerClassName ~= "" then
+	if playerClassName and playerClassName ~= "" and not modelData then
 		if IsValid(ply) then
 			ent:SetSkin(ply:GetSkin())
 			ent:SetSubMaterial()
@@ -454,42 +524,9 @@ local function ApplyAppearanceData(ent, ply, appearance, playerClassName)
 	ent:SetSubMaterial()
 
 	local mats = ent:GetMaterials()
-	local clothes = istable(appearance.AClothes) and appearance.AClothes or {}
-	if not playerClassName or playerClassName == "" then
-		for k, v in SortedPairs(modelData.submatSlots or {}) do
-			local slot = 1
-			for i = 1, #mats do
-				if mats[i] == v then
-					slot = i - 1
-					break
-				end
-			end
-			local sexID = modelData.sex and 2 or 1
-			local clothMat = hg.Appearance.Clothes[sexID] and hg.Appearance.Clothes[sexID][clothes[k]]
-			ent:SetSubMaterial(slot, clothMat or (hg.Appearance.Clothes[sexID] and hg.Appearance.Clothes[sexID].normal) or nil)
-		end
-	end
-
-	local facemapSlot = hg.Appearance.FacemapsModels and hg.Appearance.FacemapsModels[modelData.mdl]
-	for i = 1, #mats do
-		if facemapSlot and hg.Appearance.FacemapsSlots[mats[i]] and hg.Appearance.FacemapsSlots[mats[i]][appearance.AFacemap] then
-			ent:SetSubMaterial(i - 1, hg.Appearance.FacemapsSlots[mats[i]][appearance.AFacemap])
-		end
-	end
-
-	appearance.ABodygroups = appearance.ABodygroups or {}
-	for k, v in SortedPairs(ent:GetBodyGroups()) do
-		if not appearance.ABodygroups[v.name] then continue end
-		local bodygroupData = hg.Appearance.Bodygroups[v.name]
-		local bodygroupSet = bodygroupData and bodygroupData[modelData.sex and 2 or 1] and bodygroupData[modelData.sex and 2 or 1][appearance.ABodygroups[v.name]]
-		if not bodygroupSet then continue end
-		for i = 0, #v.submodels do
-			if bodygroupSet[1] == v.submodels[i] then
-				ent:SetBodygroup(k - 1, i)
-				break
-			end
-		end
-	end
+	ApplyAppearanceClothes(ent, modelData, appearance, mats)
+	ApplyAppearanceFacemap(ent, modelData, appearance, mats)
+	ApplyAppearanceBodygroups(ent, modelData, appearance)
 
 	return true
 end
@@ -500,12 +537,14 @@ local function SetupModel(mp, ply, model, pose, spec, appearance, playerClassNam
 		mdl = "models/player/group01/male_09.mdl"
 	else
 		local modelData = GetAppearanceModelData(appearance)
-		if playerClassName and playerClassName ~= "" then
-			mdl = (IsValid(ply) and ply:GetModel()) or model or (modelData and modelData.mdl)
-		else
-			mdl = (modelData and modelData.mdl) or (IsValid(ply) and ply:GetModel()) or model
+		if not modelData then
+			appearance = GetFallbackAppearance()
+			modelData = GetAppearanceModelData(appearance)
+			mp.RSFallback = true
+			playerClassName = ""
 		end
-		if not mdl or not util.IsValidModel(mdl) then mdl = "models/player/group01/male_07.mdl" end
+		mdl = modelData and modelData.mdl
+		if not mdl or not util.IsValidModel(mdl) then return end
 	end
 	local look = (pose.target - pose.cam):Angle()
 	mp:SetModel(mdl)
@@ -527,6 +566,10 @@ local function SetupModel(mp, ply, model, pose, spec, appearance, playerClassNam
 				ApplyAppearance(ent, ply)
 				self.RSApplied = true
 			end
+		end
+		if self.RSFallback then
+			ent:SetMaterial("models/debug/debugwhite")
+			ent:SetColor(color_black)
 		end
 		ent:SetAngles(pose.ang)
 		if not self.RSIdleSeq then
@@ -572,7 +615,19 @@ local function SetupModel(mp, ply, model, pose, spec, appearance, playerClassNam
 		return
 	end
 
+	function mp:PreDrawModel()
+		if self.RSFallback then
+			render.SuppressEngineLighting(true)
+			render.SetColorModulation(0, 0, 0)
+		end
+	end
+
 	function mp:PostDrawModel(ent)
+		if self.RSFallback then
+			render.SetColorModulation(1, 1, 1)
+			render.SuppressEngineLighting(false)
+			return
+		end
 		local acc = IsValid(ply) and ply.GetNetVar and ply:GetNetVar("Accessories") or (istable(appearance) and appearance.AAttachments)
 		if istable(acc) and hg and hg.Accessories and DrawAccesories then
 			for _, a in ipairs(acc) do
@@ -584,11 +639,12 @@ local function SetupModel(mp, ply, model, pose, spec, appearance, playerClassNam
 	end
 end
 
-local function GetProfileState(ply)
-	local exp = math.floor(tonumber(IsValid(ply) and ply.exp or 0) or 0)
+local function GetProfileState(ply, expOverride, skillOverride)
+	local exp = math.floor(tonumber((expOverride and expOverride >= 0 and expOverride) or (IsValid(ply) and ply.exp) or 0) or 0)
+	local skill = tonumber(skillOverride or (IsValid(ply) and ply.skill) or 0) or 0
 	local band, medal = RS_FallbackBand, RS_FallbackMedal
 	if zb and zb.Experience and zb.Experience.GetAwards then
-		local b, m = zb.Experience.GetAwards(IsValid(ply) and ply or { exp = exp, skill = tonumber(IsValid(ply) and ply.skill or 0) or 0 })
+		local b, m = zb.Experience.GetAwards({ exp = exp, skill = skill })
 		band = b or band
 		medal = m or medal
 	end
@@ -600,8 +656,12 @@ local function BuildCard(parent, data, slot)
 	local big = slot == 1
 	local pose = POSES[slot] or POSES[1]
 
-	local w = big and math.floor(sw * 0.29) or math.floor(sw * 0.235)
-	local h = big and math.floor(sh * 0.97) or math.floor(sh * 0.9)
+	local refW, refH = math.min(sw, 1920), math.min(sh, 1080)
+	local scale = math.min(refW / 1920, refH / 1080)
+	local w = big and math.floor(refW * 0.29) or math.floor(refW * 0.235)
+	local h = big and math.floor(refH * 0.9) or math.floor(refH * 0.82)
+	w = math.min(w, math.floor((refW - math.max(math.floor(refW * 0.03), 16) * 2) * (big and 0.38 or 0.31)))
+	h = math.min(h, math.floor(sh - math.max(36, 58 * scale)))
 	local infoH = big and math.floor(h * 0.34) or math.floor(h * 0.33)
 
 	local info = AWARD_INFO[data.key] or AWARD_INFO.participant
@@ -708,8 +768,8 @@ local function BuildCard(parent, data, slot)
 
 	local lastXP, lastSkill = "", nil
 	infoWrap.Think = function(self)
-		local xpText, band, med = GetProfileState(data.ply)
-		local skill = tonumber(IsValid(data.ply) and data.ply.skill or 0) or 0
+		local xpText, band, med = GetProfileState(data.ply, data.exp, data.skill)
+		local skill = tonumber(data.skill or (IsValid(data.ply) and data.ply.skill or 0)) or 0
 		if xp:GetText() ~= xpText then
 			xp:SetText(xpText)
 			xp:SizeToContents()
@@ -877,7 +937,10 @@ net.Receive("rem_roundsummary", function()
 		local spec = net.ReadBool()
 		local appearance = net.ReadTable()
 		local playerclass = net.ReadString()
-		featured[i] = { ply = ply, model = model, name = name, steamid = steamid, key = key, value = value, spec = spec, appearance = appearance, playerclass = playerclass }
+		local exp = net.ReadInt(32)
+		local skill = net.ReadFloat()
+		local hasAppearance = net.ReadBool()
+		featured[i] = { ply = ply, model = model, name = name, steamid = steamid, key = key, value = value, spec = spec, appearance = appearance, playerclass = playerclass, exp = exp, skill = skill, hasAppearance = hasAppearance }
 	end
 
 	if count == 0 then return end

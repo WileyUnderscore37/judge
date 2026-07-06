@@ -57,6 +57,10 @@ SWEP.StaminaPrimary = 8
 
 SWEP.AttackLen1 = 45
 
+SWEP.noreverse = true
+SWEP.BlockTier = 1.5
+SWEP.BlockMaterial = "none"
+
 SWEP.AttackHit = "GlassBottle.ImpactHard"
 SWEP.AttackHitFlesh = "Flesh.ImpactHard"
 SWEP.DeploySnd = "GlassBottle.ImpactSoft"

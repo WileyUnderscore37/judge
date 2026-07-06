@@ -433,6 +433,21 @@ hg.Appearance.SkeletonAppearanceTable = {
 	AFacemap = "Default"
 }
 
+hg.Appearance.FallbackAppearanceTable = {
+	AModel = "Male 09",
+	AClothes = {
+		main = "normal",
+		pants = "normal",
+		boots = "normal",
+		hands = "normal"
+	},
+	AName = "Unknown",
+	AColor = Color(0, 0, 0),
+	AAttachments = {},
+	ABodygroups = {},
+	AFacemap = "Default"
+}
+
 -- GetRandomAppearance
 function hg.Appearance.GetRandomAppearance()
 	local randomAppearance = table.Copy(hg.Appearance.SkeletonAppearanceTable)

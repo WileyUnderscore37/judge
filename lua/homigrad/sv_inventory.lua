@@ -316,7 +316,7 @@ local functions = {
         weapon.IsSpawned = false
         weapon.init = false
 
-        if not hook.Run("PlayerCanPickupWeapon",ply,weapon) then 
+        if hook.Run("PlayerCanPickupWeapon",ply,weapon) == false then 
             --print("huy")
             weapon.IsSpawned = true weapon.init = true 
             weapon:SetPos(ply:EyePos())
