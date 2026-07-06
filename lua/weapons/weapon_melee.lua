@@ -1403,6 +1403,7 @@ end
 function SWEP:PlaySoftHitSounds(owner, ent, trace, attacktype)
     if not IsValid(owner) then return end
     if not IsValid(ent) then return end
+    if not self:IsEntSoft(ent) then return end
     if self.SoftHitPlayed then return end
 
     self.SoftHitPlayed = true

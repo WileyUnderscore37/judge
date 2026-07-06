@@ -149,6 +149,7 @@ local RoleConfigs = {
         buttonTitle = "Traitor",
         maxPoints = 30,
         convar = "hmcd_traitor_loadout",
+        saveFile = "zcity_traitor_loadout.txt",
         presetFile = "zcity_traitor_presets.txt",
         skillsets = {
             ["none"] = {cost = 0, name = "None", desc = "You spent time collecting supplies and weapons instead of building a real specialty."},
@@ -177,10 +178,11 @@ local RoleConfigs = {
             ["weapon_walkie_talkie"] = {cost = 1, name = "Walkie-Talkie"}
         },
         addons = {
-            ["weapon_p22_silencer"] = {cost = 2, name = "P22 Silencer", parent = "weapon_p22"}
+            ["weapon_p22_silencer"] = {cost = 2, name = "P22 Silencer", parent = "weapon_p22"},
+            ["weapon_p22_ammo"] = {cost = 2, name = "P22 Extra Ammo", parent = "weapon_p22", desc = "Start with an extra magazine."}
         },
         addonOrder = {
-            ["weapon_p22"] = {"weapon_p22_silencer"}
+            ["weapon_p22"] = {"weapon_p22_silencer", "weapon_p22_ammo"}
         },
         exclusions = {
             ["weapon_buck200knife"] = {["weapon_sogknife"] = true},
@@ -250,35 +252,66 @@ local RoleConfigs = {
     hero = {
         title = "HERO",
         buttonTitle = "Hero",
-        maxPoints = 12,
+        maxPoints = 16,
         convar = "hmcd_hero_loadout",
+        saveFile = "zcity_hero_loadout.txt",
         presetFile = "zcity_hero_presets.txt",
         items = {
             ["weapon_px4beretta"] = {cost = 4, name = "Beretta PX4", desc = "Reliable sidearm with room for ammo or a suppressor."},
             ["weapon_glock17"] = {cost = 5, name = "Glock 17", desc = "Flexible pistol with strong attachment options."},
             ["weapon_hk_usp"] = {cost = 5, name = "HK USP", desc = "Steady .45 pistol with suppressor support."},
             ["weapon_remington870"] = {cost = 8, name = "Remington 870", desc = "Close range stopper with extra shell support."},
-            ["weapon_kar98"] = {cost = 8, name = "Karabiner 98k", desc = "Heavy marksman pick that can take a scope and extra rounds."}
+            ["weapon_kar98"] = {cost = 8, name = "Karabiner 98k", desc = "Heavy marksman pick that can take a scope and extra rounds."},
+            ["ent_armor_vest3"] = {cost = 4, name = "Kevlar IIIA Vest", icon = "vgui/icons/armor01.png", desc = "Body armor that soaks torso hits."},
+            ["ent_armor_helmet1"] = {cost = 2, name = "ACH Helmet III", icon = "vgui/icons/helmet.png", desc = "Ballistic helmet that protects the head."},
+            ["ent_armor_helmet7"] = {cost = 2, name = "SSh-68 Helmet", icon = "entities/ent_jack_gmod_ezarmor_ssh68.png", desc = "Steel helmet that protects the head."},
+            ["ent_armor_mask1"] = {cost = 2, name = "Ballistic Mask", icon = "vgui/icons/ballisticmask", desc = "Face armor that shields against hits."},
+            ["ent_armor_mask2"] = {cost = 2, name = "M40 Gas Mask", icon = "vgui/icons/gasmask", desc = "Face mask offering light protection."},
+            ["ent_armor_mask3"] = {cost = 2, name = "Welding Mask", icon = "entities/ent_jack_gmod_ezarmor_weldingkill.png", desc = "Face mask that soaks some hits."},
+            ["weapon_remington870_long"] = {cost = 10, name = "Remington 870 Long Barrel", desc = "Long barrel pump-action shotgun."},
+            ["weapon_remington870_sawed_off"] = {cost = 6, name = "Remington 870 Sawed-off", desc = "Compact sawed-off pump-action shotgun."},
+            ["weapon_vpo209"] = {cost = 12, name = "VPO-209", desc = "Semi-auto carbine chambered in .366 TKM."},
+            ["weapon_vpo136"] = {cost = 12, name = "VPO-136", desc = "Semi-auto carbine chambered in 7.62x39mm."},
+            ["weapon_mosin"] = {cost = 8, name = "Mosin-Nagant M38", desc = "Bolt-action rifle chambered in 7.62x54mm."}
         },
         addons = {
             ["hero_px4_silencer"] = {cost = 2, name = "PX4 Suppressor", parent = "weapon_px4beretta", attachment = "supressor4", desc = "Keep the PX4 quieter."},
-            ["hero_px4_ammo"] = {cost = 2, name = "PX4 Extra Ammo", parent = "weapon_px4beretta", desc = "Start with extra magazines."},
+            ["hero_px4_ammo"] = {cost = 2, name = "PX4 Extra Ammo", parent = "weapon_px4beretta", desc = "Start with extra magazine."},
             ["hero_glock_silencer"] = {cost = 2, name = "Glock Suppressor", parent = "weapon_glock17", attachment = "supressor4", desc = "Suppress the Glock 17."},
             ["hero_glock_rmr"] = {cost = 2, name = "Glock RMR", parent = "weapon_glock17", attachment = "holo16", desc = "Adds a compact red dot."},
             ["hero_glock_laser"] = {cost = 1, name = "Glock Laser", parent = "weapon_glock17", attachment = "laser3", desc = "Adds a visible aiming laser."},
-            ["hero_glock_ammo"] = {cost = 2, name = "Glock Extra Ammo", parent = "weapon_glock17", desc = "Start with extra magazines."},
+            ["hero_glock_ammo"] = {cost = 2, name = "Glock Extra Ammo", parent = "weapon_glock17", desc = "Start with extra magazine."},
             ["hero_usp_silencer"] = {cost = 2, name = "USP Suppressor", parent = "weapon_hk_usp", attachment = "supressor4", desc = "Suppress the USP."},
-            ["hero_usp_ammo"] = {cost = 2, name = "USP Extra Ammo", parent = "weapon_hk_usp", desc = "Start with extra magazines."},
+            ["hero_usp_ammo"] = {cost = 2, name = "USP Extra Ammo", parent = "weapon_hk_usp", desc = "Start with extra magazine."},
             ["hero_remington_ammo"] = {cost = 2, name = "870 Extra Shells", parent = "weapon_remington870", desc = "Start with extra shells."},
             ["hero_kar98_scope"] = {cost = 2, name = "Kar98 Scope", parent = "weapon_kar98", attachment = "optic12", desc = "Adds the Kar98 scope."},
-            ["hero_kar98_ammo"] = {cost = 2, name = "Kar98 Extra Ammo", parent = "weapon_kar98", desc = "Start with extra rifle rounds."}
+            ["hero_kar98_ammo"] = {cost = 2, name = "Kar98 Extra Ammo", parent = "weapon_kar98", desc = "Start with extra rifle rounds."},
+            ["hero_remington_sight"] = {cost = 2, name = "870 Sight", parent = "weapon_remington870", attachment = "holo16", desc = "Adds a sight to the Remington 870."},
+            ["hero_remington_long_ammo"] = {cost = 2, name = "870 Long Extra Shells", parent = "weapon_remington870_long", desc = "Start with extra shells."},
+            ["hero_remington_long_sight"] = {cost = 2, name = "870 Long Sight", parent = "weapon_remington870_long", attachment = "holo16", desc = "Adds a sight to the long barrel 870."},
+            ["hero_remington_sawedoff_ammo"] = {cost = 2, name = "870 Sawed-off Extra Shells", parent = "weapon_remington870_sawed_off", desc = "Start with extra shells."},
+            ["hero_remington_sawedoff_sight"] = {cost = 2, name = "870 Sawed-off Sight", parent = "weapon_remington870_sawed_off", attachment = "holo16", desc = "Adds a sight to the sawed-off 870."},
+            ["hero_vpo209_silencer"] = {cost = 2, name = "VPO-209 Suppressor", parent = "weapon_vpo209", attachment = "supressor1", desc = "Suppress the VPO-209."},
+            ["hero_vpo209_optic"] = {cost = 2, name = "VPO-209 Red Dot", parent = "weapon_vpo209", attachment = "holo16", desc = "Adds a red dot sight to the VPO-209."},
+            ["hero_vpo209_ammo"] = {cost = 2, name = "VPO-209 Extra Ammo", parent = "weapon_vpo209", desc = "Start with extra magazine."},
+            ["hero_vpo136_silencer"] = {cost = 2, name = "VPO-136 Suppressor", parent = "weapon_vpo136", attachment = "supressor1", desc = "Suppress the VPO-136."},
+            ["hero_vpo136_optic"] = {cost = 2, name = "VPO-136 Red Dot", parent = "weapon_vpo136", attachment = "holo16", desc = "Adds a red dot sight to the VPO-136."},
+            ["hero_vpo136_ammo"] = {cost = 2, name = "VPO-136 Extra Ammo", parent = "weapon_vpo136", desc = "Start with extra magazine."},
+            ["hero_mosin_silencer"] = {cost = 2, name = "Mosin Suppressor", parent = "weapon_mosin", attachment = "supressor1", desc = "Suppress the Mosin."},
+            ["hero_mosin_scope"] = {cost = 2, name = "Mosin Scope", parent = "weapon_mosin", attachment = "optic12", desc = "Adds a scope to the Mosin."},
+            ["hero_mosin_ammo"] = {cost = 2, name = "Mosin Extra Ammo", parent = "weapon_mosin", desc = "Start with extra rounds."}
         },
         addonOrder = {
             ["weapon_px4beretta"] = {"hero_px4_silencer", "hero_px4_ammo"},
             ["weapon_glock17"] = {"hero_glock_silencer", "hero_glock_rmr", "hero_glock_laser", "hero_glock_ammo"},
             ["weapon_hk_usp"] = {"hero_usp_silencer", "hero_usp_ammo"},
-            ["weapon_remington870"] = {"hero_remington_ammo"},
-            ["weapon_kar98"] = {"hero_kar98_scope", "hero_kar98_ammo"}
+            ["weapon_remington870"] = {"hero_remington_sight", "hero_remington_ammo"},
+            ["weapon_remington870_long"] = {"hero_remington_long_sight", "hero_remington_long_ammo"},
+            ["weapon_remington870_sawed_off"] = {"hero_remington_sawedoff_sight", "hero_remington_sawedoff_ammo"},
+            ["weapon_kar98"] = {"hero_kar98_scope", "hero_kar98_ammo"},
+            ["weapon_vpo209"] = {"hero_vpo209_silencer", "hero_vpo209_optic", "hero_vpo209_ammo"},
+            ["weapon_vpo136"] = {"hero_vpo136_silencer", "hero_vpo136_optic", "hero_vpo136_ammo"},
+            ["weapon_mosin"] = {"hero_mosin_silencer", "hero_mosin_scope", "hero_mosin_ammo"}
         },
         exclusions = {},
         defaultPresets = {
@@ -325,7 +358,12 @@ do
         "weapon_glock17",
         "weapon_hk_usp",
         "weapon_remington870",
-        "weapon_kar98"
+        "weapon_remington870_long",
+        "weapon_remington870_sawed_off",
+        "weapon_kar98",
+        "weapon_vpo209",
+        "weapon_vpo136",
+        "weapon_mosin"
     }
 
     for _, weaponId in ipairs(heroWeaponIds) do
@@ -336,6 +374,27 @@ do
             end
         end
     end
+
+    -- Armor pieces sharing a body placement can't be worn together, so make them mutually exclusive.
+    local armorSlots = {
+        {"ent_armor_helmet1", "ent_armor_helmet7"},
+        {"ent_armor_mask1", "ent_armor_mask2", "ent_armor_mask3"}
+    }
+
+    for _, slot in ipairs(armorSlots) do
+        for _, armorId in ipairs(slot) do
+            RoleConfigs.hero.exclusions[armorId] = RoleConfigs.hero.exclusions[armorId] or {}
+            for _, otherId in ipairs(slot) do
+                if otherId ~= armorId then
+                    RoleConfigs.hero.exclusions[armorId][otherId] = true
+                end
+            end
+        end
+    end
+end
+
+local function IsArmorItem(id)
+    return isstring(id) and string.StartWith(id, "ent_armor_")
 end
 
 local function GetSortedIdsByCost(sourceTable)
@@ -382,6 +441,15 @@ local function HasWeaponConflict(config, selectedWeapons, weaponId)
 end
 
 local function ReadSavedLoadout(config)
+    if config.saveFile then
+        local data = file.Read(config.saveFile, "DATA")
+        if data and data ~= "" then
+            local ok, parsed = pcall(util.JSONToTable, data)
+            if ok and istable(parsed) then
+                return parsed
+            end
+        end
+    end
     local savedData = GetConVar(config.convar):GetString()
     if savedData and savedData ~= "" then
         local ok, parsed = pcall(util.JSONToTable, savedData)
@@ -493,6 +561,10 @@ local function SaveLoadout(roleId)
         if config.skillsets then
             dataStr = "{\"weapons\":[],\"skillset\":\"none\"}"
         end
+    end
+
+    if config.saveFile then
+        file.Write(config.saveFile, dataStr)
     end
 
     local cv = GetConVar(config.convar)
@@ -987,6 +1059,10 @@ local function OpenRoleEditor(parentPanel, roleId, returnPanel)
             previewIconMat = Material(hg.attachmentsIcons[info.attachment])
         end
 
+        if not previewIconMat and isstring(info.icon) and info.icon ~= "" then
+            previewIconMat = Material(info.icon)
+        end
+
         lblPreviewDesc:SetText(desc)
     end
 
@@ -1050,8 +1126,7 @@ local function OpenRoleEditor(parentPanel, roleId, returnPanel)
             end
         end
 
-        AddCategory("WEAPONS & ITEMS")
-        for _, id in ipairs(config.itemOrder) do
+        local function AddItemButton(id)
             local info = config.items[id]
             local btn = vgui.Create("DButton", loadoutScroll)
             btn:Dock(TOP)
@@ -1154,6 +1229,30 @@ local function OpenRoleEditor(parentPanel, roleId, returnPanel)
                 end
             end
         end
+
+        AddCategory("WEAPONS & ITEMS")
+        for _, id in ipairs(config.itemOrder) do
+            if not IsArmorItem(id) then
+                AddItemButton(id)
+            end
+        end
+
+        local hasArmor = false
+        for _, id in ipairs(config.itemOrder) do
+            if IsArmorItem(id) then
+                hasArmor = true
+                break
+            end
+        end
+
+        if hasArmor then
+            AddCategory("ARMOR")
+            for _, id in ipairs(config.itemOrder) do
+                if IsArmorItem(id) then
+                    AddItemButton(id)
+                end
+            end
+        end
     end
 
     UpdateUI()
@@ -1244,7 +1343,7 @@ function hg.DrawLoadoutMenu(parentPanel)
             roleId = "hero",
             title = "HERO",
             desc = "Pick the gunner weapon",
-            points = "12 POINTS",
+            points = "16 POINTS",
             align = "left"
         },
         {

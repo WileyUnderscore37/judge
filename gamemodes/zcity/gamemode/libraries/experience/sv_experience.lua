@@ -223,6 +223,10 @@ net.Receive("zb_xp_get",function(len,ply)
 
     local get_ply = net.ReadEntity()
 
+    if not IsValid(get_ply) or not get_ply.GetSkill or not get_ply.GetExp then
+        return
+    end
+
     net.Start("zb_xp_get")
         --print( ply:GetExp() )
         net.WriteEntity( get_ply )

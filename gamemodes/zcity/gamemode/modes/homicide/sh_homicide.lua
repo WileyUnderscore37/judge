@@ -14,25 +14,44 @@ if(CLIENT)then
 end
 
 local HeroWeaponData = {
-	["weapon_px4beretta"] = {extraClips = 2},
-	["weapon_glock17"] = {extraClips = 2},
-	["weapon_hk_usp"] = {extraClips = 2},
-	["weapon_remington870"] = {extraClips = 1, sling = true},
-	["weapon_kar98"] = {extraClips = 1, sling = true},
+	["weapon_px4beretta"] = {extraClips = 0},
+	["weapon_glock17"] = {extraClips = 0},
+	["weapon_hk_usp"] = {extraClips = 0},
+	["weapon_remington870"] = {extraClips = 0, sling = true},
+	["weapon_remington870_long"] = {extraClips = 0, sling = true},
+	["weapon_remington870_sawed_off"] = {extraClips = 0},
+	["weapon_kar98"] = {extraClips = 0, sling = true},
+	["weapon_vpo209"] = {extraClips = 0},
+	["weapon_vpo136"] = {extraClips = 0},
+	["weapon_mosin"] = {extraClips = 0, sling = true},
 }
 
 local HeroUpgradeData = {
 	["hero_px4_silencer"] = {parent = "weapon_px4beretta", type = "attachment", attachment = "supressor4"},
-	["hero_px4_ammo"] = {parent = "weapon_px4beretta", type = "ammo", extraClips = 2},
+	["hero_px4_ammo"] = {parent = "weapon_px4beretta", type = "ammo", extraClips = 1},
 	["hero_glock_silencer"] = {parent = "weapon_glock17", type = "attachment", attachment = "supressor4"},
 	["hero_glock_rmr"] = {parent = "weapon_glock17", type = "attachment", attachment = "holo16"},
 	["hero_glock_laser"] = {parent = "weapon_glock17", type = "attachment", attachment = "laser3"},
-	["hero_glock_ammo"] = {parent = "weapon_glock17", type = "ammo", extraClips = 2},
+	["hero_glock_ammo"] = {parent = "weapon_glock17", type = "ammo", extraClips = 1},
 	["hero_usp_silencer"] = {parent = "weapon_hk_usp", type = "attachment", attachment = "supressor4"},
-	["hero_usp_ammo"] = {parent = "weapon_hk_usp", type = "ammo", extraClips = 2},
-	["hero_remington_ammo"] = {parent = "weapon_remington870", type = "ammo", extraClips = 2},
+	["hero_usp_ammo"] = {parent = "weapon_hk_usp", type = "ammo", extraClips = 1},
+	["hero_remington_sight"] = {parent = "weapon_remington870", type = "attachment", attachment = "holo16"},
+	["hero_remington_ammo"] = {parent = "weapon_remington870", type = "ammo", extraClips = 1},
+	["hero_remington_long_sight"] = {parent = "weapon_remington870_long", type = "attachment", attachment = "holo16"},
+	["hero_remington_long_ammo"] = {parent = "weapon_remington870_long", type = "ammo", extraClips = 1},
+	["hero_remington_sawedoff_sight"] = {parent = "weapon_remington870_sawed_off", type = "attachment", attachment = "holo16"},
+	["hero_remington_sawedoff_ammo"] = {parent = "weapon_remington870_sawed_off", type = "ammo", extraClips = 1},
 	["hero_kar98_scope"] = {parent = "weapon_kar98", type = "attachment", attachment = "optic12"},
-	["hero_kar98_ammo"] = {parent = "weapon_kar98", type = "ammo", extraClips = 2},
+	["hero_kar98_ammo"] = {parent = "weapon_kar98", type = "ammo", extraClips = 1},
+	["hero_vpo209_silencer"] = {parent = "weapon_vpo209", type = "attachment", attachment = "supressor1"},
+	["hero_vpo209_optic"] = {parent = "weapon_vpo209", type = "attachment", attachment = "holo16"},
+	["hero_vpo209_ammo"] = {parent = "weapon_vpo209", type = "ammo", extraClips = 1},
+	["hero_vpo136_silencer"] = {parent = "weapon_vpo136", type = "attachment", attachment = "supressor1"},
+	["hero_vpo136_optic"] = {parent = "weapon_vpo136", type = "attachment", attachment = "holo16"},
+	["hero_vpo136_ammo"] = {parent = "weapon_vpo136", type = "ammo", extraClips = 1},
+	["hero_mosin_silencer"] = {parent = "weapon_mosin", type = "attachment", attachment = "supressor1"},
+	["hero_mosin_scope"] = {parent = "weapon_mosin", type = "attachment", attachment = "optic12"},
+	["hero_mosin_ammo"] = {parent = "weapon_mosin", type = "ammo", extraClips = 1},
 }
 
 local function ParseLoadoutString(dataStr)
@@ -88,19 +107,25 @@ local function ApplyTraitorLoadout(ply)
 					if hg and hg.AddAttachmentForce then hg.AddAttachmentForce(ply, w, "supressor4") end
 				end
 			end)
+		elseif wep == "weapon_p22_ammo" then
+			timer.Simple(0.5, function()
+				if IsValid(ply) and ply:HasWeapon("weapon_p22") then
+					local w = ply:GetWeapon("weapon_p22")
+					if IsValid(w) and w:GetPrimaryAmmoType() >= 0 then
+						ply:GiveAmmo(w:GetMaxClip1(), w:GetPrimaryAmmoType(), true)
+					end
+				end
+			end)
 		else
 			local w = ply:Give(wep)
 			if wep == "weapon_zoraki" then
 				timer.Simple(1, function() if IsValid(w) then w:ApplyAmmoChanges(2) end end)
 			elseif wep == "weapon_p22" then
 				hasP22 = true
-				if IsValid(w) then ply:GiveAmmo(w:GetMaxClip1() * 2, w:GetPrimaryAmmoType(), true) end
 			elseif wep == "weapon_pl15" then
 				hasPL15 = true
-				if IsValid(w) then ply:GiveAmmo(w:GetMaxClip1() * 2, w:GetPrimaryAmmoType(), true) end
 			elseif wep == "weapon_taser" then
 				hasTaser = true
-				if IsValid(w) then ply:GiveAmmo(w:GetMaxClip1() * 2, w:GetPrimaryAmmoType(), true) end
 			end
 		end
 	end
@@ -146,6 +171,13 @@ local function ApplyHeroLoadout(ply)
 	for _, weaponId in ipairs(weaponsList) do
 		if weaponId == "weapon_walkie_talkie" then
 			ply:Give("weapon_walkie_talkie")
+			continue
+		end
+
+		if string.StartWith(weaponId, "ent_armor_") then
+			if hg and hg.AddArmor then
+				hg.AddArmor(ply, weaponId)
+			end
 			continue
 		end
 
