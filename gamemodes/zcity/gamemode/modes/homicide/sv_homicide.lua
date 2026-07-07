@@ -93,6 +93,7 @@ MODE.LootTable = {
 		{10,"weapon_pocketknife"},
 
 		{4,"weapon_bat"},
+		{1,"weapon_metalbat"},
 		{4,"weapon_leadpipe"},
 		{3,"weapon_hg_extinguisher"},
 
@@ -188,6 +189,7 @@ MODE.LootTableStandard = {
 		{1,"weapon_brick"},
 		{1,"weapon_pocketknife"},
 		{0.32,"weapon_bat"},
+		{0.12,"weapon_metalbat"},
 		{0.3,"weapon_leadpipe"},
 
 		{0.15,"weapon_hg_extinguisher"},
@@ -938,7 +940,7 @@ function MODE:CheckAlivePlayers()
 			continue
 		end
 		
-		if((not ply.isTraitor)and ply.organism and ply.organism.incapacitated)then
+		if(ply.organism and ply.organism.incapacitated)then
 			continue
 		end
 		

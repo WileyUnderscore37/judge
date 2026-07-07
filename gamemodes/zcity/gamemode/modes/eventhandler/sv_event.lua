@@ -155,7 +155,6 @@ MODE.LootTable = {
     {50, {
         {4,"weapon_leadpipe"},
         {3,"weapon_hg_crowbar"},
-        {2,"weapon_tomahawk"},
         {2,"weapon_hatchet"},
         {1,"weapon_hg_axe"},
         {1,"weapon_hg_crossbow"},

@@ -67,8 +67,9 @@ local function funca(ply, txt)
 	end
 
 	local bJawBroken = ply.organism.jaw == 1 or ply.organism.jawdislocation
-	local bUnintelligeble = ply.organism.brain > 0.05
-	local bHasMassiveBrainDamage = ply.organism.brain > 0.14
+	local bSeizure = ply.organism.seizureActive
+	local bUnintelligeble = bSeizure or ply.organism.brain > 0.05
+	local bHasMassiveBrainDamage = bSeizure or ply.organism.brain > 0.14
 
 	txt = utf8.force(txt)
 
@@ -141,7 +142,7 @@ hook.Add("HG_PlayerSay", "furrifyPhraseOwO", function(ply, txt)
 end)
 
 hook.Add("HG_PlayerCanHearPlayersVoice","BrainDamage", function(listener, speaker)
-	if speaker.organism.brain > 0.05 then return false, false end
+	if speaker.organism.brain > 0.05 or speaker.organism.seizureActive then return false, false end
 end)
 
 local braindeadphrase_male = {
