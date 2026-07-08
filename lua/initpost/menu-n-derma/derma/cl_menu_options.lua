@@ -100,7 +100,6 @@ hook.Add("OnScreenSizeChanged", "ZCity_Settings_Fonts", CreateSettingsFonts)
 CreateSettingsFonts()
 
 hg.settings:AddOpt("Gameplay","hg_old_notificate", "Old Notifications")
-hg.settings:AddOpt("Gameplay","hg_cheats", "Enable Cheats")
 hg.settings:AddOpt("Gameplay","hg_showthoughts", "Show thoughts")
 hg.settings:AddOpt("Gameplay","hg_hints", "Show hints")
 hg.settings:AddOpt("Gameplay","hg_gary", "HG GARY")

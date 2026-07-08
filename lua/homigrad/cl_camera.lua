@@ -676,21 +676,6 @@ local fliprtmat = CreateMaterial(
     }
 )
 
-local invertCam = CreateClientConVar("hg_cheats","0",false,false,"Toggle uselezz cheats",0,1)
-
-hook.Add("HG.InputMouseApply","ASdInvert",function(tbl)
-	if invertCam:GetBool() then
-		tbl.x = -tbl.x
-		--print("huy")
-		--return true
-	end
-end)
-
-hook.Add( "CreateMove", "flipmove", function( cmd )	
-	if invertCam:GetBool() then
-		cmd:SetSideMove( -cmd:GetSideMove() )
-	end
-end)
 
 --local hg_norenderoverride = ConVarExists("hg_norenderoverride") and GetConVar("hg_norenderoverride") or CreateClientConVar("hg_norenderoverride", 0, true, false, "if you have lags you can try turning that on", 0, 1)
 local mapswithfog = { -- Надо от сервер сайда сделать...
