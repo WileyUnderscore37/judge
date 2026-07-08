@@ -127,6 +127,10 @@ local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vect
 		local runnin_held = in_speed and not ply:Crouching() and ply:KeyDown(IN_FORWARD)
 		ply.hg_isSprinting = runnin_held and (ply.isSprintingState or force_sprint)
 		ply.hg_isJogging = runnin_held and not ply.hg_isSprinting
+		if SERVER then
+			if ply:GetNWBool("hg_isSprinting", false) ~= ply.hg_isSprinting then ply:SetNWBool("hg_isSprinting", ply.hg_isSprinting) end
+			if ply:GetNWBool("hg_isJogging", false) ~= ply.hg_isJogging then ply:SetNWBool("hg_isJogging", ply.hg_isJogging) end
+		end
 		local runnin = ply.hg_isSprinting or ply.hg_isJogging
 
 		--[[if runnin then

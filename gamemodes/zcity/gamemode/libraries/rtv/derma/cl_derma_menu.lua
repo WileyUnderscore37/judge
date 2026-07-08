@@ -15,14 +15,14 @@ end
 local function CreateRTVFonts()
     surface.CreateFont("ZCity_RTV_Title", {
         font = "Verily Serif Mono",
-        size = ScreenScale(32),
+        size = RTVUnit(32),
         weight = 800,
         antialias = true
     })
 
     surface.CreateFont("ZCity_RTV_Tiny", {
         font = "Verily Serif Mono",
-        size = ScreenScale(8),
+        size = RTVUnit(8),
         weight = 200
     })
 end
