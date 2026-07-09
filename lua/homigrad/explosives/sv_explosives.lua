@@ -104,11 +104,9 @@ local ents_FindInSphere = ents.FindInSphere
 
 local vecCone = Vector(5, 5, 0)
 local BlastWaveSpeed = 5200
-local BlastWaveTick = 0.03
 local BlastWaveThickness = 120
 local BlastWaveForce = 50000
-local BlastWaves = {}
-local NextBlastWaveThink = 0
+local BlastMaxTargets = 96
 
 local function GetExplosionNetType(ent, defaultType)
 	return ent:GetModel() == PropaneModel and PropaneExplosionNetType or defaultType
@@ -132,7 +130,7 @@ local function SendExplosionNet(pos, explosionType, radius)
 		net.WriteFloat(radius)
 		net.WriteFloat(BlastWaveSpeed)
 		net.WriteFloat(BlastWaveThickness)
-	net.Broadcast()
+	net.SendPVS(pos)
 end
 
 local function EmitDebris(ent, count)
@@ -213,62 +211,32 @@ local function FinishBlastWave(data)
 	end
 end
 
-local function QueueBlastWave(ent, owner, pos, distance, damage, damageType, config)
-	BlastWaves[#BlastWaves + 1] = {
-		Ent = ent,
-		Owner = owner,
-		Pos = pos,
-		Distance = distance,
-		Damage = damage,
-		DamageType = damageType,
-		ForceMul = config.ForceMul or BlastWaveForce,
-		MinForceFrac = config.MinForceFrac or 0.5,
-		MinDamageFrac = config.MinDamageFrac or 0.5,
-		DamageExponent = config.DamageExponent or 1,
-		DisorientPower = config.DisorientPower or 5,
-		DisorientTime = config.DisorientTime or 6,
-		BehindWallDisorientDiv = config.BehindWallDisorientDiv or 1,
-		BlockBehindWallDisorient = config.BlockBehindWallDisorient,
-		Radius = 0,
-		Thickness = config.Thickness or BlastWaveThickness,
-		Filter = IsValid(ent) and {ent} or {},
-		HitEnts = {},
-		HitPhysCount = 0,
-		OnFinish = config.OnFinish
-	}
-end
+local function ApplyBlastBurst(data)
+	data.Filter = IsValid(data.Ent) and {data.Ent} or {}
+	data.HitPhysCount = 0
+	data.HitEnts = {}
+	data.ForceMul = data.ForceMul or BlastWaveForce
+	data.MinForceFrac = data.MinForceFrac or 0.5
+	data.MinDamageFrac = data.MinDamageFrac or 0.5
+	data.DamageExponent = data.DamageExponent or 1
+	data.DisorientPower = data.DisorientPower or 5
+	data.DisorientTime = data.DisorientTime or 6
+	data.BehindWallDisorientDiv = data.BehindWallDisorientDiv or 1
+	local hitCount = 0
 
-hook.Add("Think", "hg_blastwaves", function()
-	local time = CurTime()
-	if NextBlastWaveThink > time then return end
-	NextBlastWaveThink = time + BlastWaveTick
-
-	for i = #BlastWaves, 1, -1 do
-		local data = BlastWaves[i]
-		local oldRadius = data.Radius
-		local newRadius = math_min(oldRadius + BlastWaveSpeed * BlastWaveTick, data.Distance)
-		local innerRadius = math_max(newRadius - data.Thickness, oldRadius)
-		local innerRadiusSqr = innerRadius * innerRadius
-
-		data.Radius = newRadius
-
-		for _, enta in ipairs(ents_FindInSphere(data.Pos, newRadius)) do
-			if data.HitEnts[enta] or enta == data.Ent then continue end
-			if not IsValid(enta) then continue end
-			local tracePos = enta:IsPlayer() and (enta:GetPos() + enta:OBBCenter()) or enta:GetPos()
-			local lenSqr = tracePos:DistToSqr(data.Pos)
-			if lenSqr <= innerRadiusSqr then continue end
-			data.HitEnts[enta] = true
-			ApplyBlastDamage(data, enta, tracePos, math_sqrt(lenSqr))
-		end
-
-		if newRadius >= data.Distance then
-			FinishBlastWave(data)
-			BlastWaves[i] = BlastWaves[#BlastWaves]
-			BlastWaves[#BlastWaves] = nil
-		end
+	for _, enta in ipairs(ents_FindInSphere(data.Pos, data.Distance)) do
+		if hitCount >= (data.MaxTargets or BlastMaxTargets) then break end
+		if enta == data.Ent or not IsValid(enta) or data.HitEnts[enta] then continue end
+		data.HitEnts[enta] = true
+		local tracePos = enta:IsPlayer() and (enta:GetPos() + enta:OBBCenter()) or enta:GetPos()
+		local lenSqr = tracePos:DistToSqr(data.Pos)
+		if lenSqr > data.Distance * data.Distance then continue end
+		ApplyBlastDamage(data, enta, tracePos, math_sqrt(lenSqr))
+		hitCount = hitCount + 1
 	end
-end)
+
+	FinishBlastWave(data)
+end
 
 local function StartShrapnel(ent, selfPos, owner, force, mass, countMul)
 	if not IsValid(ent) then return end
@@ -355,7 +323,13 @@ local ExpTypes = {
 			end
 		end
 
-		QueueBlastWave(ent, owner, selfPos, distance, blastDamage, DMG_BLAST + DMG_BURN, {
+		ApplyBlastBurst({
+			Ent = ent,
+			Owner = owner,
+			Pos = selfPos,
+			Distance = distance,
+			Damage = blastDamage,
+			DamageType = DMG_BLAST + DMG_BURN,
 			ForceMul = BlastWaveForce * (info.KnockbackMul or 1),
 			MinForceFrac = info.MinForceFrac or 0.5,
 			MinDamageFrac = info.MinDamageFrac or 0.5,
@@ -379,7 +353,13 @@ local ExpTypes = {
 		hgBlastDoors(ent, selfPos, force / 50)
 		hg.ExplosionEffect(selfPos, force / 0.2, 80)
 		SendExplosionNet(selfPos, "Sharpnel", distance)
-		QueueBlastWave(ent, owner, selfPos, distance, blastDamage, DMG_BLAST, {
+		ApplyBlastBurst({
+			Ent = ent,
+			Owner = owner,
+			Pos = selfPos,
+			Distance = distance,
+			Damage = blastDamage,
+			DamageType = DMG_BLAST,
 			ForceMul = BlastWaveForce * (info.KnockbackMul or 1),
 			MinForceFrac = info.MinForceFrac or 0.5,
 			MinDamageFrac = info.MinDamageFrac or 0.5,
@@ -402,7 +382,13 @@ local ExpTypes = {
 		hgBlastDoors(ent, selfPos, force / 50)
 		hg.ExplosionEffect(selfPos, force / 0.2, 80)
 		SendExplosionNet(selfPos, "Normal", distance)
-		QueueBlastWave(ent, owner, selfPos, distance, blastDamage, DMG_BLAST, {
+		ApplyBlastBurst({
+			Ent = ent,
+			Owner = owner,
+			Pos = selfPos,
+			Distance = distance,
+			Damage = blastDamage,
+			DamageType = DMG_BLAST,
 			ForceMul = BlastWaveForce * (info.KnockbackMul or 1),
 			MinForceFrac = info.MinForceFrac or 0.5,
 			MinDamageFrac = info.MinDamageFrac or 0.5,
@@ -441,7 +427,13 @@ local ExpTypes = {
 			fire:ChangeLife(95)
 		end
 
-		QueueBlastWave(ent, owner, selfPos, distance, blastDamage, DMG_BLAST + DMG_BURN, {
+		ApplyBlastBurst({
+			Ent = ent,
+			Owner = owner,
+			Pos = selfPos,
+			Distance = distance,
+			Damage = blastDamage,
+			DamageType = DMG_BLAST + DMG_BURN,
 			ForceMul = BlastWaveForce * (info.KnockbackMul or 1.1),
 			MinForceFrac = info.MinForceFrac or 0.2,
 			MinDamageFrac = info.MinDamageFrac or 0.08,
@@ -845,7 +837,7 @@ function hg.GasTankDetonate(ent)
 	RemoveCloudsForTank(idx)
 	local baseGas = (data and data.BaseGasAmount) or (ent.Volume or 75)
 	local curGas = (data and data.GasAmount) or baseGas
-	local ratio = math_Clamp(curGas / baseGas, 0.12, 1)
+	local ratio = math_Clamp(curGas / baseGas, 0.55, 1)
 
 	net.Start("hg_gastank_stop")
 	net.WriteUInt(idx, 16)

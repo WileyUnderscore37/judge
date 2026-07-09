@@ -1,4 +1,3 @@
---
 if zb and zb.Experience and zb.Experience._loaded then return end
 
 zb = zb or {}
@@ -15,7 +14,7 @@ hook.Add("DatabaseConnected", "ExperienceCreateData", function()
 		query:Create("steamid", "VARCHAR(20) NOT NULL")
 		query:Create("steam_name", "VARCHAR(32) NOT NULL")
 		query:Create("skill", "FLOAT NOT NULL")
-		query:Create("experience", "INT NOT NULL") -- Надо перевести в большие числа INT НЕ ХВАТАЕТ!!! - хватает просто кое-кто придурок да салат?
+		query:Create("experience", "INT NOT NULL")
         query:Create("deaths", "INT NOT NULL")
         query:Create("kills", "INT NOT NULL")
         query:Create("suicides", "INT NOT NULL")
@@ -24,9 +23,6 @@ hook.Add("DatabaseConnected", "ExperienceCreateData", function()
 
     zb.Experience.Active = true
 end)
-
---local query = mysql:Drop("zb_experience")
---query:Execute()
 
 hook.Add( "PlayerInitialSpawn","ZB_Exp_OnInitSpawn", function( ply )
     local name = ply:Name()
@@ -127,10 +123,9 @@ function plyMeta:GiveExp( ammout )
 
 	local points = math.min(ammout / 5, 10) * (1 + (self.EA_HasAccess and self:EA_HasAccess() and 2 or 0))
 	local mul = math.min(player.GetCount() / 10, 1)
-	if self.PS_AddPoints then
-		self:PS_AddPoints(math.Round(points * mul, 0))
-	end
-    --self:SetNWInt( "experience", exp + ammout )
+		if self.PS_AddPoints then
+			self:PS_AddPoints(math.Round(points * mul, 0))
+		end
 end
 
 
@@ -153,9 +148,7 @@ function plyMeta:GiveSkill( ammout )
 			updateQuery:Update("skill", self:GetSkill())
 			updateQuery:Where("steamid", steamID64)
 		updateQuery:Execute()
-	end
-    --self:SetNWFloat( "skill", skill + ammout )
-    
+		end
 end
 
 function plyMeta:GetDeaths()
@@ -204,8 +197,7 @@ function plyMeta:GiveKills( ammout )
 			updateQuery:Update("kills", self:GetKills())
 			updateQuery:Where("steamid", steamID64)
 		updateQuery:Execute()
-	end
-    --self:SetNWInt( "experience", exp + ammout )
+		end
 end
 
 
@@ -230,11 +222,9 @@ function plyMeta:GiveSuicides( ammout )
 			updateQuery:Update("suicides", self:GetSuicides())
 			updateQuery:Where("steamid", steamID64)
 		updateQuery:Execute()
-	end
-    --self:SetNWInt( "experience", exp + ammout )
+		end
 end
 
--- Отдельный опыт/скилл для сандбокса (только в памяти, не пишется в БД zcity)
 function plyMeta:GetSandboxExp()
     return math.Round(zb.Experience.PlayerInstances[self:SteamID64()].sandbox_experience or 0)
 end
@@ -309,25 +299,9 @@ net.Receive("zb_xp_get",function(len,ply)
     local isSandbox = engine.ActiveGamemode() ~= "zcity"
 
     net.Start("zb_xp_get")
-        --print( ply:GetExp() )
         net.WriteEntity( get_ply )
         net.WriteFloat( isSandbox and get_ply:GetSandboxSkill() or get_ply:GetSkill() )
         net.WriteInt( isSandbox and get_ply:GetSandboxExp() or get_ply:GetExp(), 19 )
     net.Send(ply)
 
-end)
-
-
---hook.Add( "ZB_EndRound", "ZB_Exp_Give", function()
---    local exp = ply.RoundEXP or 0
---    local skill = ply.RoundSkill or 0
---
---    ply:SetPData( "zb_experience", exp )
---    ply:SetPData( "zb_skill", skill )
---
---    ply:SetNWInt( "experience", exp )
---    ply:SetNWFloat( "skill", skill )
---
---    ply.RoundEXP = 0
---    ply.RoundSkill = 0
---end)
+	end)

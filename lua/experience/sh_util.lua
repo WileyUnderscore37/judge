@@ -118,8 +118,6 @@ local SHTable = zb.Experience
 function zb.Experience.GetAwards( self )
     local skill = self.skill or 0
     local exp = self.exp or 0
-    --print(skill,exp)
-    --print(MedalTab.skill[1])
     local Medal = nil
     for i = 1, #SHTable.SkillMedals do
         local MedalTab = SHTable.SkillMedals[i]
@@ -185,9 +183,7 @@ if SERVER then
         timer.Simple(.1,function()
             if not IsValid(ply) then return end
             local most_harm,biggest_attacker = 0,nil
-                --print(ply)
             for attacker,attacker_harm in pairs((zb.HarmDone and zb.HarmDone[ply]) or {}) do
-                --print(attacker)
                 if not IsValid(attacker) then continue end
                 if most_harm < attacker_harm then
                     most_harm = attacker_harm
@@ -209,8 +205,6 @@ if SERVER then
         end)
     end)
 
-    -- Опыт/скилл за стройку и килы в сандбоксе (и прочих гейммодах без своей системы опыта).
-    -- В zcity опыт раздаётся режимами, здесь не дублируем.
     local function ZB_IsZCity()
         return engine.ActiveGamemode() == "zcity"
     end
@@ -228,14 +222,12 @@ if SERVER then
         ply:GiveSandboxSkill(math.Rand(0.005, 0.02))
     end
 
-    -- Стройка: спавн пропов/регдоллов/эффектов/SENT/NPC (в т.ч. через Tool Gun)
     hook.Add("PlayerSpawnedProp", "zb_sandbox_build_xp", ZB_GiveBuildXP)
     hook.Add("PlayerSpawnedRagdoll", "zb_sandbox_build_xp_rag", ZB_GiveBuildXP)
     hook.Add("PlayerSpawnedEffect", "zb_sandbox_build_xp_eff", ZB_GiveBuildXP)
     hook.Add("PlayerSpawnedSENT", "zb_sandbox_build_xp_sent", ZB_GiveBuildXP)
     hook.Add("PlayerSpawnedNPC", "zb_sandbox_build_xp_npc", ZB_GiveBuildXP)
 
-    -- Явное использование Tool Gun (применение инструмента к сущности)
     hook.Add("PlayerCanTool", "zb_sandbox_tool_xp", function(ply, tr, toolname)
         ZB_GiveBuildXP(ply)
         return
@@ -250,10 +242,6 @@ if SERVER then
         return nil
     end
 
-    -- В этом фреймворке параметры PlayerDeath/PlayerTakeDamage и zb.HarmDone ненадёжны
-    -- (в PlayerDeath приходит сама жертва, HarmDone не наполняется в сандбоксе).
-    -- Самый надёжный источник реального атакера — EntityTakeDamage + dmgInfo:GetAttacker(),
-    -- который файрит для всех сущностей (включая fake-ragdoll систему homigrad).
     local ZB_LastDamager = {}
     local ZB_LastDamageTime = {}
 
@@ -261,7 +249,6 @@ if SERVER then
         if ZB_IsZCity() then return end
         if not IsValid(ent) then return end
 
-        -- Реальная жертва: игрок, NPC, либо владелец fake-ragdoll'а
         local victim = nil
         if ent:IsPlayer() or ent:IsNPC() or ent:IsNextBot() then
             victim = ent
@@ -275,7 +262,7 @@ if SERVER then
 
         local dmgAttacker = attacker
         if not dmgAttacker:IsPlayer() then
-            -- Проп/тул-ганг: пробуем взять владельца inflictor
+            -- Проп/тул-ганг: берём владельца inflictor
             local infl = dmgInfo:GetInflictor()
             local owner = (IsValid(infl) and infl.GetOwner and infl:GetOwner()) or nil
             if IsValid(owner) and owner:IsPlayer() then
@@ -285,10 +272,7 @@ if SERVER then
             end
         end
 
-        -- Самоурон: считаем суицидом только если активен флаг ply.suiciding
-        -- (команда suicide в этом фреймворке — это toggled флаг, смерть приходит
-        -- от самострела с Attacker=Entity(0), пока suiciding ещё true).
-        -- Обычный самоурон (падение и т.п.) suiciding == false → не суицид.
+        -- Суицид только при самоуроне с активным флагом suiciding (команда suicide)
         if dmgAttacker == victim then
             if victim.suiciding then
                 ZB_LastDamager[victim] = victim
@@ -312,28 +296,25 @@ if SERVER then
 
         victim:GiveSandboxDeaths(1)
 
-        -- Киллер из отслеживания урона (EntityTakeDamage) — самый надёжный источник
         local killer = nil
         local lastDmgTime = ZB_LastDamageTime[victim] or -10
         if IsValid(ZB_LastDamager[victim]) and (CurTime() - lastDmgTime) < 10 then
             killer = ZB_LastDamager[victim]
         elseif IsValid(attacker) and attacker:IsPlayer() and attacker ~= victim then
-            -- Фолбэк: прямой атакер из PlayerDeath (исключаем самого жертву)
-            killer = attacker
+            killer = attacker -- фолбэк: прямой атакер из PlayerDeath
         end
 
         ZB_LastDamager[victim] = nil
         ZB_LastDamageTime[victim] = nil
 
         if IsValid(killer) and killer == victim then
-            -- Самоубийство (команда suicide: урон самим себе при включённом suiciding)
-            victim:GiveSandboxSuicides(1)
+            victim:GiveSandboxSuicides(1) -- суицид
         elseif IsValid(killer) then
             killer:GiveSandboxKills(1)
             killer:GiveSandboxExp(math.random(10, 20))
             killer:GiveSandboxSkill(math.Rand(0.05, 0.15))
         end
-        -- Смерть от мира без игрока-атакера — только deaths, без суицида
+        -- Смерть от мира без игрока-атакера — только deaths
     end)
 
     -- Убийство NPC тоже даёт опыт/килы в сандбоксе

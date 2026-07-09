@@ -85,7 +85,6 @@ function EXP.AccountMenu( ply )
     EXP.OpenMenu( ply )
 end
 
--- Консольная команда для просмотра своего аккаунта/медали в любом гейммоде (в т.ч. сандбоксе)
 concommand.Add("xp_menu", function()
     if IsValid(LocalPlayer()) then
         EXP.AccountMenu(LocalPlayer())

@@ -1,7 +1,5 @@
 local PANEL = {}
 
--- Свой шрифт панели медали, чтобы работало в любом гейммоде (в т.ч. сандбоксе,
--- где zcity-шрифт ZB_InterfaceMedium не создаётся)
 surface.CreateFont("ZB_ExpMedium", {
     font = "Arial",
     size = ScreenScale(10),
@@ -50,13 +48,11 @@ function PANEL:Init()
     function self.MedalPanel:Paint( w, h )
         if not self.Band or not self.Medal then return end
 
-        -- Ленточка (ribbon / band) — верхняя часть медали
         local ribbonH = math.min(h * 0.42, w)
         surface.SetDrawColor(255, 255, 255, 255)
         surface.SetMaterial(self.Band.icon)
         surface.DrawTexturedRect(0, 0, w, ribbonH)
 
-        -- Сама медаль (disc / medal) — ниже, по центру
         local discSize = math.min(w, h - ribbonH) * 0.92
         surface.SetMaterial(self.Medal.icon)
         surface.DrawTexturedRect(w / 2 - discSize / 2, ribbonH + (h - ribbonH - discSize) / 2, discSize, discSize)
