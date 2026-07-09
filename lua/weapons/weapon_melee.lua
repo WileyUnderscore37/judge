@@ -194,6 +194,27 @@ SWEP.PlayerKnockbackUpMul = 0.45
 SWEP.PlayerSecondaryKnockbackMul = 0.75
 SWEP.SwingForwardBoostMinSpeed = 20
 SWEP.RagdollHitForceMul = 0.5
+
+SWEP.SwingDamageEnabled = true
+SWEP.SwingDamageMinSpeed = 150
+SWEP.SwingDamageMaxSpeed = 900
+SWEP.SwingDamageMaxMul = 1.5
+SWEP.SwingDamageDebug = true
+SWEP.SwingDecayHalfLife = 0.5
+
+if CLIENT then
+    hook.Add("HUDPaint", "hg_melee_swing_debug", function()
+        local ply = LocalPlayer()
+        local wep = IsValid(ply) and ply:GetActiveWeapon() or NULL
+
+        if not IsValid(wep) or wep.Base ~= "weapon_melee" or not wep.SwingDamageDebug then return end
+
+        local speed = math.Round(wep.SwingSpeed or 0)
+        local mul = math.Round(wep:GetSwingDamageMul(), 2)
+
+        draw.SimpleText("Swing: " .. speed .. " deg/s   Dmg x" .. mul, "Default", ScrW() * 0.5, ScrH() - 120, color_white, TEXT_ALIGN_CENTER)
+    end)
+end
 SWEP.HeadTraceFallbackRadius = 10
 SWEP.HeadRagdollChance = 0.55
 SWEP.HeadRagdollForceMul = 1.35
@@ -1043,6 +1064,11 @@ function SWEP:StartChargeAttack()
     self.SoftHitPlayed = false
     self.HitWorld = false
     self.ComboAppliedThisAttack = nil
+    self.SwingDamageEvaluated = false
+    self.SwingDamageMul = 1
+    self.SwingSpeed = 0
+    self.SwingLastAng = nil
+    self.SwingLastTime = nil
     self.Charging = true
     self.ChargeIdleLooping = false
     self.ChargeStartedAt = CurTime()
@@ -1076,6 +1102,8 @@ function SWEP:ReleaseChargeAttack()
     self.SoftHitPlayed = false
     self.HitWorld = false
     self.ComboAppliedThisAttack = nil
+    self.SwingDamageEvaluated = false
+    self.SwingDamageMul = 1
     self:PlayAnim(self:GetAttackAnimToken("charge_end", "Attack_Charge_End"), (self.ChargeAnimTimeEnd or self.AnimTime1 or 1) / mul, false, nil, false, false)
     self:SetAttackType(3)
     self:SetLastAttack(CurTime() + (self.ChargeAttackTime or self.AttackTime) / mul)
@@ -1143,6 +1171,19 @@ function SWEP:MultiplyDMG(owner, ent, vellen, mul)
     end
 
     return mul
+end
+
+function SWEP:GetSwingDamageMul()
+    if not self.SwingDamageEnabled then return 1 end
+
+    local minSpeed = self.SwingDamageMinSpeed or 150
+    local maxSpeed = self.SwingDamageMaxSpeed or 900
+    local maxMul = self.SwingDamageMaxMul or 1.5
+    local speed = self.SwingSpeed or 0
+
+    local t = math.Clamp((speed - minSpeed) / math.max(maxSpeed - minSpeed, 0.001), 0, 1)
+
+    return Lerp(t, 1, maxMul)
 end
 
 function SWEP:ResetCombo()
@@ -2438,6 +2479,32 @@ function SWEP:CustomThink()
     local owner = self:GetOwner()
     local actwep = owner.GetActiveWeapon and owner:GetActiveWeapon()
 
+    if IsValid(owner) then
+        if self:GetInAttack() or self.Charging then
+            local ang = owner:EyeAngles()
+
+            if self.SwingLastAng and self.SwingLastTime then
+                local dt = math.max(CurTime() - self.SwingLastTime, 0.001)
+                local d = math.abs(math.AngleDifference(ang[1], self.SwingLastAng[1])) + math.abs(math.AngleDifference(ang[2], self.SwingLastAng[2]))
+                local rate = d / dt
+                local cur = self.SwingSpeed or 0
+
+                if rate > cur then
+                    self.SwingSpeed = rate
+                else
+                    self.SwingSpeed = cur * math.pow(0.5, dt / (self.SwingDecayHalfLife or 0.5))
+                end
+            end
+
+            self.SwingLastAng = ang
+            self.SwingLastTime = CurTime()
+        else
+            self.SwingLastAng = nil
+            self.SwingLastTime = nil
+            self.SwingSpeed = 0
+        end
+    end
+
 	if SERVER and not owner:IsNPC() and owner.organism and (not owner.organism.canmove or ((owner.organism.stun - CurTime()) > 0) or (owner.organism.larm == 1 and owner.organism.rarm == 1)) and IsValid(actwep) and self == actwep then
 		self:RemoveFake()
 		
@@ -2631,6 +2698,15 @@ function SWEP:CustomThink()
             dmg = dmg * mul
             dmg = self:ApplyComboDamage(dmg)
 
+            if not self.SwingDamageEvaluated then
+                self.SwingDamageMul = self:GetSwingDamageMul()
+                self.SwingDamageEvaluated = true
+            end
+
+            dmg = dmg * (self.SwingDamageMul or 1)
+
+            if self.SwingDamageDebug and IsValid(owner) then owner:PrintMessage(HUD_PRINTCONSOLE, "[SwingDmg] speed=" .. math.Round(self.SwingSpeed or 0) .. " deg/s  mul=x" .. math.Round(self.SwingDamageMul or 1, 2) .. "  dmg=" .. math.Round(dmg)) end
+
             if self:AlreadyHit(ent, trace) then
                 goto meleeskip1
             end
@@ -2772,6 +2848,15 @@ function SWEP:CustomThink()
 
             dmg = dmg * mul
             dmg = self:ApplyComboDamage(dmg)
+
+            if not self.SwingDamageEvaluated then
+                self.SwingDamageMul = self:GetSwingDamageMul()
+                self.SwingDamageEvaluated = true
+            end
+
+            dmg = dmg * (self.SwingDamageMul or 1)
+
+            if self.SwingDamageDebug and IsValid(owner) then owner:PrintMessage(HUD_PRINTCONSOLE, "[SwingDmg] speed=" .. math.Round(self.SwingSpeed or 0) .. " deg/s  mul=x" .. math.Round(self.SwingDamageMul or 1, 2) .. "  dmg=" .. math.Round(dmg)) end
 
             if self:AlreadyHit(ent, trace) then
                 goto meleeskip2
@@ -2924,6 +3009,15 @@ function SWEP:CustomThink()
 
             dmg = dmg * mul
             dmg = self:ApplyComboDamage(dmg)
+
+            if not self.SwingDamageEvaluated then
+                self.SwingDamageMul = self:GetSwingDamageMul()
+                self.SwingDamageEvaluated = true
+            end
+
+            dmg = dmg * (self.SwingDamageMul or 1)
+
+            if self.SwingDamageDebug and IsValid(owner) then owner:PrintMessage(HUD_PRINTCONSOLE, "[SwingDmg] speed=" .. math.Round(self.SwingSpeed or 0) .. " deg/s  mul=x" .. math.Round(self.SwingDamageMul or 1, 2) .. "  dmg=" .. math.Round(dmg)) end
 
             if self:AlreadyHit(ent, trace) then
                 goto meleeskip3
@@ -3099,6 +3193,11 @@ function SWEP:PrimaryAttack()
     self.SoftHitPlayed = false
     self.HitWorld = false
     self.ComboAppliedThisAttack = nil
+    self.SwingDamageEvaluated = false
+    self.SwingDamageMul = 1
+    self.SwingSpeed = 0
+    self.SwingLastAng = nil
+    self.SwingLastTime = nil
     self:PlayAnim("attack", self.AnimTime1 / mul,false,nil,false,false)
     self:SetAttackType(1)
     self:SetLastAttack(CurTime() + self.AttackTime / mul)
@@ -3208,6 +3307,11 @@ function SWEP:SecondaryAttack(override)
     self.SoftHitPlayed = false
     self.HitWorld = false
     self.ComboAppliedThisAttack = nil
+    self.SwingDamageEvaluated = false
+    self.SwingDamageMul = 1
+    self.SwingSpeed = 0
+    self.SwingLastAng = nil
+    self.SwingLastTime = nil
     self:PlayAnim("attack2",self.AnimTime2 / mul,false,nil,false,false)
     self:SetAttackType(2)
     self:SetLastAttack(CurTime() + self.Attack2Time / mul)
