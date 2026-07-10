@@ -98,7 +98,6 @@ local models_female = {
 
 if SERVER then return end
 
-local render_DrawW
 local white, red, blue, black = Color(255, 255, 255), Color(255, 0, 0), Color(0, 0, 255), Color(0, 0, 0)
 local hg_show_hitbox = ConVarExists("hg_show_hitbox") and GetConVar("hg_show_hitbox") or CreateClientConVar("hg_show_hitbox", "0", false, false, "shows custom players hitboxes, work only for admins or with sv_cheats 1 enabled")
 local hg_show_hitbox_dir = ConVarExists("hg_show_hitbox_dir") and GetConVar("hg_show_hitbox_dir") or CreateClientConVar("hg_show_hitbox_dir", "0", false, false, "work only for admins or with sv_cheats 1 enabled")
@@ -116,11 +115,9 @@ hook.Add("PostDrawTranslucentRenderables", "homigrad-organism", function()
 			local dir = Vector(hg_show_hitbox_dir:GetFloat(), 0, 0)
 			dir:Rotate(LocalPlayer():EyeAngles())
 			local distance = math_ceil(dir:Length())
-			local start = hg.eyeTrace(lply).HitPos -- Vector(1005.879456,608.151123,-77.997421)
-			//pos, dir, size, maxpen, boxs, center, endDis, organs, ricochetable, funcInput, ...
+			local start = hg.eyeTrace(lply).HitPos
 			local endPos, hitBoxs, inputHole, outputHole = hg.organism.Trace(start, dir, 1, 0, boxs, pos, sphere, organs, false, hg.organism.Trace_Bullet, organs)
-			--render.DrawWireframeBox(endPos, angZero, -box, box)
-			
+
 			render.DrawWireframeBox(start, LocalPlayer():EyeAngles(), -Vector(0,distance / 50,distance / 50),Vector(distance / 1,distance / 50,distance / 50))
 			for i = 1, #boxs do
 				local box = boxs[i]
@@ -142,6 +139,5 @@ hook.Add("PostDrawTranslucentRenderables", "homigrad-organism", function()
 				render_DrawWireframeBox(box[1], box[2], box[3], box[4], (organ and organ[6]) or black)
 			end
 		end
-		--render.DrawWireframeSphere(pos,sphere,16,16,color2)
 	end
 end)

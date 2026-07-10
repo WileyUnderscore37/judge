@@ -1488,10 +1488,13 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
     
     if not self.FirstAttackTick then 
         if CLIENT then
-            if owner == lply and self.viewpunch then
-                ViewPunch(self:GetAttackConfigValue(self.ViewPunch1, self.ViewPunch2, self.ChargeViewPunch, attacktype) or self.ViewPunch1)
-                self.viewpunch = nil
-            end
+                if owner == lply and self.viewpunch then
+                    local punch = self:GetAttackConfigValue(self.ViewPunch1, self.ViewPunch2, self.ChargeViewPunch, attacktype) or self.ViewPunch1
+                    local punchMul = self.ViewPunchMul or 0.85
+                    if isangle(punch) then punch = Angle(punch.p * punchMul, punch.y * punchMul, punch.r * punchMul) end
+                    ViewPunch(punch)
+                    self.viewpunch = nil
+                end
         else
             self.Penetration = self:GetAttackConfigValue(self.PenetrationPrimary, self.PenetrationSecondary, self.ChargePenetration, attacktype)
             self.PenetrationSize = self:GetAttackConfigValue(self.PenetrationSizePrimary, self.PenetrationSizeSecondary, self.ChargePenetrationSize, attacktype)
@@ -1526,7 +1529,19 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
     
     self.HitEnts = self.HitEnts or {owner, ent}
     
+    local awStart = self.MeleeActiveStart or 0.15
+    local awEnd = self.MeleeActiveEnd or 0.8
+    local inWindow = inattackLength >= awStart and inattackLength <= awEnd
+    self.InMeleeActiveWindow = inWindow
+    local windowReach = (secondary or charge) and 1 or (inWindow and 1 or 0)
+
     local vellen = math.min(owner:GetVelocity():Length() * 0.05, 40)
+    local isKnife = self:GetClass():lower():find("knife") ~= nil
+    local knifeBonus = isKnife and (self.MeleeKnifeBonus or 22) or 0
+    local baseReach = self.MeleeRange or (self:GetAttackLength() + vellen + knifeBonus)
+    local defMul = self.MeleeRange and 1 or (isKnife and (self.MeleeKnifeMul or 1.15) or 0.7)
+    local reachLen = baseReach * (self.MeleeReachMul or defMul)
+    reachLen = math.max(reachLen - (self.MeleeReachTrim or -1), 0)
     local eyetr = hg.eyeTrace(owner, (self:GetAttackLength() + vellen), ent, owner:GetAimVector())
     local shouldDrawHull = ShouldDrawMeleeAttackHull(owner)
     //debugoverlay.Line(eyetr.StartPos, eyetr.StartPos + eyetr.Normal * (self:GetAttackLength() + vellen), 3, color_white)
@@ -1542,6 +1557,12 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
 
     local amt = 6
 
+    local devConvar = GetConVar("developer")
+    local conePts
+    if CLIENT and devConvar and devConvar:GetInt() > 0 then
+        conePts = {}
+    end
+
     for i = 0, amt do
         local normal = eyetr.Normal:Angle()
 
@@ -1554,7 +1575,11 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
         local tr = {}
 
         tr.start = eyetr.StartPos
-        tr.endpos = eyetr.StartPos + normal:Forward() * (secondary and 1 or math.max(0.5, 1 - math.abs((0.5 - inattackLength) * 2))) * (self:GetAttackLength() + vellen)
+        tr.endpos = eyetr.StartPos + normal:Forward() * windowReach * reachLen
+
+        if conePts then
+            conePts[#conePts + 1] = eyetr.StartPos + normal:Forward() * reachLen
+        end
         tr.filter = (secondary and self.MultiDmg2 or charge and self.MultiDmgCharge or self.MultiDmg1) and {owner, ent} or self.HitEnts
 
         local size = 0.15
@@ -1584,6 +1609,17 @@ function SWEP:Attack(owner, ent, vellen, attacktype, inattackLength)
         if self:IsEntSoft(trace.Entity) then
 			break
 		end
+    end
+
+    if conePts and #conePts > 0 then
+        local col = inWindow and Color(0, 255, 80) or Color(255, 70, 70)
+        for k = 1, #conePts do
+            debugoverlay.Line(eyetr.StartPos, conePts[k], 0.05, col, true)
+        end
+        for k = 1, #conePts - 1 do
+            debugoverlay.Line(conePts[k], conePts[k + 1], 0.05, col, true)
+        end
+        debugoverlay.Sphere(eyetr.StartPos, 1, 0.05, col, true)
     end
 
     return trace
@@ -1653,7 +1689,8 @@ function SWEP:PunchPlayer(ent, attacktype, trnormal, dmg)
             
             local angrand = AngleRand(-5, 5)
 
-            ply:ViewPunch((normal * -dot) * dmg * (self.HitPunchMul or 0.75) / (self.HitPunchDiv or 40))
+            local hem = self:GetClass():lower():find("knife") and (self.KnifeHitEffectMul or 0.5) or (self.HitEffectMul or 1)
+            ply:ViewPunch((normal * -dot) * dmg * (self.HitPunchMul or 0.75) / (self.HitPunchDiv or 40) * hem)
 			if ply:OnGround() or ply.organism.superfighter then
                 local owner = self:GetOwner()
                 local pushDir = IsValid(owner) and (ply:GetPos() - owner:GetPos()) or trnormal
@@ -1985,7 +2022,13 @@ function SWEP:GetAttackHitStopReverse(attacktype)
 end
 
 function SWEP:GetAttackHitStopData(attacktype)
-    return self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, self:GetAttackHitStopReverse(attacktype), self.HitStopWorldStop or 0.12
+    local speedMul, pause, reverse, stopanim = self.HitStopWorldSpeedMul or 2.35, self.HitStopWorldPause or 0.12, self:GetAttackHitStopReverse(attacktype), self.HitStopWorldStop or 0.12
+    if self:GetClass():lower():find("knife") then
+        local m = self.KnifeHitStopMul or 0.4
+        pause = pause * m
+        stopanim = stopanim * m
+    end
+    return speedMul, pause, reverse, stopanim
 end
 
 function SWEP:ShouldStopAttackOnWorldHit(attacktype)
