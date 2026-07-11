@@ -131,6 +131,7 @@ local list = {
 	{{"stamina.max", "stamina", "max"}, 
 	{"stamina", "range"}}, 
 	{{"stamina.regen", "stamina", "regen"}, 1}, 
+	{{"stamina.regenMul", "stamina", "regenMul"}, 1},
 	{{"stamina.sub", "stamina", "sub"}, 1, true}, 
 	0, 
 	{"brain", 1, true},

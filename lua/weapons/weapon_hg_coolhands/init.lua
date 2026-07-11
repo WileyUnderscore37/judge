@@ -474,6 +474,11 @@ function SWEP:SetCarrying(ent, bone, pos, dist)
 end
 
 SWEP.DamagePrimary = 10
+SWEP.BlockStaminaBase = 8
+SWEP.BlockStaminaPerWeight = 6
+SWEP.BlockStaminaPerfectBase = 4
+SWEP.BlockStaminaPerfectPerWeight = 2
+SWEP.BlockRegenMul = 0.15
 
 function SWEP:BlockingLogic(ent, mul, attacktype, trace)
 	local ent = hg.RagdollOwner(ent) or ent
@@ -494,7 +499,16 @@ function SWEP:BlockingLogic(ent, mul, attacktype, trace)
 		local selfdmg = self.DamagePrimary * 0.2
 
 		if wep.GetBlocking and wep:GetBlocking() and wep.SetStartedBlocking and dist < 10 then
-			ent.organism.stamina.subadd = ent.organism.stamina.subadd + mul * math_Clamp(selfdmg / dmg, 0.1, 1) * selfdmg * (1 - math_Clamp((self:GetStartedBlocking() - CurTime() + 0.1), 0, 0.1) / 0.1)
+			local w = wep.weight or 0.5
+			local blockCost = (self.BlockStaminaBase or 8) + w * (self.BlockStaminaPerWeight or 6)
+			if ent.organism and ent.organism.stamina then
+				ent.organism.stamina[1] = math.max(0, ent.organism.stamina[1] - (blockCost + mul * math_Clamp(selfdmg / dmg, 0.1, 1) * selfdmg))
+				ent.organism.stamina.regenMul = math.min(ent.organism.stamina.regenMul or 1, self.BlockRegenMul or 0.3)
+
+				if cvars.Number("developer", 0) >= 1 then
+					print("[block] defender=" .. tostring(ent) .. " weight=" .. math.Round(wep.weight or 0, 2) .. " stamina[1]=" .. math.Round(ent.organism.stamina[1], 1) .. " regenMul=" .. math.Round(ent.organism.stamina.regenMul, 2))
+				end
+			end
 
 			wep:SetLastBlocked(CurTime())
 

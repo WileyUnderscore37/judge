@@ -157,6 +157,7 @@ module[1] = function(org)
 		subadd = 0,
 		weight = 0,
 		max = 60 * 3,
+		regenMul = 1,
 	}
 	org.energy = 0
 	org.hemotransfusionshock = 0
@@ -209,7 +210,15 @@ module[2] = function(owner, org, timeValue)
 	org.hungry = org.hungry or 0
 	stamina.max = (org.superfighter and 2 or 1) * ((stamina.range * (1 - (org.pneumothorax) / 2) + org.adrenaline * 20 ) * math.max(1 - org.hemotransfusionshock,0.2)) * math.max(1 - (org.hungry/100),0.65)
 	stamina[1] = max(stamina[1] - stamina.sub * timeValue * 16 * (2 - (org.o2[1] / org.o2.range)), 0)
-	stamina[1] = min(stamina[1] + stamina.regen * timeValue * 8 * 1.5 * math.max(org.stamina[1] / org.stamina.max, 0.2) ^ 0.5 * (org.noradrenaline / 2 + 1) * (org.o2[1] / org.o2.range) * (org.adrenaline / 16 + 1) * (org.satiety/700 + 1) * ((owner:IsPlayer() and owner:Crouching() and velLen < 0.1) and 1.1 or 1) * (org.holdingbreath and 0 or 1) * (org.lungsfunction and 1 or 0), stamina.max)
+	stamina[1] = min(stamina[1] + stamina.regen * timeValue * 8 * 1.5 * math.max(org.stamina[1] / org.stamina.max, 0.2) ^ 0.5 * (org.noradrenaline / 2 + 1) * (org.o2[1] / org.o2.range) * (org.adrenaline / 16 + 1) * (org.satiety/700 + 1) * ((owner:IsPlayer() and owner:Crouching() and velLen < 0.1) and 1.1 or 1) * (org.holdingbreath and 0 or 1) * (org.lungsfunction and 1 or 0) * (stamina.regenMul or 1), stamina.max)
+	stamina.regenMul = math.Approach(stamina.regenMul or 1, 1, timeValue * (org.BlockRegenRecoverRate or 0.25))
+
+	if cvars.Number("developer", 0) >= 1 and stamina.regenMul < 0.999 then
+		if (org._nextRegenDebug or 0) < CurTime() then
+			org._nextRegenDebug = CurTime() + 0.5
+			print("[stamina] regenMul=" .. math.Round(stamina.regenMul, 2) .. " stamina[1]=" .. math.Round(stamina[1], 1) .. "/" .. math.Round(stamina.max, 0))
+		end
+	end
 	if org.nextAdrenalineRegen and org.nextAdrenalineRegen < CurTime() then
 		org.adrenalineStorage = math.Approach(org.adrenalineStorage, 5, timeValue / 60 * (org.satiety * 0.01 + 1))
 	end

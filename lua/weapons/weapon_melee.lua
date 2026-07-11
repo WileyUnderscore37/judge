@@ -835,7 +835,7 @@ function SWEP:Camera(eyePos, eyeAng, view, vellen)
     //view.angles[1] = view.angles[1] + lpos.z * 1
     //view.angles[2] = view.angles[2] + lpos.y * 1
 
-    self.meleeFovKick = LerpFT(0.08, self.meleeFovKick or 0, 0)
+    self.meleeFovKick = LerpFT(0.15, self.meleeFovKick or 0, 0)
     if math.abs(self.meleeFovKick) > 0.01 then
         view.fov = (view.fov or 70) + self.meleeFovKick
     end
@@ -1122,10 +1122,12 @@ function SWEP:ReleaseChargeAttack()
     self:SetLastAttack(CurTime() + (self.ChargeAttackTime or self.AttackTime) / mul)
     self:SetAttackTime(self:GetLastAttack() + ((self.ChargeAttackTimeLength or self.AttackTimeLength) / mul))
     self:SetAttackLength(self.ChargeAttackLen or self.AttackLen1)
-    self:SetAttackWait((self.ChargeWaitTime or self.WaitTime1) / mul)
+    local riposteCharge = (self.RiposteUntil or 0) > CurTime() and (self.BlockRiposteSpeedMul or 0.7) or 1
+    self:SetAttackWait(((self.ChargeWaitTime or self.WaitTime1) * riposteCharge) / mul)
     self:SetInAttack(true)
     self.lastattack = CurTime() + (self.ChargeAttackTime or self.AttackTime) / mul
-    self.attackwait = (self.ChargeWaitTime or self.WaitTime1) / mul
+    self.attackwait = ((self.ChargeWaitTime or self.WaitTime1) * riposteCharge) / mul
+    if riposteCharge < 1 then self.RiposteUntil = 0 end
 
     if CLIENT and not self:IsLocal() and owner.AnimRestartGesture then
         owner:AnimRestartGesture(GESTURE_SLOT_ATTACK_AND_RELOAD, ACT_HL2MP_GESTURE_RANGE_ATTACK_SLAM, true)
@@ -1988,6 +1990,13 @@ function SWEP:PlayConfiguredWorldSound(layer, pos, volumeMul)
     sound.Play(snd, pos, volume, pitch)
 end
 
+function SWEP:GetMeleeImpactMul(dmgOverride)
+    local w = math.Clamp((self.weight or 0.4) / 4, 0, 1)
+    local d = math.Clamp((dmgOverride or self.DamagePrimary or 15) / 50, 0, 1)
+    local impact = w * 0.5 + d * 0.5
+    return 0.3 + impact * 0.7
+end
+
 function SWEP:DispatchBlockImpactFx(trace, blockWep, state)
     if SERVER then
         local normal = trace.HitNormal and trace.HitNormal ~= vector_origin and trace.HitNormal or -self:GetOwner():GetAimVector()
@@ -2007,6 +2016,11 @@ function SWEP:DispatchBlockImpactFx(trace, blockWep, state)
         if IsValid(blockOwner) and blockOwner:IsPlayer() then
             net.Start("hg_melee_block_shake")
             net.WriteEntity(blockWep)
+            net.WriteVector(normal)
+            net.WriteString(state or "block")
+            net.Send(blockOwner)
+
+            net.Start("MeleeBlockPush")
             net.WriteVector(normal)
             net.WriteString(state or "block")
             net.Send(blockOwner)
@@ -2107,6 +2121,13 @@ function SWEP:SendMeleeHitStop(attacktype, normal, shakeState)
 
     local speedMul, pause, reverse, stopanim = self:GetAttackHitStopData(attacktype)
 
+    if shakeState == "parry" then
+        local m = self.BlockParryHitStopMul or 1.6
+        pause = pause * m
+        stopanim = (stopanim or 0) * m
+        speedMul = speedMul * (self.BlockParryHitStopSpeedMul or 1.2)
+    end
+
     net.Start("hg_melee_hit_stop")
     net.WriteEntity(self)
     net.WriteFloat(speedMul)
@@ -2115,6 +2136,7 @@ function SWEP:SendMeleeHitStop(attacktype, normal, shakeState)
     net.WriteFloat(stopanim or 0)
     net.WriteVector(normal and normal:GetNormalized() or vector_up)
     net.WriteString(shakeState or "")
+    net.WriteFloat(0)
     net.SendPVS(self:GetPos())
 end
 
@@ -2137,6 +2159,7 @@ function SWEP:SendMeleeSoftHitStop(attacktype, normal, dmg)
     net.WriteFloat(stopanim)
     net.WriteVector(normal and normal:GetNormalized() or vector_up)
     net.WriteString("")
+    net.WriteFloat(dmg or 0)
     net.SendPVS(self:GetPos())
 end
 
@@ -2204,6 +2227,16 @@ function SWEP:HandleMeleeClash(otherWep, clashPos, hitNormal, attacktype, otherA
     else
         otherWep:AbortClashAttack()
         self:SendClashAnimStop(otherWep, -clashTrace.HitNormal)
+    end
+
+    local owner1 = self:GetOwner()
+    local owner2 = otherWep:GetOwner()
+    local regenVal = self.ClashRegenMul or 0.2
+    if IsValid(owner1) and owner1.organism and owner1.organism.stamina then
+        owner1.organism.stamina.regenMul = math.min(owner1.organism.stamina.regenMul or 1, regenVal)
+    end
+    if IsValid(owner2) and owner2.organism and owner2.organism.stamina then
+        owner2.organism.stamina.regenMul = math.min(owner2.organism.stamina.regenMul or 1, regenVal)
     end
 
     return {
@@ -2400,16 +2433,45 @@ function SWEP:BlockingLogic(ent, mul, attacktype, trace)
                 self:PunchPlayer(ent, attacktype, owner:GetAimVector(), selfdmg * 0.1)
                 self:PlayBlockImpactEffect(trace, wep, "parry")
 
+                -- single parry ring for all melee parries (clash/rem_clashblunt, pitched up)
+                sound.Play("clash/rem_clashblunt.wav", trace.HitPos, 82, math.random(130, 150))
+
+                -- parry reward: small stamina refund + riposte window (faster counter)
+                if ent.organism and ent.organism.stamina then
+                    local reward = self.BlockParryStaminaReward or 4
+                    ent.organism.stamina[1] = math.min(ent.organism.stamina.max or ent.organism.stamina[1], ent.organism.stamina[1] + reward)
+                end
+
+                wep.RiposteUntil = CurTime() + (self.BlockRiposteWindow or 0.6)
+
+                -- parried attacker is staggered and cannot swing for a moment
+                local lockout = self.BlockParryAttackerLockout or 0.5
+                self:SetInAttack(false)
+                self:SetLastAttack(CurTime() + lockout)
+                self.lastattack = CurTime() + lockout
+
                 return 0, "parry"
             end
 
             if ent.organism and ent.organism.stamina then
-                ent.organism.stamina.subadd = ent.organism.stamina.subadd + blockStaminaCost
+                local w = wep.weight or 0.4
+                ent.organism.stamina[1] = math.max(0, ent.organism.stamina[1] - ((self.BlockDefenderStaminaBase or 8) + w * (self.BlockDefenderStaminaPerWeight or 6)))
+                ent.organism.stamina.regenMul = math.min(ent.organism.stamina.regenMul or 1, self.BlockRegenMul or 0.3)
+
+                if cvars.Number("developer", 0) >= 1 then
+                    print("[block] defender=" .. tostring(ent) .. " weight=" .. math.Round(wep.weight or 0, 2) .. " stamina[1]=" .. math.Round(ent.organism.stamina[1], 1) .. " regenMul=" .. math.Round(ent.organism.stamina.regenMul, 2))
+                end
             end
 
             if tierDiff >= (self.BlockBreakTierDiff or 2) then
                 if ent.organism and ent.organism.stamina then
-                    ent.organism.stamina.subadd = ent.organism.stamina.subadd + selfdmg * (wep.BlockBreakStaminaMul or self.BlockBreakStaminaMul or 0.75)
+                    local w = wep.weight or 0.4
+                    ent.organism.stamina[1] = math.max(0, ent.organism.stamina[1] - ((self.BlockBreakDefenderStaminaBase or 12) + w * (self.BlockBreakDefenderStaminaPerWeight or 8)))
+                ent.organism.stamina.regenMul = math.min(ent.organism.stamina.regenMul or 1, self.BlockRegenMul or 0.3)
+
+                if cvars.Number("developer", 0) >= 1 then
+                    print("[block] defender=" .. tostring(ent) .. " weight=" .. math.Round(wep.weight or 0, 2) .. " stamina[1]=" .. math.Round(ent.organism.stamina[1], 1) .. " regenMul=" .. math.Round(ent.organism.stamina.regenMul, 2))
+                end
                 end
 
                 if wep.SetBlocking then
@@ -2464,15 +2526,26 @@ local matBlood = Material("zbattle/blood")
 SWEP.BlockTier = 1
 SWEP.BlockMaterial = nil
 SWEP.BlockSound = nil
-SWEP.BlockParryWindow = 0.35
-SWEP.BlockParryWindowBonus = 0.08
+SWEP.BlockParryWindow = 0.07
+SWEP.BlockParryWindowBonus = 0
 SWEP.BlockWeakenDamageMul = 0.35
 SWEP.BlockBreakTierDiff = 2
 SWEP.BlockBreakCooldown = 0.65
-SWEP.BlockBreakStaminaMul = 0.75
+SWEP.BlockBreakStaminaMul = 1.5
 SWEP.BlockStaminaTierMul = 0.35
-SWEP.BlockHitStaminaMul = 0.5
+SWEP.BlockHitStaminaMul = 2
 SWEP.BlockParryStaminaMul = 0.5
+SWEP.BlockDefenderStaminaBase = 8
+SWEP.BlockDefenderStaminaPerWeight = 6
+SWEP.BlockBreakDefenderStaminaBase = 12
+SWEP.BlockBreakDefenderStaminaPerWeight = 8
+SWEP.BlockRegenMul = 0.15
+SWEP.BlockParryStaminaReward = 4
+SWEP.BlockRiposteWindow = 0.6
+SWEP.BlockRiposteSpeedMul = 0.7
+SWEP.BlockParryAttackerLockout = 0.9
+SWEP.BlockParryHitStopMul = 1.0
+SWEP.BlockParryHitStopSpeedMul = 1.2
 SWEP.BlockMinStamina = 70
 SWEP.BlockRecoverDelay = 0.35
 SWEP.BlockDirectionalFrontDot = 0.05
@@ -2514,6 +2587,7 @@ SWEP.ClashSearchRadius = 22
 SWEP.ClashFrontDot = 0.2
 SWEP.ClashFacingDot = -0.2
 SWEP.ClashCooldown = nil
+SWEP.ClashRegenMul = 0.2
 SWEP.noreverse = false
 SWEP.blockPoseSoundState = nil
 SWEP.ShouldAttackOnce = true
@@ -2915,8 +2989,9 @@ function SWEP:CustomThink()
                 self:SendMeleeSoftHitStop(1, trace.HitNormal, dmg)
 
                 if owner:IsPlayer() then
-                    owner:ViewPunch((self:GetAttackConfigValue(self.ViewPunch1, self.ViewPunch2, self.ChargeViewPunch, false) or self.ViewPunch1) * 0.4)
-                    util.ScreenShake(owner:GetPos(), 15, 5, 0.15, 60)
+                    local imul = self:GetMeleeImpactMul(dmg)
+                    owner:ViewPunch((self:GetAttackConfigValue(self.ViewPunch1, self.ViewPunch2, self.ChargeViewPunch, false) or self.ViewPunch1) * 0.4 * imul)
+                    util.ScreenShake(owner:GetPos(), 15 * imul, 5, 0.15, 60 * imul)
                 end
             end
 
@@ -3080,8 +3155,9 @@ function SWEP:CustomThink()
                 self:SendMeleeSoftHitStop(2, trace.HitNormal, dmg)
 
                 if owner:IsPlayer() then
-                    owner:ViewPunch((self:GetAttackConfigValue(self.ViewPunch1, self.ViewPunch2, self.ChargeViewPunch, true) or self.ViewPunch2) * 0.4)
-                    util.ScreenShake(owner:GetPos(), 15, 5, 0.15, 60)
+                    local imul = self:GetMeleeImpactMul(dmg)
+                    owner:ViewPunch((self:GetAttackConfigValue(self.ViewPunch1, self.ViewPunch2, self.ChargeViewPunch, true) or self.ViewPunch2) * 0.4 * imul)
+                    util.ScreenShake(owner:GetPos(), 15 * imul, 5, 0.15, 60 * imul)
                 end
             end
 
@@ -3257,8 +3333,9 @@ function SWEP:CustomThink()
                 self:SendMeleeSoftHitStop(3, trace.HitNormal, dmg)
 
                 if owner:IsPlayer() then
-                    owner:ViewPunch((self:GetAttackConfigValue(self.ViewPunch1, self.ViewPunch2, self.ChargeViewPunch, 3) or self.ViewPunch1) * 0.4)
-                    util.ScreenShake(owner:GetPos(), 15, 5, 0.15, 60)
+                    local imul = self:GetMeleeImpactMul(dmg)
+                    owner:ViewPunch((self:GetAttackConfigValue(self.ViewPunch1, self.ViewPunch2, self.ChargeViewPunch, 3) or self.ViewPunch1) * 0.4 * imul)
+                    util.ScreenShake(owner:GetPos(), 15 * imul, 5, 0.15, 60 * imul)
                 end
             end
 
@@ -3379,7 +3456,9 @@ function SWEP:PrimaryAttack()
     self:SetLastAttack(CurTime() + self.AttackTime / mul)
     self:SetAttackTime(self:GetLastAttack() + (self.AttackTimeLength / mul))
     self:SetAttackLength(self.AttackLen1)
-    self:SetAttackWait(self.WaitTime1 / mul)
+    local riposte = (self.RiposteUntil or 0) > CurTime() and (self.BlockRiposteSpeedMul or 0.7) or 1
+    self:SetAttackWait((self.WaitTime1 * riposte) / mul)
+    if riposte < 1 then self.RiposteUntil = 0 end
     self:SetInAttack(true)
     self.lastattack = CurTime() + self.Attack2Time / mul
     self.attackwait = self.WaitTime2 / mul
@@ -3621,6 +3700,8 @@ if SERVER then
     util.AddNetworkString("hg_melee_block_fx")
     util.AddNetworkString("hg_melee_block_shake")
     util.AddNetworkString("hg_melee_clash_stop")
+    util.AddNetworkString("MeleeBlockEffect")
+    util.AddNetworkString("MeleeBlockPush")
 elseif CLIENT then
     net.Receive("hg_melee_block_shake", function()
         local wep = net.ReadEntity()
@@ -3773,6 +3854,7 @@ elseif CLIENT then
         local stopanim = net.ReadFloat()
         local normal = net.ReadVector()
         local shakeState = net.ReadString()
+        local hitDmg = net.ReadFloat()
 
         if not IsValid(wep) then return end
 
@@ -3786,14 +3868,15 @@ elseif CLIENT then
 
         local owner = wep.GetOwner and wep:GetOwner()
         if IsValid(owner) and owner == LocalPlayer() then
-            util.ScreenShake(wep:GetPos(), 35, 1, 1, 100)
+            local refDmg = hitDmg > 0 and hitDmg or (wep.DamagePrimary or 15)
+            local w = math.Clamp((wep.weight or 0.4) / 4, 0, 1)
+            local d = math.Clamp(refDmg / 50, 0, 1)
+            local impact = 0.3 + (w * 0.5 + d * 0.5) * 0.7
 
-            local weightScale = math.Clamp((wep.weight or 0.4) / 4, 0, 1)
-            local dmgScale = math.Clamp((wep.DamagePrimary or 15) / 50, 0, 1)
-            local impact = weightScale * 0.5 + dmgScale * 0.5
+            local newFov = -(1 + impact * 2)
+            wep.meleeFovKick = math.min(wep.meleeFovKick or 0, newFov)
 
-            wep.meleeFovKick = (wep.meleeFovKick or 0) - (2 + impact * 3)
-            wep.meleeMotionBlur = math.max(wep.meleeMotionBlur or 0, 0.005 + impact * 0.025)
+            wep.meleeMotionBlur = math.max(wep.meleeMotionBlur or 0, 0.003 + impact * 0.017)
         end
     end)
 
@@ -3808,6 +3891,11 @@ elseif CLIENT then
         end
 
         QueueMeleeHitStop(wep, wep.HitStopWorldSpeedMul or 2.35, wep.HitStopWorldPause or 0.12, not wep.noreverse, wep.HitStopWorldStop or 0.12)
+
+        local owner = wep:GetOwner()
+        if IsValid(owner) and owner == LocalPlayer() then
+            AddBlockImpact(0.8, wep, wep:GetPos())
+        end
     end)
 
     net.Receive("melee_attack",function()
@@ -3818,13 +3906,116 @@ elseif CLIENT then
         if ent.IsLocal and !ent:IsLocal() then
             if IsValid(ent) and ent.PlayAnim then
                 ent:PlayAnim(tbl.anim,tbl.time,tbl.cycling,tbl.callback,tbl.reverse)
-                
+
                 if (tbl.anim == "attack" or tbl.anim == "attack2") and ent:GetOwner().AnimRestartGesture and IsValid(ent:GetOwner()) and not ent:GetOwner():IsWorld() then
                     ent:GetOwner():AnimRestartGesture(GESTURE_SLOT_ATTACK_AND_RELOAD, ACT_HL2MP_GESTURE_RANGE_ATTACK_SLAM, true)
                 end
             end
         end
     end)
+
+    net.Receive("MeleeBlockEffect", function()
+        local pos = net.ReadVector()
+        local material = net.ReadString()
+
+        if material == "none" or not pos then return end
+
+        local emitter = ParticleEmitter(pos)
+        if not emitter then return end
+
+        local metal = material == "metal"
+
+        if metal then
+            for i = 1, 8 do
+                local part = emitter:Add("effects/spark", pos)
+
+                if part then
+                    part:SetVelocity(VectorRand() * math.Rand(40, 120))
+                    part:SetDieTime(math.Rand(0.4, 0.6))
+                    part:SetStartAlpha(255)
+                    part:SetEndAlpha(0)
+                    part:SetStartSize(math.Rand(2, 2.8))
+                    part:SetEndSize(0)
+                    part:SetRoll(math.Rand(0, 360))
+                    part:SetGravity(Vector(0, 0, -220))
+                    part:SetCollide(true)
+                    part:SetBounce(0.5)
+                end
+            end
+        else
+            for i = 1, 5 do
+                local part = emitter:Add("effects/fleck_wood" .. math.random(1, 2), pos)
+
+                if part then
+                    part:SetVelocity(VectorRand() * math.Rand(24, 50) + Vector(0, 0, 50))
+                    part:SetDieTime(math.Rand(2.2, 2.9))
+                    part:SetStartAlpha(255)
+                    part:SetEndAlpha(0)
+                    part:SetStartSize(math.Rand(1.5, 1.8))
+                    part:SetEndSize(0)
+                    part:SetRoll(math.Rand(0, 360))
+                    part:SetGravity(Vector(0, 0, -200))
+                    part:SetCollide(true)
+                    part:SetBounce(0.18)
+                end
+            end
+        end
+
+        emitter:Finish()
+    end)
+
+    net.Receive("MeleeBlockPush", function()
+        local normal = net.ReadVector()
+        local state = net.ReadString()
+
+        local ply = LocalPlayer()
+        if not IsValid(ply) then return end
+
+        local wep = ply:GetActiveWeapon()
+
+        if IsValid(wep) and wep.AddBlockPush then
+            wep:AddBlockPush(normal)
+        end
+
+        local weight = IsValid(wep) and wep.weight or 0
+        local intensity = 0.6 + math.Clamp(weight / 4, 0, 1) * 0.9
+        if state == "parry" then intensity = intensity * 1.5 end
+
+        AddBlockImpact(intensity, wep, ply:GetPos())
+    end)
+
+    local blockImpact = { fov = 0 }
+
+    hook.Add("HG_CalcView", "hg_block_impact_fov", function(ply, origin, angles, fova)
+        if not istable(fova) then return end
+        if math.abs(blockImpact.fov) > 0.01 then
+            fova[1] = fova[1] + blockImpact.fov
+        end
+    end)
+
+    hook.Add("Think", "hg_block_impact_decay", function()
+        blockImpact.fov = LerpFT(0.09, blockImpact.fov, 0)
+    end)
+
+    function AddBlockImpact(intensity, wep, shakePos)
+        local ply = LocalPlayer()
+        if not IsValid(ply) then return end
+
+        -- native melee motion blur + fov kick (same as on a successful attack)
+        if IsValid(wep) and wep.CanClashWeapon ~= nil then
+            wep.meleeFovKick = (wep.meleeFovKick or 0) - (2 + intensity * 3)
+            wep.meleeMotionBlur = math.max(wep.meleeMotionBlur or 0, 0.005 + intensity * 0.025)
+        else
+            -- non-melee defender (fists): lightweight fov punch only
+            blockImpact.fov = (blockImpact.fov or 0) - (2 + intensity * 4)
+        end
+
+        if IsValid(shakePos) then
+            util.ScreenShake(shakePos, 45 * intensity, 1.2, 0.7, 160)
+        end
+
+        ply:ViewPunch(Angle(math.Rand(-3, 3) * intensity, math.Rand(-5, 5) * intensity, math.Rand(-2, 2) * intensity))
+    end
 end
 
 function SWEP:PlayAnim(anim, time, cycling, callback, reverse, sendtoclient)

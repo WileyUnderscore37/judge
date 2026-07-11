@@ -337,6 +337,15 @@ function PLAYER:LegAttack()
 					MaxPenLenGlobal = 1
                     hg.AddForceRag(ent, tr.PhysicsBone or 0, force, 0.25)
                     ent:TakeDamageInfo(dmginfo)
+
+                    if ent:IsPlayer() then
+                        hg.ApplyBruiseTo(ent, ent, tr.HitPos, tr.HitNormal)
+                    elseif ent:GetClass() == "prop_ragdoll" then
+                        local ragOwner = hg.RagdollOwner(ent)
+                        if IsValid(ragOwner) and ragOwner:IsPlayer() then
+                            hg.ApplyBruiseTo(ent, ragOwner, tr.HitPos, tr.HitNormal)
+                        end
+                    end
                     
                     if IsValid(phys) then
                         phys:ApplyForceOffset(normal * dmg * propForceMul, tr.HitPos)

@@ -3,6 +3,23 @@ if SERVER then
     util.AddNetworkString("bloody_decal_1")
     util.AddNetworkString("bruise_decal")
 
+    local bruiseDecalCount = 4
+
+    function hg.ApplyBruiseTo(ent, victim, hitPos, hitNormal)
+        if not IsValid(ent) then return end
+        if not IsValid(victim) or not victim:IsPlayer() then return end
+        if math.random() > math.Rand(0.65, 0.75) then return end
+
+        local idx = math.random(bruiseDecalCount)
+        net.Start("bruise_decal")
+        net.WriteEntity(ent)
+        net.WriteEntity(victim)
+        net.WriteUInt(idx, 4)
+        net.WriteVector(hitPos)
+        net.WriteVector(hitNormal)
+        net.SendPVS(hitPos)
+    end
+
     return
 end
 
