@@ -2400,8 +2400,10 @@ function SWEP:PlayAnim(anim, data, cycling, callback, reverse, sendtoclient)
 			local TimerName = "VM_Events_ZC-Base" .. self:EntIndex() .. self.seq .. k
 			local TimerID = #self.VM_TimerEvents + 1
 			local seq = self.seq
-			if k < 0 then v(self) continue end
-			timer.Create(TimerName, Time * k, 1, function()
+			local kn = tonumber(k)
+			if not kn then continue end
+			if kn < 0 then v(self) continue end
+			timer.Create(TimerName, Time * kn, 1, function()
 				if not IsValid(self) then return end
 				if seq != self.seq then self:VM_RemoveAllEvents() end
 				v(self, mdl)
