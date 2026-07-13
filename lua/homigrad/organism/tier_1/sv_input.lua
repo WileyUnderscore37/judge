@@ -1433,6 +1433,9 @@ local function velocityDamage(ent, data)
 	-- 100 is kil
 	
 	local ply = hg.RagdollOwner(ent)
+        if IsValid(ply) and ply.hgSprintCollisionDamageUntil and ply.hgSprintCollisionDamageUntil > CurTime() then
+                dmg = dmg * (ply.hgSprintCollisionDamageMul or 0.08)
+        end
 
 	local traceResult = GetTraceDamage(ent, data.HitPos, -(data.OurOldVelocity - data.TheirOldVelocity))
 	
