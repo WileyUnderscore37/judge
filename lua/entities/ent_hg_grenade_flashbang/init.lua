@@ -65,6 +65,7 @@ function ENT:Explode()
 
     for _, ply in ipairs(ents.FindInSphere(SelfPos, 700)) do
         if not ply:IsPlayer() or not ply:Alive() then continue end
+        if ply.organism and ply.organism.godmode then continue end
 
         if hg.isVisible(ply:GetShootPos(), SelfPos, {ply, self}, MASK_VISIBLE) then
             local flashTime = math.Clamp(flashTimeDistance - ply:GetPos():Distance(SelfPos), flashTimeMin, flashTimeMax)

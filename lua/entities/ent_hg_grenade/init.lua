@@ -307,8 +307,10 @@ function ENT:Explode()
 
 		if enta.organism then
 			if IsValid(enta.organism.owner) and enta.organism.owner:IsPlayer() then
-				hg.ExplosionDisorientation(enta, 5 * frac, 6 * frac)
-				hg.RunZManipAnim(enta.organism.owner, "shieldexplosion")
+				if not enta.organism.owner.organism or not enta.organism.owner.organism.godmode then
+					hg.ExplosionDisorientation(enta, 5 * frac, 6 * frac)
+					hg.RunZManipAnim(enta.organism.owner, "shieldexplosion")
+				end
 			end
 		end
 
@@ -317,13 +319,16 @@ function ENT:Explode()
 
 
 		if enta:IsPlayer() then
-			hg.AddForceRag(enta, 0, (forceadd + liftForce) * 0.5, 0.5)
-			hg.AddForceRag(enta, 1, (forceadd + liftForce) * 0.5, 0.5)
-
-			hg.LightStunPlayer(enta)
+			local isGod = enta.organism and enta.organism.godmode
+			if not isGod then
+				hg.AddForceRag(enta, 0, (forceadd + liftForce) * 0.5, 0.5)
+				hg.AddForceRag(enta, 1, (forceadd + liftForce) * 0.5, 0.5)
+				hg.LightStunPlayer(enta)
+			end
 		end
 
 		if not IsValid(phys) then continue end
+		if enta:IsPlayer() and enta.organism and enta.organism.godmode then continue end
 		phys:ApplyForceCenter(forceadd + liftForce)
 	end
 
