@@ -129,7 +129,7 @@ SWEP.SupressedSound = {"weapons/tfa_ins2/usp_tactical/fp_suppressed1.wav", 65, 9
 SWEP.Primary.SoundEmpty = {"zcitysnd/sound/weapons/m1911/handling/m1911_empty.wav", 75, 95, 100, CHAN_WEAPON, 2}
 SWEP.Primary.Force = 30
 SWEP.Primary.Wait = 0.2
-SWEP.ReloadTime = 3.3
+SWEP.ReloadTime = 5
 
 
 SWEP.DeploySnd = {"homigrad/weapons/draw_pistol.mp3", 55, 100, 110}

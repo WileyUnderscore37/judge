@@ -85,7 +85,7 @@ SWEP.SupressedSound = {"weapons/darsu_eft/sr1mp/gyrza_silenced_indoor_close1.wav
 SWEP.Primary.SoundEmpty = {"zcitysnd/sound/weapons/m1911/handling/m1911_empty.wav", 75, 100, 105, CHAN_WEAPON, 2}
 SWEP.Primary.Force = 26
 SWEP.Primary.Wait = PISTOLS_WAIT
-SWEP.ReloadTime = 3
+SWEP.ReloadTime = 5
 
 SWEP.DeploySnd = {"homigrad/weapons/draw_pistol.mp3", 55, 100, 110}
 SWEP.HolsterSnd = {"homigrad/weapons/holster_pistol.mp3", 55, 100, 110}

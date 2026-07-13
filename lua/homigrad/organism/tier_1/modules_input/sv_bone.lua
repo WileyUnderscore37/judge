@@ -520,9 +520,9 @@ input_list.skull = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricoch
 	local hasHelmet = org.owner.armors and org.owner.armors["head"] != nil
 	local effectiveDmg = hasHelmet and dmg * 0.3 or dmg
 
-	if effectiveDmg > 7 then
-		-- chance + severity grow with how hard the (post-helmet) impact is
-		local baseChance = math.Clamp((effectiveDmg - 7) / 55, 0.05, 0.9)
+		if effectiveDmg > 7 then
+			-- chance + severity grow with how hard the (post-helmet) impact is
+			local baseChance = math.Clamp((effectiveDmg - 7) / 30, 0.12, 0.97)
 		local intensity = math.Clamp(effectiveDmg * 0.32, 0.5, hasHelmet and 1.2 or 4.0)
 
 		if math.random() < baseChance then

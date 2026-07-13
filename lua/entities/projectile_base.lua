@@ -182,8 +182,9 @@ if SERVER then
 
 			if enta.organism then
 				local behindwall = tr.Entity != enta and tr.MatType != MAT_GLASS
-				if IsValid(enta.organism.owner) and enta.organism.owner:IsPlayer() and not behindwall then
-					hg.ExplosionDisorientation(enta, 5 * frac, 6 * frac)
+				if IsValid(enta.organism.owner) and enta.organism.owner:IsPlayer() then
+					local div = behindwall and hg.GetBlastWallAttenuation(tr) or 1
+					hg.ExplosionDisorientation(enta, 5 * frac / div, 6 * frac / div)
 					hg.RunZManipAnim(enta.organism.owner, "shieldexplosion")
 				end
 			end

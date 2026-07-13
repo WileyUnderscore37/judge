@@ -8,8 +8,8 @@ SWEP.Category = "Weapons - Assault Rifles"
 SWEP.Slot = 2
 SWEP.SlotPos = 10
 SWEP.ViewModel = ""
-SWEP.WorldModel = "models/weapons/tfa_ins2/w_famas.mdl"
-SWEP.WorldModelFake = "models/weapons/tfa_ins2/c_famas.mdl"
+SWEP.WorldModel = "models/weapons/w_famas.mdl"
+SWEP.WorldModelFake = "models/weapons/c_famas.mdl"
 //SWEP.FakeScale = 1.2
 SWEP.FakePos = Vector(-9.5, 1.90, 4.77)
 SWEP.FakeAng = Angle(0, 0, 0)
@@ -20,7 +20,6 @@ SWEP.AttachmentAng = Angle(0,0,0)
 --Entity(1):GetActiveWeapon():GetWM():AddLayeredSequence(Entity(1):GetActiveWeapon():GetWM():LookupSequence("delta_foregrip"),1)
 --PrintBones(Entity(1):GetActiveWeapon():GetWM())
 
--- ОБЫЧНАЯ ПЕРЕЗАРЯДКА
 SWEP.FakeReloadSounds = {
     [0.22] = "weapons/universal/uni_crawl_l_03.wav",             -- одежда
     [0.32] = "weapons/tfa_ins2/famas/famas_magrelease.wav",      -- кнопка сброса
@@ -31,7 +30,6 @@ SWEP.FakeReloadSounds = {
     [0.94] = "weapons/universal/uni_crawl_l_04.wav",
 }
 
--- ПЕРЕЗАРЯДКА ПРИ ПУСТОМ МАГАЗИНЕ
 SWEP.FakeEmptyReloadSounds = {
     [0.16] = "weapons/universal/uni_crawl_l_03.wav",
     [0.26] = "weapons/tfa_ins2/famas/famas_magrelease.wav",
@@ -40,7 +38,6 @@ SWEP.FakeEmptyReloadSounds = {
     [0.64] = "weapons/tfa_ins2/famas/famas_magin.wav",
     [0.74] = "weapons/tfa_ins2/famas/famas_rattle.wav",
 
-    -- затвор
     [0.84] = "weapons/tfa_ins2/famas/famas_boltback.wav",
     [0.92] = "weapons/tfa_ins2/famas/famas_boltrelease.wav",
 

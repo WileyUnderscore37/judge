@@ -84,7 +84,7 @@ SWEP.SupressedSound = {"weapons/darsu_eft/57/fiveseven_fire_silenced_indoor_clos
 SWEP.Primary.SoundEmpty = {"zcitysnd/sound/weapons/makarov/handling/makarov_empty.wav", 75, 100, 105, CHAN_WEAPON, 2}
 SWEP.Primary.Force = 30
 SWEP.Primary.Wait = PISTOLS_WAIT
-SWEP.ReloadTime = 2.6
+SWEP.ReloadTime = 5
 
 
 SWEP.DeploySnd = {"homigrad/weapons/draw_pistol.mp3", 55, 100, 110}
@@ -110,7 +110,7 @@ SWEP.shouldntDrawHolstered = true
 SWEP.weight = 0.7
 SWEP.ShockMultiplier = 1
 
-SWEP.LocalMuzzlePos = Vector(0, -1.9, 1)
+SWEP.LocalMuzzlePos = Vector(0, -2.5, 6)
 SWEP.LocalMuzzleAng = Angle(1.5, 0, 0)
 SWEP.WeaponEyeAngles = Angle(0, 0, 90)
 

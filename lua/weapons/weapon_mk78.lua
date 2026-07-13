@@ -1,7 +1,7 @@
 SWEP.Base = "homigrad_base"
 SWEP.Spawnable = true
 SWEP.AdminOnly = false
-SWEP.PrintName = "RPD EFT"
+SWEP.PrintName = "RPD"
 SWEP.Author = "Degtyarev plant"
 SWEP.Instructions = "Machine gun chambered in 7.62x54 mm\n\nRate of fire 650 rounds per minute"
 SWEP.Category = "Weapons - Machineguns"
@@ -14,12 +14,11 @@ SWEP.Primary.Damage = 70
 SWEP.Primary.Spread = 0
 SWEP.Primary.Force = 70
 
--- Проверь, звуки стрельбы тоже OGG или WAV? Я оставил как было в твоем примере (.wav)
 SWEP.SupressedSound = {"weapons/darsu_eft/rpd/fire/rpd_indoor_silenced_distant_loop1.wav", 75, 100, 110}
 SWEP.Primary.Sound = {"weapons/darsu_eft/rpd/fire/rpd_indoor_distant_loop1.wav", 75, 100, 110}
 SWEP.Primary.SoundEmpty = {"zcitysnd/sound/weapons/ak47/handling/ak47_empty.wav", 75, 100, 105, CHAN_WEAPON, 2}
 SWEP.Primary.Wait = 0.10
-SWEP.ReloadTime = 9.5
+SWEP.ReloadTime = 7.5
 
 function SWEP:PostFireBullet(bullet)
 	local owner = self:GetOwner()
@@ -54,7 +53,24 @@ SWEP.AnimList = {
 	["idle"] = "idle",
 	["reload"] = "reloadt",
 	["reload_empty"] = "reload_empty",
+	["inspect"] = "look",
 }
+
+SWEP.AnimsEvents = {
+	["inspect"] = {
+		[0.01] = function(self) self:EmitSound("weapons/darsu_eft/pkm/pk_gun_flip_3.ogg") end,
+		[0.4] = function(self) self:EmitSound("weapons/darsu_eft/pkm/pk_gun_flip_5.ogg") end,
+
+	},
+}
+
+function SWEP:AllowedInspect()
+	if not self:CanUse() then return end
+if self.isReloading then return end
+	if self:Clip1() < self.Primary.ClipSize then return end
+	if self.drawBullet == false then return end
+	return true
+end
 
 SWEP.GunCamPos = Vector(6,-17,-4)
 SWEP.GunCamAng = Angle(190,0,-90)
@@ -152,7 +168,7 @@ for i = 1, 100 do
 	SWEP.Spray[i] = Angle(-0.05 - math.cos(i) * 0.04, math.cos(i * i) * 0.05, 0) * 2
 end
 
-SWEP.LocalMuzzlePos = Vector(37.836,-1,1)
+SWEP.LocalMuzzlePos = Vector(0, -1.6, 4.5)
 SWEP.LocalMuzzleAng = Angle(-0.2,-0.05,0)
 SWEP.WeaponEyeAngles = Angle(0,0,0)
 
@@ -172,34 +188,6 @@ SWEP.bipodsub = 15
 
 SWEP.RecoilMul = 0.3
 
-SWEP.availableAttachments = {
-
-    barrel = {
-		[1] = {"supressor1", Vector(0,0,0), {}},
-		[2] = {"supressor8", Vector(0,0,0), {}},
-		["mount"] = Vector(26, -1.2 , 0.5),
-	}, 
-
-	sight = {
-		["mountType"] = {"picatinny", "dovetail"},
-		["mount"] = Vector(-29.5, 2.8, -0.2),
-	},
-	mount = {
-		["picatinny"] = {
-			"mount1",
-			Vector(-29.5, 1, -0.2),
-			{},
-			["mountType"] = "picatinny",
-		},
-		["dovetail"] = {
-			"empty",
-			Vector(0, 0, 0),
-			{},
-			["mountType"] = "dovetail",
-		},
-	}
-}
-
 --local to head
 SWEP.RHPos = Vector(4,-7,4)
 SWEP.RHAng = Angle(0,-12,90)
@@ -212,79 +200,3 @@ local ang2 = Angle(0, 10, 0)
 
 function SWEP:AnimHoldPost()
 end
-
--- RELOAD ANIM AKM
-SWEP.ReloadAnimLH = {
-	Vector(0,0,0),
-	Vector(5,-2,7),
-	Vector(7,-2,4),
-	Vector(-5,-5,1),
-	Vector(-5,-5,1),
-	Vector(-15,-5,1),
-	Vector(-5,-2,15),
-	Vector(-5,-5,1),
-	Vector(7,-2,4),
-	Vector(5,-2,7),
-	Vector(0,0,0),
-}
-
-SWEP.ReloadAnimRH = {
-	Vector(0,0,0),
-	Vector(0,0,0),
-}
-
-SWEP.ReloadAnimLHAng = {
-	Angle(0,0,0),
-	Angle(0,0,0),
-	Angle(0,0,0),
-	Angle(45,0,-90),
-	Angle(45,0,-90),
-	Angle(0,0,0),
-	Angle(0,0,0),
-	Angle(0,0,0),
-}
-
-SWEP.ReloadAnimRHAng = {
-	Angle(0,0,0),
-}
-
-SWEP.ReloadAnimWepAng = {
-	Angle(0,0,0),
-	Angle(10,0,0),
-	Angle(10,0,0),
-	Angle(0,15,0),
-	Angle(15,15,0),
-	Angle(-15,-15,0),
-	Angle(-15,-5,0),
-	Angle(0,0,0),
-}
-
--- Inspect Assault
-
-SWEP.InspectAnimLH = {
-	Vector(0,0,0)
-}
-SWEP.InspectAnimLHAng = {
-	Angle(0,0,0)
-}
-SWEP.InspectAnimRH = {
-	Vector(0,0,0)
-}
-SWEP.InspectAnimRHAng = {
-	Angle(0,0,0)
-}
-SWEP.InspectAnimWepAng = {
-	Angle(0,0,0),
-	Angle(15,15,15),
-	Angle(15,15,24),
-	Angle(15,15,24),
-	Angle(15,15,24),
-	Angle(15,7,24),
-	Angle(10,3,-5),
-	Angle(2,3,-15),
-	Angle(0,4,-22),
-	Angle(0,3,-45),
-	Angle(0,3,-45),
-	Angle(0,-2,-2),
-	Angle(0,0,0)
-}

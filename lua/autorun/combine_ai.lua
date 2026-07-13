@@ -31,9 +31,9 @@ local convars = {
     },
     {
         name = "weaponaccuracy",
-        default = 2,
+        default = 1.3,
         flags = sharedFlags,
-        desc = [[1 (Worst) to 5 (Best) Accuracy for Combine Soldiers. 2 = slightly worse than the 3 baseline.]]
+        desc = [[1 (Worst) to 5 (Best) Accuracy for Combine Soldiers. Fractional values (e.g. 1.3) interpolate between levels, fewer headshots.]]
     },
     {
         name = "movementspeed",
@@ -126,6 +126,12 @@ local convars = {
         desc = [[Addition Health for Soldiers.]]
     },
     {
+        name = "healthmultiplier",
+        default = 1,
+        flags = sharedFlags,
+        desc = [[Multiplies a Soldier's base health. Lower than 1 weakens them (counters their armor/tankiness), higher than 1 makes them tankier.]]
+    },
+    {
         name = "fastmelee",
         default = 1,
         flags = sharedFlags,
@@ -205,9 +211,15 @@ local convars = {
     },
     {
         name = "engage_delay",
-        default = 0.5,
+        default = 0.7,
         flags = sharedFlags,
         desc = [[Seconds a Soldier waits after first seeing an enemy before opening fire. Prevents instant kills.]]
+    },
+    {
+        name = "ignoreplayers",
+        default = 0,
+        flags = sharedFlags,
+        desc = [[Server-side safe alternative to ai_ignoreplayers. When 1, Combine never target players (orchestrated by Judge + CAI). Set via rcon/server.cfg to be reliable on dedicated servers.]]
     },
     {
         name = "navmesh_pathfinding",
@@ -225,6 +237,10 @@ local convars = {
 
 local function fullName(suffix)
     return cvarName .. "_" .. suffix
+end
+
+local function npcManagedByCAI(npc)
+    return CAI and CAI.Enabled and CAI.Enabled() and CAI.Manager and CAI.Manager.Get(npc) ~= nil
 end
 
 for _, v in ipairs(convars) do
@@ -271,6 +287,10 @@ cvars.AddChangeCallback(fullName("fov"), function(name, old, new)
 end)
 
 if SERVER then
+    GetConVar(fullName("weaponaccuracy")):SetFloat(1.3)
+    GetConVar(fullName("moregunshots")):SetBool(true)
+    GetConVar(fullName("engage_delay")):SetFloat(0.7)
+
     resource.AddSingleFile("resource/fonts/Race Sport.ttf")
     local function OEC(ent)
         local combine = ent:GetClass() == "npc_combine_s"
@@ -293,7 +313,8 @@ if SERVER then
                     if GetConVar(fullName("allowjump")):GetBool() then
                         ent:CapabilitiesAdd(CAP_MOVE_JUMP)
                     end
-                    ent:SetHealth(ent:Health() + GetConVar(fullName("additionalhealth")):GetInt())
+                    ent:SetNWBool("JudgeControlsAccuracy", true)
+                    ent:SetHealth(math.max(1, math.Round(ent:Health() * GetConVar(fullName("healthmultiplier")):GetFloat())) + GetConVar(fullName("additionalhealth")):GetInt())
                 end
             end)
         end
@@ -301,10 +322,34 @@ if SERVER then
 
     local function npcEnemyIsValid(npc)
         local enemy = npc:GetEnemy()
-        if IsValid(enemy) and (enemy:IsPlayer() or enemy:IsNPC()) then
-            return true, enemy
+        if not IsValid(enemy) then return false, nil end
+        if enemy:IsPlayer() or enemy:IsNPC() then return true, enemy end
+        local owner = hg and hg.RagdollOwner and hg.RagdollOwner(enemy)
+        if IsValid(owner) and owner:IsPlayer() then return true, enemy end
+        return false, nil
+    end
+
+    local function npcRetargetDowned(npc)
+        local enemy = npc:GetEnemy()
+        if not IsValid(enemy) then return end
+        if enemy:IsPlayer() then
+            if IsValid(enemy.FakeRagdoll) then
+                npc:SetEnemy(enemy.FakeRagdoll)
+            end
+            return
+        end
+        if enemy:IsNPC() then return end
+        local owner = hg and hg.RagdollOwner and hg.RagdollOwner(enemy)
+        if IsValid(owner) then
+            if not IsValid(owner.FakeRagdoll) or owner.FakeRagdoll ~= enemy then
+                if owner:Alive() and not IsValid(owner.FakeRagdoll) then
+                    npc:SetEnemy(owner)
+                else
+                    npc:SetEnemy(NULL)
+                end
+            end
         else
-            return false, nil
+            npc:SetEnemy(NULL)
         end
     end
 
@@ -665,8 +710,8 @@ if SERVER then
         end
     end
 
-    local function npcAccurateWeapon(npc, enemy)
-        local accuracyLevel = GetConVar(fullName("weaponaccuracy")):GetInt()
+    local function npcAccurateWeapon(npc, enemy, hasLOS)
+        local accuracyLevel = GetConVar(fullName("weaponaccuracy")):GetFloat()
         local distance = npcCheckDistance(npc, enemy)
         local proficiencyTable = {
             [1] = { far = 0, close = 1 },
@@ -675,14 +720,21 @@ if SERVER then
             [4] = { far = 3, close = 4 },
             [5] = { far = 4, close = 4 }
         }
-        local profValues = proficiencyTable[accuracyLevel]
 
-        if accuracyLevel == 0 then
+        if accuracyLevel <= 0 then
             npc:SetSaveValue("m_CurrentWeaponProficiency", 0)
             return
         end
 
-        if not profValues then return end
+        if not hasLOS and not npcIsUsingSchedule(npc, {SCHED_SHOOT_ENEMY_COVER}) then
+            npc:SetSaveValue("m_CurrentWeaponProficiency", 0)
+            return
+        end
+
+        local low = math.Clamp(math.floor(accuracyLevel), 1, 5)
+        local high = math.Clamp(math.ceil(accuracyLevel), 1, 5)
+        local profValues = proficiencyTable[math.random() < (accuracyLevel - math.floor(accuracyLevel)) and high or low]
+        if not profValues then profValues = proficiencyTable[low] end
 
         if !npcIsUsingSchedule(npc, {SCHED_SHOOT_ENEMY_COVER}) then
             if distance > 900 then
@@ -706,10 +758,10 @@ if SERVER then
         end
     end
 
-    local function npcMoreGunshots(npc)
+    local function npcMoreGunshots(npc, hasLOS)
         local moregunshots = GetConVar(fullName("moregunshots"))
         local isusinghl2weapon = npcIsUsingHL2Weapon(npc)
-        if moregunshots:GetBool() then
+        if moregunshots:GetBool() and hasLOS and npcIsUsingSchedule(npc, {SCHED_RANGE_ATTACK1, SCHED_SHOOT_ENEMY_COVER, SCHED_ESTABLISH_LINE_OF_FIRE}) then
             npc:SetSaveValue("m_nShots", npc:GetInternalVariable("m_nShots") + 1)
         end
     end
@@ -717,7 +769,10 @@ if SERVER then
     local function npcImprovedShotgunner(npc, enemy)
         local condition = npcIsShotgunner(npc) and (npc:GetCurrentSchedule() == 119 or npcIsUsingSchedule(npc, {SCHED_ESTABLISH_LINE_OF_FIRE, 98})) and npc:Visible(enemy) and npcEnemyNotTooFar(npc) and GetConVar(fullName("improvedshotgunners")):GetBool()
         if condition then
+            if npc:GetNWBool("ShotgunnerQueued") then return end
+            npc:SetNWBool("ShotgunnerQueued", true)
             timer.Simple(0.3, function()
+                npc:SetNWBool("ShotgunnerQueued", false)
                 if npcAndEnemyValid(npc, enemy) and condition then
                     npc:SetSchedule(SCHED_RANGE_ATTACK1)
                 end
@@ -853,7 +908,7 @@ if SERVER then
         local attacker = dmginfo:GetAttacker()
         local weapon = dmginfo:GetWeapon()
 
-        if avoidDamageConVar:GetBool() and npc:GetClass() == "npc_combine_s" then
+        if avoidDamageConVar:GetBool() and npc:GetClass() == "npc_combine_s" and not npcManagedByCAI(npc) then
             local hasEnemy, enemy = npcEnemyIsValid(npc)
 
             if not npc:IsMoving() then
@@ -878,7 +933,7 @@ if SERVER then
     local function npcDangerGTFO(npc)
         local grenadeValid = npcIsThereGrenade(npc)
         local bool = GetConVar(fullName("retreat_grenade")):GetBool()
-        if grenadeValid and bool and !npc:IsMoving() and !npcIsUsingSchedule(npc,{SCHED_TAKE_COVER_FROM_ORIGIN}) then
+        if grenadeValid and bool and not npcManagedByCAI(npc) and !npc:IsMoving() and !npcIsUsingSchedule(npc,{SCHED_TAKE_COVER_FROM_ORIGIN}) then
             npc:SetSchedule(SCHED_TAKE_COVER_FROM_ORIGIN)
         end
     end
@@ -888,7 +943,7 @@ if SERVER then
             local pos = data.Trace.HitPos
             local dist = pos:Distance(npc:GetPos())
             local idlemode = npc:GetNPCState() == NPC_STATE_IDLE or npc:GetNPCState() == NPC_STATE_ALERT
-            if dist <= 245 and !npc:IsMoving() and idlemode then
+            if dist <= 245 and !npc:IsMoving() and idlemode and not npcManagedByCAI(npc) then
                 moveToRandomCover(npc, hasEnemy, enemy)
             end
         end
@@ -920,6 +975,7 @@ if SERVER then
     local function npcWalkToSound(sound)
         if GetConVar(fullName("goto_footstep")):GetBool() then
             for _, npc in pairs(ents.FindByClass("npc_combine_s")) do
+                if not npcManagedByCAI(npc) then
                 local soundstring = sound.Volume >= 0.5 and (string.find(sound.SoundName:lower(), "foot") or string.find(sound.SoundName:lower(), "metropolice/gear"))
                 local idlemode = npc:GetNPCState() == NPC_STATE_IDLE or npc:GetNPCState() == NPC_STATE_ALERT
                 local sndPos = IsValid(sound.Entity) and sound.Entity:GetPos() or sound.Pos
@@ -934,6 +990,7 @@ if SERVER then
                     end
                 end)
             end
+            end
         end
     end
 
@@ -943,7 +1000,7 @@ if SERVER then
                 for _, npc1 in pairs(ents.FindByClass("npc_combine_s")) do
                     local hasEnemy, enemy = npcEnemyIsValid(npc1)
                     timer.Simple(0, function()
-                        local cond = IsValid(npc) and IsValid(npc1) and npc1:Visible(npc) and !npc1:IsMoving() and enemyIsInSight(npc, npc1, npc:GetPos()) and npcCheckDistance(npc1,npc) <= 6000
+                        local cond = IsValid(npc) and IsValid(npc1) and not npcManagedByCAI(npc1) and npc1:Visible(npc) and !npc1:IsMoving() and enemyIsInSight(npc, npc1, npc:GetPos()) and npcCheckDistance(npc1,npc) <= 6000
                         if cond then
                             moveToRandomCover(npc1, hasEnemy, enemy)
                         end
@@ -954,7 +1011,7 @@ if SERVER then
     end
 
     local function SoldierMoreChatter(npc)
-        if IsValid(npc) and npc:GetClass()=="npc_combine_s" then
+        if IsValid(npc) and npc:GetClass()=="npc_combine_s" and not npcManagedByCAI(npc) then
             local hasEnemy, enemy = npcEnemyIsValid(npc)
             local canChat = npc:GetNWBool( "SoldierCanChat" )
             local bool = GetConVar(fullName("morechatter")):GetBool()
@@ -1017,6 +1074,7 @@ if SERVER then
             end
 
             if IsValid(closestEnt) then
+                if IsValid(closestEnt.FakeRagdoll) then closestEnt = closestEnt.FakeRagdoll end
                 npc:SetEnemy(closestEnt)
                 npc:UpdateEnemyMemory(closestEnt, closestEnt:GetPos())
             end
@@ -1038,23 +1096,26 @@ if SERVER then
         local validWep = IsValid(npc:GetActiveWeapon())
         if hasEnemy and validWep then
             local justAcquired = npcEngageDelay(npc, enemy)
+            local hasLOS = npc:Visible(enemy)
             if CurTime() >= npc:GetNWFloat("LastThinkTimeCombat") then
                 npc:SetNWFloat("LastThinkTimeCombat", CurTime() + 0.09)
-                npcRetreatBehavior(npc, hasEnemy, enemy)
-                npcCanPerformImprovedBehavior(npc, hasEnemy, enemy)
-                npcAccurateWeapon(npc, enemy)
-                if !justAcquired then
-                    npcImprovedShotgunner(npc, enemy)
-                    npcShootLong(npc, enemy)
+                npcAccurateWeapon(npc, enemy, hasLOS)
+                npcMoreThanTwoShoot(npc)
+                npcMoreGunshots(npc, hasLOS)
+                if not npcManagedByCAI(npc) then
+                    npcRetreatBehavior(npc, hasEnemy, enemy)
+                    npcCanPerformImprovedBehavior(npc, hasEnemy, enemy)
+                    if !justAcquired then
+                        npcImprovedShotgunner(npc, enemy)
+                        npcShootLong(npc, enemy)
+                    end
+                    npcReloadLow(npc, enemy)
+                    npcStealthMovement(npc, enemy)
+                    npcFastMelee(npc)
+                    npcNerfLocation(npc, enemy)
+                    npcTargetNearest(npc, enemy)
                 end
-                npcReloadLow(npc, enemy)
-                npcStealthMovement(npc, enemy)
-                npcFastMelee(npc)
-                npcNerfLocation(npc, enemy)
-                npcTargetNearest(npc, enemy)
             end
-            npcMoreThanTwoShoot(npc)
-            npcMoreGunshots(npc)
         else
             if npc:GetNWFloat("engageDelay", 0) != 0 then
                 npc:SetNWFloat("engageDelay", 0)
@@ -1063,7 +1124,7 @@ if SERVER then
     end
 
     local function generalBehavior(npc)
-        npcSpeedUp(npc)
+        if not npcManagedByCAI(npc) then npcSpeedUp(npc) end
         if CurTime() >= npc:GetNWFloat("LastThinkTimeGeneralBehavior") then
             npc:SetNWFloat("LastThinkTimeGeneralBehavior", CurTime() + 0.09)
             npcDangerGTFO(npc)
@@ -1072,7 +1133,7 @@ if SERVER then
 
     local function idleBehavior(npc)
         local idlemode = npc:GetNPCState() == NPC_STATE_IDLE or npc:GetNPCState() == NPC_STATE_ALERT
-        if idlemode then
+        if idlemode and not npcManagedByCAI(npc) then
             if CurTime() >= npc:GetNWFloat("LastThinkTimeIdleBehavior") then
                 npc:SetNWFloat("LastThinkTimeIdleBehavior", CurTime() + 0.09)
                 npcFlashlightDetection(npc)
@@ -1080,7 +1141,26 @@ if SERVER then
         end
     end
 
+    local function npcEnforceIgnorePlayers(npc)
+        if not (GetConVar("ai_ignoreplayers"):GetBool() or GetConVar(fullName("ignoreplayers")):GetBool()) then return end
+        local e = npc:GetEnemy()
+        if not IsValid(e) then return end
+        local ply = e:IsPlayer() and e or (hg and hg.RagdollOwner and hg.RagdollOwner(e))
+        if IsValid(ply) and ply:IsPlayer() then
+            if npc.ClearEnemyMemory then npc:ClearEnemyMemory(ply) end
+            npc:SetEnemy(NULL)
+            local data = CAI and CAI.Manager and CAI.Manager.Get(npc)
+            if data and data.memory and data.memory.enemies then
+                data.memory.enemies[ply] = nil
+                data.memory.enemies[e] = nil
+            end
+        end
+    end
+
     local function improvedAI(npc)
+        npcRetargetDowned(npc)
+        npcEnforceIgnorePlayers(npc)
+        local hasEnemy, enemy = npcEnemyIsValid(npc)
         combatBehavior(npc)
         idleBehavior(npc)
         generalBehavior(npc)
@@ -1112,10 +1192,38 @@ if SERVER then
         end
     end)
 
+    local function npcHearPlayerGunfire(ent, data)
+        local ply = ent
+        if not (IsValid(ply) and ply:IsPlayer()) then
+            ply = IsValid(ent) and ent.GetOwner and IsValid(ent:GetOwner()) and ent:GetOwner():IsPlayer() and ent:GetOwner() or nil
+        end
+        if not IsValid(ply) or not ply:IsPlayer() then return end
+        local wep = ply:GetActiveWeapon()
+        local suppressed = IsValid(wep) and wep.Supressor
+        local baseRadius = 2000
+        local radius = suppressed and (CAI and CAI.Config and CAI.Config.SuppressedGunshotMult and baseRadius * CAI.Config.SuppressedGunshotMult or 700) or baseRadius
+        local pos = (data and data.Src) or ply:GetShootPos()
+        ply.Judge_LastGunSound = ply.Judge_LastGunSound or 0
+        if CurTime() - ply.Judge_LastGunSound < 0.12 then return end
+        ply.Judge_LastGunSound = CurTime()
+        if CAI and CAI.Enabled and CAI.Enabled() and CAI.CVBool and CAI.CVBool("cai_soundintel") and CAI.Sound and CAI.Sound.Emit then
+            CAI.Sound.Emit(pos, "gunshot", radius, ply)
+        end
+        for _, npc in pairs(ents.FindByClass("npc_combine_s")) do
+            if IsValid(npc) and not npcManagedByCAI(npc) then
+                if npc:GetPos():DistToSqr(pos) < radius * radius and (npc:GetNPCState() == NPC_STATE_IDLE or npc:GetNPCState() == NPC_STATE_ALERT) and not npc:IsMoving() then
+                    npc:SetLastPosition(pos)
+                    npc:SetSchedule(SCHED_FORCED_GO_RUN)
+                end
+            end
+        end
+    end
+
     hook.Add( "PostEntityFireBullets", hookName, function( npc, data )
         if GetConVar(fullName("addon")):GetBool() then
             npcAvoidBullet(npc,data)
             SoldierMoreChatter(npc)
+            npcHearPlayerGunfire(npc, data)
         end
     end)
 
@@ -1135,10 +1243,11 @@ else
     local frame = nil
 
     local sliderConfig = {
-        weaponaccuracy = {min = 1, max = 5, decimals = 0, color = Vector(180, 220, 255)},
+        weaponaccuracy = {min = 1, max = 5, decimals = 1, color = Vector(180, 220, 255)},
         movementspeed = {min = 0.5, max = 2, decimals = 3, color = Vector(180, 220, 255)},
         fov = {min = 30, max = 120, decimals = 0, color = Vector(180, 220, 255)},
         additionalhealth = {min = 0, max = 200, decimals = 0, color = Vector(180, 220, 255)},
+        healthmultiplier = {min = 0.1, max = 2, decimals = 2, color = Vector(180, 220, 255)},
         damage_smg1 = {min = 1, max = 15, decimals = 0, color = Vector(180, 220, 255)},
         damage_ar2 = {min = 1, max = 15, decimals = 0, color = Vector(180, 220, 255)},
         damage_shotgun = {min = 1, max = 15, decimals = 0, color = Vector(180, 220, 255)},

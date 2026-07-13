@@ -173,8 +173,9 @@ local function ApplyBlastDamage(data, enta, tracePos, len)
 
 	if enta.organism then
 		local owner = enta.organism.owner
-		if IsValid(owner) and owner:IsPlayer() and (not behindwall or not data.BlockBehindWallDisorient) then
-			local div = behindwall and data.BehindWallDisorientDiv or 1
+		if IsValid(owner) and owner:IsPlayer() then
+			-- контузия/баротравма возможна даже за стеной (наушники гасят только звук)
+			local div = behindwall and hg.GetBlastWallAttenuation(tr) or 1
 			hg.ExplosionDisorientation(enta, data.DisorientPower * frac / div, data.DisorientTime * frac / div)
 			if not enta.organism.otrub then
 				hg.organism.AddPanicAttack(enta.organism, math.Clamp(frac * 0.22 / div + data.Damage * damageFrac / 900, 0.04, 0.28), true)

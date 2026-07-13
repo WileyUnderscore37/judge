@@ -53,6 +53,22 @@ local concussion_phrases_severe = {
     "I can't move my arms...",
     "Get this noise out of my head..."
 }
+local concussion_phrases_vomit = {
+    "I'm gonna be sick...",
+    "Bleargh— I can't stop throwing up...",
+    "My stomach's turning inside out...",
+    "I think I'm gonna hurl again...",
+    "Everything's making me puke...",
+    "Ugh... my head and my stomach...",
+    "I can't keep anything down...",
+    "The nausea won't stop...",
+    "I'm gonna throw up...",
+    "My gut is killing me...",
+    "Bleargh...",
+    "I feel like puking my guts out...",
+    "I'm gonna be sick all over the floor...",
+    "My stomach's cramping so bad..."
+}
 
 module[1] = function(org)
     org.concussion = 0
@@ -77,7 +93,7 @@ module[2] = function(ply, org, timeValue)
     if org.concussion <= 0 and org.nausea <= 0 then return end
 
     if org.concussion > 0 then
-        local decayRate = 0.08 + (org.concussion > 3 and 0.04 or 0)
+        local decayRate = 0.04 + (org.concussion > 3 and 0.02 or 0)
         org.concussion = math.max(org.concussion - timeValue * decayRate, 0)
 
         if org.consciousness then
@@ -99,21 +115,27 @@ module[2] = function(ply, org, timeValue)
             org.fearadd = math.min((org.fearadd or 0) + timeValue * 0.15 * org.concussion, 2)
         end
 
-        if org.concussion > 0.5 and math.random() < org.concussion * 0.03 then
-            org.nausea = math.max(org.nausea or 0, org.concussion * 1.5)
+        if org.concussion > 0.3 and math.random() < org.concussion * 0.3 then
+            org.nausea = math.max(org.nausea or 0, org.concussion * 2.5)
         end
 
         if org.concussion > 0.3 then
             org.concussion_tinnitus = math.max(org.concussion_tinnitus or 0, org.concussion * 0.4)
         end
 
-        if org.concussion > 1.0 and org.isPly and not org.otrub and IsValid(ply) and ply:IsPlayer() and (org.nextConcussionPhrase or 0) < CurTime() then
-            if org.concussion > 2.5 then
-                ply:Notify(concussion_phrases_severe[math.random(#concussion_phrases_severe)], 5, "concussion_phrase", 0)
-            else
-                ply:Notify(concussion_phrases[math.random(#concussion_phrases)], 5, "concussion_phrase", 0)
+        if org.isPly and not org.otrub and IsValid(ply) and ply:IsPlayer() and (org.nextConcussionPhrase or 0) < CurTime() then
+            local phrase
+            if org.nausea > 0.6 then
+                phrase = concussion_phrases_vomit[math.random(#concussion_phrases_vomit)]
+            elseif org.concussion > 2.5 then
+                phrase = concussion_phrases_severe[math.random(#concussion_phrases_severe)]
+            elseif org.concussion > 1.0 then
+                phrase = concussion_phrases[math.random(#concussion_phrases)]
             end
-            org.nextConcussionPhrase = CurTime() + math.random(8, 18)
+            if phrase then
+                ply:Notify(phrase, 5, "concussion_phrase", 0)
+                org.nextConcussionPhrase = CurTime() + math.random(8, 18)
+            end
         end
 
         if org.concussion_effects.duration > 0 then
@@ -131,14 +153,18 @@ module[2] = function(ply, org, timeValue)
     org.concussion_tinnitus = math.Approach(org.concussion_tinnitus or 0, 0, timeValue * 0.15)
 
     if (org.nausea or 0) > 0 then
-        org.nausea = math.max(org.nausea - timeValue * 0.06, 0)
+        org.nausea = math.max(org.nausea - timeValue * 0.04, 0)
+        if org.nausea == 0 then org.nextConcussionVomit = nil end
 
-        if org.nausea > 1.5 and not org.otrub then
+        if org.nausea > 0.6 and not org.otrub then
             local now = CurTime()
-            if now > (org.nextConcussionVomit or 0) then
-                local vomitDelay = math.Rand(6, 16) / math.Clamp(org.nausea, 0.5, 5)
-                -- floor the interval so a maxed-out nausea can't trigger vomiting every second
-                vomitDelay = math.max(vomitDelay, 4)
+            if org.nextConcussionVomit == nil then
+                -- перерыв перед первой блевней: сначала просто копим тошноту
+                org.nextConcussionVomit = now + math.Rand(2.5, 5)
+            elseif now > org.nextConcussionVomit then
+                local vomitDelay = math.Rand(3, 6) / math.Clamp(org.nausea, 0.5, 5)
+                -- заметный перерыв между приступами рвоты
+                vomitDelay = math.max(vomitDelay, 3)
                 org.nextConcussionVomit = now + vomitDelay
                 hg.organism.VomitConcussion(ply)
             end

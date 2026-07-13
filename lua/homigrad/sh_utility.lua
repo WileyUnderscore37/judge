@@ -1656,10 +1656,10 @@ duplicator.Allow( "homigrad_base" )
 				--print(ent:GetModel(),phys:GetMass())
 				if not ent:IsPlayer() and IsValid(phys) and phys:GetMass() > 50 then return true end
 				return true
-			end,
-			mask = MASK_SHOT
-		})
-	end
+		end,
+		mask = MASK_SHOT
+	})
+end
 --//
 
 --\\ Just shared freelook limits

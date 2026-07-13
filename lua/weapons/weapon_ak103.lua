@@ -21,12 +21,11 @@ SWEP.MagIndex = 6
 
 //SWEP.StartAtt = {"grip_ak120"}
 
--- ОБЫЧНАЯ ПЕРЕЗАРЯДКА
+
 SWEP.FakeReloadSounds = {
 	[0.35] = "weapons/ak103/magout.wav",
-	[0.38] = "weapons/ak103/magoutrattle.wav", -- На скрине написано слитно
+	[0.38] = "weapons/ak103/magoutrattle.wav",
 	[0.65] = "weapons/ak103/magin.wav",
-	-- Звуки одежды оставляем стандартные (uni_crawl), так как их нет в твоей папке
 	[0.75] = "weapons/universal/uni_crawl_l_03.wav",
 	[0.95] = "weapons/universal/uni_crawl_l_05.wav",
 }
@@ -35,13 +34,11 @@ SWEP.FakeViewBobBone = "ValveBiped.Bip01_R_Hand"
 SWEP.FakeViewBobBaseBone = "Spine"
 SWEP.ViewPunchDiv = 55
 
--- ПЕРЕЗАРЯДКА ПРИ ПУСТОМ МАГАЗИНЕ
 SWEP.FakeEmptyReloadSounds = {
 	[0.25] = "weapons/ak103/magout.wav",
-	[0.34] = "weapons/ak103/magoutrattle.wav", -- На скрине написано слитно
+	[0.34] = "weapons/ak103/magoutrattle.wav",
 	[0.65] = "weapons/ak103/magin.wav",
 	[0.75] = "weapons/universal/uni_crawl_l_05.wav",
-	-- Затвор
 	[0.87] = "weapons/ak103/boltback.wav",
 	[0.96] = "weapons/ak103/boltrelease.wav",
 }
@@ -100,7 +97,7 @@ SWEP.LocalMuzzlePos = Vector(-28.5,0,3.75)
 SWEP.LocalMuzzleAng = Angle(0,180,90)
 SWEP.WeaponEyeAngles = Angle(0,0,0)
 
-SWEP.HoldType = "ar2"
+SWEP.HoldType = "rpg"
 SWEP.ZoomPos = Vector(10, 5.5, 0.3)
 SWEP.RHandPos = Vector(-12, -1, 4)
 SWEP.LHandPos = Vector(7, -2, -2)

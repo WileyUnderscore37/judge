@@ -307,7 +307,9 @@ function ENT:Explode()
 
 		if enta.organism then
 			if IsValid(enta.organism.owner) and enta.organism.owner:IsPlayer() then
-				hg.ExplosionDisorientation(enta, 5 * frac, 6 * frac)
+				local behindwall = tr.Entity != enta and tr.MatType != MAT_GLASS
+				local div = behindwall and hg.GetBlastWallAttenuation(tr) or 1
+				hg.ExplosionDisorientation(enta, 5 * frac / div, 6 * frac / div)
 				hg.RunZManipAnim(enta.organism.owner, "shieldexplosion")
 			end
 		end

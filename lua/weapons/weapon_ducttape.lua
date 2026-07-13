@@ -351,7 +351,7 @@ end
 
 local function NearestBoneName(ent, pos)
 	if not IsValid(ent) or not pos then return nil end
-	ent:SetupBones()
+	if ent.SetupBones then ent:SetupBones() end
 	local best, bestd = nil, math.huge
 	for i = 0, ent:GetBoneCount() - 1 do
 		local m = ent:GetBoneMatrix(i)

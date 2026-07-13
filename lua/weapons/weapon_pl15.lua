@@ -122,7 +122,7 @@ SWEP.SupressedSound = {"weapons/darsu_eft/pl15/pl_fire_silenced_indoor_close.wav
 SWEP.Primary.SoundEmpty = {"zcitysnd/sound/weapons/makarov/handling/makarov_empty.wav", 75, 100, 105, CHAN_WEAPON, 2}
 SWEP.Primary.Force = 23
 SWEP.Primary.Wait = PISTOLS_WAIT
-SWEP.ReloadTime = 3
+SWEP.ReloadTime = 5
 
 
 SWEP.DeploySnd = {"homigrad/weapons/draw_pistol.mp3", 55, 100, 110}

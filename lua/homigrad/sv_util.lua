@@ -3,6 +3,31 @@ local isBulletDamage = FindMetaTable( "CTakeDamageInfo" ).IsBulletDamage
 
 hg.ConVars = hg.ConVars or {}
 
+-- Ослабление контузии/баротравмы в зависимости от материала стены между
+-- взрывом и игроком. Ударная волна огибает препятствия, отражается в замкнутом
+-- пространстве и проходит сквозь тонкие перегородки (гипсокартон, дерево),
+-- поэтому контузия за стеной возможна, но сильные стены гасят её сильнее.
+function hg.GetBlastWallAttenuation(tr)
+	if not tr then return 3.5 end
+
+	local matName = "default"
+	local ent = tr.Entity
+	if IsValid(ent) then
+		local phys = ent:GetPhysicsObject()
+		if IsValid(phys) and phys:GetMaterial() then
+			matName = string.lower(phys:GetMaterial())
+		end
+	end
+
+	if string.find(matName, "glass") then return 1.0 end
+	if string.find(matName, "wood") or string.find(matName, "plaster") or string.find(matName, "drywall") then return 1.5 end
+	if string.find(matName, "grass") or string.find(matName, "snow") or string.find(matName, "foliage") then return 1.75 end
+	if string.find(matName, "plastic") or string.find(matName, "carpet") or string.find(matName, "vent") or string.find(matName, "grate") then return 2.0 end
+	if string.find(matName, "tile") then return 2.5 end
+
+	return 3.5
+end
+
 local hg_legacycam = ConVarExists("hg_legacycam") and GetConVar("hg_legacycam") or CreateConVar("hg_legacycam", 0, FCVAR_REPLICATED, "Toggle legacy first-person view camera", 0, 1)
 
 local host_timescale = game.GetTimeScale

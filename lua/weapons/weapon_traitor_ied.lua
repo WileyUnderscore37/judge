@@ -211,9 +211,19 @@ if CLIENT then
 end
 
 function hg.ExplosionDisorientation(enta, tinnitus, disorientation)
-	enta.organism.owner:AddTinnitus(tinnitus)
-	enta.organism.disorientation = enta.organism.disorientation + (disorientation)
-	hg.organism.module.concussion.AddConcussion(enta.organism, math.Clamp(tinnitus * 0.1, 0.1, 2.0), tinnitus)
+	local owner = enta.organism and enta.organism.owner
+	local hasHeadphones = IsValid(owner) and owner.armors and owner.armors["ears"] == "headphones1"
+
+	-- дизориентация (мотание экрана) — полная, как было
+	enta.organism.disorientation = enta.organism.disorientation + disorientation
+
+	if hasHeadphones then
+		-- активные наушники (броня headphones1): тинитуса нет вообще, мотание экрана остаётся
+	else
+		-- без активных наушников — полный/громкий тинитус и контузия
+		if IsValid(owner) then owner:AddTinnitus(tinnitus) end
+		hg.organism.module.concussion.AddConcussion(enta.organism, math.Clamp(tinnitus * 0.1, 0.1, 2.0), tinnitus)
+	end
 
 	net.Start("organism_send") // отправляем только дизориентацию (чтобы не нагружать нет), и сразу
 	local tbl = {}
@@ -453,13 +463,14 @@ ExplodeTheItem = function(self,ent)
 				local physics_frac = math.Clamp((dis - len) / dis, 0.5, 1)  
 				local forceadd = force * physics_frac * 50000  
 
-				if enta.organism then
-					local behindwall = tr.Entity != enta and tr.MatType != MAT_GLASS
-					if IsValid(enta.organism.owner) and enta.organism.owner:IsPlayer() and not behindwall then
-						hg.ExplosionDisorientation(enta, 5 * frac * 1.5, 6 * frac * 1.5)
-						hg.RunZManipAnim(enta.organism.owner, "shieldexplosion")
-					end
+			if enta.organism then
+				local behindwall = tr.Entity != enta and tr.MatType != MAT_GLASS
+				if IsValid(enta.organism.owner) and enta.organism.owner:IsPlayer() then
+					local div = behindwall and hg.GetBlastWallAttenuation(tr) or 1
+					hg.ExplosionDisorientation(enta, 5 * frac * 1.5 / div, 6 * frac * 1.5 / div)
+					hg.RunZManipAnim(enta.organism.owner, "shieldexplosion")
 				end
+			end
 
 				if len > dis then continue end
 				if tr.Entity != enta then 					
