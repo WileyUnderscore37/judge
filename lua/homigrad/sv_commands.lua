@@ -167,6 +167,8 @@ if SERVER then
 
         if ply.organism.godmode then
             clearOrganismEffects(ply)
+        else
+            hg.organism.Clear(ply.organism)
         end
 
         ply:SetCollisionGroup(ply.organism.godmode and COLLISION_GROUP_DEBRIS or (ply.cloak and COLLISION_GROUP_DEBRIS or COLLISION_GROUP_PLAYER))
@@ -182,6 +184,8 @@ if SERVER then
 
         if ply.cloak then
             clearOrganismEffects(ply)
+        else
+            hg.organism.Clear(ply.organism)
         end
 
         ply:SetMaterial(ply.cloak and "NULL" or nil)
