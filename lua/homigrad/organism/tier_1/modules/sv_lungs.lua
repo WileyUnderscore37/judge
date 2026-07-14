@@ -398,14 +398,7 @@ module[2] = function(owner, org, timeValue)
 	org.brain = max(org.brain - timeValue / 400 * ((org.mannitol > 0 and org.brain < 0.6) and 1 or (org.brain > 0.1 and 0.1 or 0)), 0)
 	org.mannitol = math.Approach(org.mannitol, 0, timeValue / 200)
 	
-	if k < 0.25 then
-		if not org.alive and owner:IsPlayer() and death_from_braindamage and org.o2[1] == 0 then
-			hg.achievements.AddPlayerAchievement(owner,"brain",1)
-			if org.analgesia > 1 then
-				hg.achievements.AddPlayerAchievement(owner,"drugs",1)
-			end
-		end
-		
+        if k < 0.25 then
 		org.brain = min(org.brain + timeValue / (org.brain < 0.3 and 300 or 120) * math.min(((org.o2[1] < 0.25 and 1 or 0) + org.skull), 1), 1)
 	end --~120 seconds to fully die (0.3 of 300 and 0.4 of 60 seconds after)
 end

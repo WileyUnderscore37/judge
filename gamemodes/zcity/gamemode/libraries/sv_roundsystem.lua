@@ -8,19 +8,29 @@ function zb.AddFade()
 	net.Broadcast()
 end
 
-local ZB_FORCE_ONLY_HOMICIDE = true
+local ZB_FORCE_LIMITED_MODE_POOL = true
 local ZB_FORCED_TEMP_MODE_WEIGHTS = {
         ["hmcd"] = 0.7,
         ["dm"] = 0.3
 }
+local ZB_FORCED_MODE_POOL = {
+        ["hmcd"] = true,
+        ["dm"] = true
+}
 local ZB_HAS_CHANGELEVEL
+
+local function ZB_IsForcedModeAllowed(mode)
+        if !isstring(mode) or !ZB_FORCED_MODE_POOL[mode] then return false end
+
+        local tbl = zb.modes[mode]
+        return tbl and (!tbl.CanLaunch or tbl:CanLaunch())
+end
 
 local function ZB_GetForcedTempMode()
         local total = 0
 
         for mode, chance in pairs(ZB_FORCED_TEMP_MODE_WEIGHTS) do
-                local tbl = zb.modes[mode]
-                if tbl and (!tbl.CanLaunch or tbl:CanLaunch()) then
+                if ZB_IsForcedModeAllowed(mode) then
                         total = total + chance
                 end
         end
@@ -31,8 +41,7 @@ local function ZB_GetForcedTempMode()
         local count = 0
 
         for mode, chance in pairs(ZB_FORCED_TEMP_MODE_WEIGHTS) do
-                local tbl = zb.modes[mode]
-                if tbl and (!tbl.CanLaunch or tbl:CanLaunch()) then
+                if ZB_IsForcedModeAllowed(mode) then
                         count = count + chance
 
                         if random <= count then
@@ -45,8 +54,8 @@ local function ZB_GetForcedTempMode()
 end
 
 local function ZB_ResolveNextRound(round)
-	if ZB_FORCE_ONLY_HOMICIDE then
-                return ZB_GetForcedTempMode()
+	if ZB_FORCE_LIMITED_MODE_POOL then
+                return ZB_IsForcedModeAllowed(round) and round or ZB_GetForcedTempMode()
 	end
 
 	return round
@@ -353,6 +362,7 @@ function zb.GetAvailableModes()
 	for i, name in pairs(zb.GetModes()) do
 
 		local tbl = zb.modes[name]
+		if ZB_FORCE_LIMITED_MODE_POOL and !ZB_IsForcedModeAllowed(name) then continue end
 		if (tbl.CanLaunch and tbl:CanLaunch()) and
 		(
 			( not tbl.ForBigMaps ) or
@@ -524,6 +534,7 @@ function zb.GetModesInfo()
 	local modesInfo = {}
 
 	for name, mode in pairs(zb.modes) do
+		if ZB_FORCE_LIMITED_MODE_POOL and !ZB_FORCED_MODE_POOL[name] then continue end
 		if mode.Types then
 			for name2, mode2 in pairs(mode.Types) do
 				table.insert(modesInfo, {

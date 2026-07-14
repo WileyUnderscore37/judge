@@ -152,6 +152,29 @@ if SERVER then
 		return best, bestv
 	end
 
+        local function BestByValue(plys, fn)
+                local best, bestv
+                for _, ply in ipairs(plys) do
+                        local v = fn(ply)
+                        if v ~= nil and (bestv == nil or v > bestv) then
+                                bestv, best = v, ply
+                        end
+                end
+                return best, bestv
+        end
+
+        local function BestByValueExcept(plys, used, fn)
+                local best, bestv
+                for _, ply in ipairs(plys) do
+                        if used[ply] then continue end
+                        local v = fn(ply)
+                        if v ~= nil and (bestv == nil or v > bestv) then
+                                bestv, best = v, ply
+                        end
+                end
+                return best, bestv
+        end
+
 	local AWARDS = {
 		{ "mvp", function(plys)
 			return BestBy(plys, function(p)
@@ -338,6 +361,44 @@ if SERVER then
 		local plys = ActivePlayers()
 		local featured, used = {}, {}
 
+                local round = CurrentRound and CurrentRound()
+                if round and round.name == "dm" then
+                        local dmUsed = {}
+                        local winner = BestByValue(plys, function(p)
+                                if p:Alive() and not (p.organism and p.organism.incapacitated) then return 1 end
+                        end)
+                        local topKills, topKillsValue
+                        local topHeadshots, topHeadshotsValue
+
+                        if not IsValid(winner) then
+                                winner = BestByValue(plys, function(p)
+                                        return p.RSStats.kills or 0
+                                end)
+                        end
+
+                        if IsValid(winner) then
+                                dmUsed[winner] = true
+                                featured[#featured + 1] = { ply = winner, key = "dm_winner", value = winner.RSStats.kills or 0 }
+                        end
+
+                        topKills, topKillsValue = BestByValueExcept(plys, dmUsed, function(p)
+                                return p.RSStats.kills or 0
+                        end)
+                        if IsValid(topKills) then
+                                dmUsed[topKills] = true
+                                featured[#featured + 1] = { ply = topKills, key = "dm_kills", value = math.floor(topKillsValue or 0) }
+                        end
+
+                        topHeadshots, topHeadshotsValue = BestByValueExcept(plys, dmUsed, function(p)
+                                return p.RSStats.headshotKills or 0
+                        end)
+                        if IsValid(topHeadshots) then
+                                featured[#featured + 1] = { ply = topHeadshots, key = "dm_headshots", value = math.floor(topHeadshotsValue or 0) }
+                        end
+
+                        return featured, NameOf, RoleFor
+                end
+
 		-- Traitor victory: the MVP is automatically the traitor with the most kills.
 		local haveMVP = false
 		if TraitorsWon() then
@@ -438,6 +499,9 @@ surface.CreateFont("Rem_Sum_XP", { font = "Lora", size = ScreenScale(11), weight
 
 local AWARD_INFO = {
 	mvp          = { title = "MVP OF THE ROUND", color = Color(232, 190, 70),  desc = function(v) return "Best player around" end },
+    dm_winner    = { title = "MVP OF THE ROUND", color = Color(232, 190, 70),  desc = function(v) return "Deathmatch round winner" end },
+    dm_kills     = { title = "MOST KILLS",       color = Color(210, 80, 80),   desc = function(v) return v .. " kill" .. (v == 1 and "" or "s") end },
+    dm_headshots = { title = "MOST HEADSHOTS",   color = Color(215, 95, 70),   desc = function(v) return v .. " headshot" .. (v == 1 and "" or "s") end },
 	executioner  = { title = "THE EXECUTIONER",  color = Color(150, 20, 20),   desc = function(v) return "Killed the main traitor" end },
 	headhunter   = { title = "HEAD HUNTER",      color = Color(200, 55, 55),   desc = function(v) return v .. " headshot kill" .. (v == 1 and "" or "s") end },
 	serialkiller = { title = "SERIAL KILLER",    color = Color(170, 25, 25),   desc = function(v) return v .. " victims" end },

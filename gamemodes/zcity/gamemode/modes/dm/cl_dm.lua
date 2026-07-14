@@ -236,7 +236,7 @@ function MODE:HUDPaint()
                 }
         end
 
-        add("Homicide | DeathMatch", "ZB_HomicideHeader", Color(255, 255, 255), sw * 0.5, sh * 0.1, "left", 0, 0.9)
+        add("DeathMatch", "ZB_HomicideHeader", Color(255, 255, 255), sw * 0.5, sh * 0.1, "left", 0, 0.9)
         add("You are a " .. fighter.name, "ZB_HomicideMediumLarge", fighter.color1, sw * 0.5, sh * 0.5, "right", 0.7, 1.1)
         add(fighter.objective, "ZB_HomicideMedium", Color(255, 255, 255), sw * 0.5, sh * 0.9, "bottom", 1.4, 1.3, true)
 
@@ -312,7 +312,6 @@ net.Receive("dm_end",function()
 		MODE.SoundStation = nil
 	end
 	
-    CreateEndMenu()
 end)
 
 local colGray = Color(85,85,85,255)
