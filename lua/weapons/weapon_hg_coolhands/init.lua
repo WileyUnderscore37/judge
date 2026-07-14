@@ -180,6 +180,10 @@ function SWEP:ApplyForce()
 			mul = mul * (1 + ply.organism.berserk / 5)
 		end
 
+		if (ply.organism and ply.organism.noradrenaline >= 0.5) then
+			mul = mul * (1 + ply.organism.noradrenaline / 5)
+		end
+
 		local avec = vec * len * 8 - phys:GetVelocity()
 
 		local Force = avec * mul
@@ -187,7 +191,8 @@ function SWEP:ApplyForce()
 
 		Force = Force:GetNormalized() * ForceMagnitude
 
-		if len > 12000 then
+		local maxlen = self.ReachDistance * 2.5 * (ply.organism.superfighter and 2 or 1) * (1 + ply.organism.berserk) * (1 + ply.organism.noradrenaline)
+		if len > maxlen then
 			self:SetCarrying()
 			return
 		end
@@ -212,22 +217,22 @@ function SWEP:ApplyForce()
 			ply.Guilt = math.max(ply.Guilt, 5)
 		end
 
-		if self.CarryEnt:GetClass() == "prop_ragdoll" then
-			local ply2 = RagdollOwner(self.CarryEnt) or self.CarryEnt
+            if self.CarryEnt:GetClass() == "prop_ragdoll" then
+                    local ply2 = hg.RagdollOwner(self.CarryEnt) or self.CarryEnt
 			local bone = self.CarryEnt:GetBoneName(self.CarryEnt:TranslatePhysBoneToBone(self.CarryBone))
 
 			if ply:KeyPressed(IN_RELOAD) then
 				if not ply2.noHead and ply2.organism then
 
 					if ply2.organism.CantCheckPulse then
-						ply:ChatPrint("The armor is too thick to feel the pulse.")
+						--ply:ChatPrint("The armor is too thick to feel the pulse.")
 					elseif ((bone == "ValveBiped.Bip01_L_Hand") or (bone == "ValveBiped.Bip01_R_Hand") or (bone == "ValveBiped.Bip01_Head1")) then
 						local org = ply2.organism
 
 						if org.heartstop then
-							ply:ChatPrint("No pulse.")
+							--ply:ChatPrint("No pulse.")
 						else
-							ply:ChatPrint(org.pulse < 20 and "Barely can feel the pulse." or (org.pulse <= 50 and "Low pulse.") or (org.pulse <= 90 and "Normal pulse.") or "High pulse.")
+							--ply:ChatPrint(org.pulse < 20 and "Barely can feel the pulse." or (org.pulse <= 50 and "Low pulse.") or (org.pulse <= 90 and "Normal pulse.") or "High pulse.")
 						end
 
 						if (org.last_heartbeat + 60) > CurTime() then
@@ -280,13 +285,13 @@ function SWEP:ApplyForce()
 						end
 
 						if (bone == "ValveBiped.Bip01_Head1") then
-							if (org.o2[1] < 10 or not org.alive) then
-								ply:ChatPrint("Not breathing.")
+							if (org.o2.curregen == 0 or not org.alive or org.holdingbreath) then
+								--ply:ChatPrint("Not breathing.")
 							else
-								ply:ChatPrint("Breathing.")
+								--ply:ChatPrint("Breathing.")
 							end
 
-							ply:ChatPrint(org.otrub and "No reaction." or "Reaction present.")
+							--ply:ChatPrint(org.otrub and "No reaction." or "Reaction present.")
 
 							if org.isPly and not org.otrub then
 								org.owner:ChatPrint("You were checked for reaction.")
@@ -309,11 +314,12 @@ function SWEP:ApplyForce()
 
 				local tr = {}
 				tr.start = TargetPos
-				tr.endpos = TargetPos - vector_up * 16
-				tr.mask = MASK_SOLID_BRUSHONLY
+				tr.endpos = TargetPos - vector_up * 32
+				tr.mask = MASK_SOLID
+				tr.filter = {self.CarryEnt, self, ply}
 				local trace = util.TraceLine(tr)
-
-				if bone != "ValveBiped.Bip01_Spine2" or not trace.Hit then
+				
+				if bone != "ValveBiped.Bip01_Spine2" or !trace.Hit then
 					phys:ApplyForceCenter(ply:GetAimVector() * math.min(5000, phys:GetMass() * 800))
 					self:SetCarrying()
 				end
@@ -336,11 +342,11 @@ function SWEP:ApplyForce()
 							org.CO = math.Approach(org.CO, 0, (ply.Profession == "doctor" and 2 or 1))
 							org.COregen = math.Approach(org.COregen, 0, (ply.Profession == "doctor" and 2 or 1))
 
-							if math_random(3) == 1 then
+							if math.random(3) == 1 then
 								org.lungsfunction = true
 							end
 
-							if math_random(50) == 1 and (ply.Profession != "doctor") then
+							if math.random(50) == 1 and (ply.Profession != "doctor") then
 								local dmginfo = DamageInfo()
 								dmginfo:SetDamageType(DMG_CRUSH)
 								dmginfo:SetInflictor(self)
@@ -352,7 +358,7 @@ function SWEP:ApplyForce()
 
 						phys:ApplyForceCenter(-vector_up * 6000)
 
-						--self.CarryEnt:EmitSound("physics/body/body_medium_impact_soft" .. tostring(math_random(7)) .. ".wav")
+						--self.CarryEnt:EmitSound("physics/body/body_medium_impact_soft" .. tostring(math.random(7)) .. ".wav")
 					end
 				end
 			else
@@ -360,13 +366,9 @@ function SWEP:ApplyForce()
 				self.firstTimePrint2 = true
 			end
 
-			if ply:KeyDown(IN_ATTACK) and ply.PlayerClassName == "furry" and org ~= nil and org.alive and org.owner.PlayerClassName != "furry" then
+			if ply:KeyDown(IN_ATTACK) and ply.PlayerClassName == "furry" and org ~= nil and org.alive and org.owner.PlayerClassName != "furry" and !(org.owner.IsBerserk and org.owner:IsBerserk()) then
 				org.assimilated = math.Approach(org.assimilated, 1, FrameTime() / 6)
 				ply:SetLocalVar("assimilation", org.assimilated)
-
-				if org.assimilated == 1 then
-					org.owner:SetPlayerClass("furry")
-				end
 
 				hg.LightStunPlayer(org.owner, 1)
 
@@ -749,6 +751,17 @@ function SWEP:AttackFront(special_attack, rand)
 	--self.PenetrationCopy = -(-self.Penetration) -- это как
 	owner:LagCompensation(true)
 	local Ent, HitPos, _, physbone, trace = WhomILookinAt(owner, .3, special_attack and 35 or 45)
+	local pos = hg.eye(owner)
+	trace = util.TraceHull({
+		start = pos,
+		endpos = pos + owner:GetAimVector() * self.ReachDistance,
+		filter = {owner, hg.GetCurrentCharacter(owner)},
+		mins = trMins,
+		maxs = trMaxs,
+	})
+	Ent = trace.Entity
+	HitPos = trace.HitPos
+
 	local AimVec = owner:GetAimVector()
 	local isfur = owner.PlayerClassName == "furry"
 	if IsValid(Ent) or (Ent and Ent.IsWorld and Ent:IsWorld()) then
@@ -771,7 +784,7 @@ function SWEP:AttackFront(special_attack, rand)
 		local SelfForce, Mul = 150, 1 * (havekastet and 1.7 or 1)
 		if self:IsEntSoft(Ent) then
 			SelfForce = 25
-			if Ent:IsPlayer() and IsValid(Ent:GetActiveWeapon()) and Ent:GetActiveWeapon().GetBlocking and Ent:GetActiveWeapon():GetBlocking() and not RagdollOwner(Ent) then
+                    if Ent:IsPlayer() and IsValid(Ent:GetActiveWeapon()) and Ent:GetActiveWeapon().GetBlocking and Ent:GetActiveWeapon():GetBlocking() and not hg.RagdollOwner(Ent) then
 				sound.Play( owner.PlayerClassName == "furry" and "pwb/weapons/knife/hit"..math_random(1,4)..".wav" or "weapons/melee/blunt_light"..math_random(8)..".wav", HitPos, 60, math_random(90, 110))
 				if owner:IsBerserk() then
 					sound.Play("zbattle/berserk/unarmed" .. math_random(1, 9) .. ".wav", HitPos, 90, math_random(90, 110), 0.1 + owner.organism.berserk / 2)
@@ -901,3 +914,14 @@ function SWEP:Reload()
 		end
 	end
 end
+
+local hg_coolhands = CreateConVar("hg_coolhands", 0, {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Give cool hands instead of default hands on spawn")
+hook.Add("PlayerSpawn", "Toggle_CoolHands", function(ply)
+	if not hg_coolhands:GetBool() or ply.PlayerClassName and ply.PlayerClassName == "headcrabzombie" then return end
+
+	if ply:HasWeapon("weapon_hands_sh") then
+		ply:StripWeapon("weapon_hands_sh")
+	end
+	local hands = ply:Give("weapon_hg_coolhands")
+	ply:SelectWeapon(hands)
+end)

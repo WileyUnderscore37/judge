@@ -1501,6 +1501,9 @@ local function velocityDamage(ent, data)
 	-- 100 is kil
 	
 	local ply = hg.RagdollOwner(ent)
+        if IsValid(ply) and ply.hgSprintCollisionDamageUntil and ply.hgSprintCollisionDamageUntil > CurTime() then
+                dmg = dmg * (ply.hgSprintCollisionDamageMul or 0.08)
+        end
 
 	-- Safe landing: holding crouch (Ctrl) while ragdolled dampens the fall.
 	-- Only kicks in on real impacts and only helps at moderate heights,

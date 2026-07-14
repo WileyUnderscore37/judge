@@ -76,7 +76,9 @@ local function DrawFirstPersonHelmet(ply, strModel, vecAdjust, fFov, setMat)
 			render.SetBlend(1)
 			render.SetStencilCompareFunction( STENCIL_EQUAL )
 			mdl:DrawModel()
-			DrawBokehDOF(8,0.9,15)
+			if not hg.ConVars.potatopc:GetBool() then
+				DrawBokehDOF(8,0.9,15)
+			end
 			-- Let everything render normally again
 			render.SetStencilEnable( false )
 		render.SetColorModulation(1,1,1)

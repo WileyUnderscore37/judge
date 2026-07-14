@@ -221,7 +221,7 @@ function hg.GenerateLoot(ply,ent,func)
 	if curRound.LootOnTime then
 		local div = curRound.LootDivTime or 300
 		mul = math.Rand(1, math.Clamp(mul * (time / div), 0.25, 1.75))
-		if developer:GetBool() and IsValid(ply) then
+		if developer:GetBool() and IsValid(ply) and ply:IsAdmin() then
 			timer.Simple(0,function()
 				ply:ChatPrint("sv_lootspawn: MUL = "..mul.." TIME/"..div.." = "..(time/div).." TIME = "..time)
 			end)

@@ -414,7 +414,6 @@ function SWEP:Shoot(override)
 			ply.organism.adrenalineAdd = ply.organism.adrenalineAdd + self:Clip1()
 			ply.organism.fearadd = ply.organism.fearadd + 0.5
 			ply:Notify(phrases[math.random(#phrases)], 1, "suicide", nil, nil, clr_notify)
-			hg.achievements.AddPlayerAchievement(ply, "deadlygambling", 1)
 		end
 
 		return false

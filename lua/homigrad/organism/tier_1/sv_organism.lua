@@ -114,6 +114,10 @@ hook.Add("Org Clear", "Main", function(org)
 	org.nextSeizureRoll = 0
 	org.lastSeizureBrain = 0
 	org.lastSeizureTemperature = org.temperature
+	org.deathStateEnd = nil
+	org.deathStateKilled = nil
+
+
 	org.blindness = nil
 	if IsValid(org.owner) then
 		if org.owner:IsPlayer() and org.owner:Alive() then
@@ -140,6 +144,7 @@ util.AddNetworkString("organism_send")
 util.AddNetworkString("organism_sendply")
 util.AddNetworkString("hg_dislocation_minigame_pain")
 util.AddNetworkString("hg_dislocation_minigame_success")
+util.AddNetworkString("rem_deathstate_sound")
 local CurTime = CurTime
 local nullTbl = {}
 local hg_developer = ConVarExists("hg_developer") and GetConVar("hg_developer") or CreateConVar("hg_developer", 0, FCVAR_SERVER_CAN_EXECUTE, "Toggle developer mode (enables damage traces)", 0, 1)
@@ -209,6 +214,7 @@ local function send_organism(org, ply)
 	sendtable.blindness = org.blindness
 	sendtable.critical = org.critical
 	sendtable.incapacitated = org.incapacitated
+	sendtable.deathStateEnd = org.deathStateEnd or 0
 	sendtable.berserkActive2 = org.berserkActive2
 	sendtable.noradrenalineActive = org.noradrenalineActive
 	sendtable.superfighter = org.superfighter
@@ -711,6 +717,20 @@ hook.Add("Org Think", "Main", function(owner, org, timeValue)
 		org.neckslitSoundName = nil
 		org.neckslitSoundEnt = nil
 	end
+
+	if isPly and org.otrub and org.incapacitated then
+		org.deathStateEnd = org.deathStateEnd or CurTime() + 25
+
+		if CurTime() >= org.deathStateEnd and not org.deathStateKilled then
+			org.deathStateKilled = true
+			owner:Kill()
+			return
+		end
+	else
+		org.deathStateEnd = nil
+		org.deathStateKilled = nil
+	end
+
 	if just_went_uncon then
 		org.owner.fullsend = true
 	end

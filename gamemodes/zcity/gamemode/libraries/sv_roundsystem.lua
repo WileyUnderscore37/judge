@@ -8,20 +8,54 @@ function zb.AddFade()
 	net.Broadcast()
 end
 
-local ZB_FORCE_ONLY_HOMICIDE = false
-local ZB_FORCED_TEMP_MODE = "hmcd"
+local ZB_FORCE_LIMITED_MODE_POOL = true
+local ZB_FORCED_TEMP_MODE_WEIGHTS = {
+        ["hmcd"] = 0.7,
+        ["dm"] = 0.3
+}
+local ZB_FORCED_MODE_POOL = {
+        ["hmcd"] = true,
+        ["dm"] = true
+}
 local ZB_HAS_CHANGELEVEL
 
-local function ZB_ResolveNextRound(round)
-	if ZB_FORCE_ONLY_HOMICIDE then
-		return ZB_FORCED_TEMP_MODE
-	end
+local function ZB_IsForcedModeAllowed(mode)
+        if !isstring(mode) or !ZB_FORCED_MODE_POOL[mode] then return false end
 
-	if forcemodeconvar then
-		local f = forcemodeconvar:GetString()
-		if f and f ~= "random" and f ~= "" then
-			return f
-		end
+        local tbl = zb.modes[mode]
+        return tbl and (!tbl.CanLaunch or tbl:CanLaunch())
+end
+
+local function ZB_GetForcedTempMode()
+        local total = 0
+
+        for mode, chance in pairs(ZB_FORCED_TEMP_MODE_WEIGHTS) do
+                if ZB_IsForcedModeAllowed(mode) then
+                        total = total + chance
+                end
+        end
+
+        if total <= 0 then return "hmcd" end
+
+        local random = math.Rand(0, total)
+        local count = 0
+
+        for mode, chance in pairs(ZB_FORCED_TEMP_MODE_WEIGHTS) do
+                if ZB_IsForcedModeAllowed(mode) then
+                        count = count + chance
+
+                        if random <= count then
+                                return mode
+                        end
+                end
+        end
+
+        return "hmcd"
+end
+
+local function ZB_ResolveNextRound(round)
+	if ZB_FORCE_LIMITED_MODE_POOL then
+                return ZB_IsForcedModeAllowed(round) and round or ZB_GetForcedTempMode()
 	end
 
 	return round
@@ -62,7 +96,7 @@ function CurrentRound()
 		return zb.modes["coop"]
 	end
 
-	zb.CROUND = zb.CROUND or "hmcd"
+        zb.CROUND = zb.CROUND or ZB_ResolveNextRound("hmcd")
 	if not zb.CROUND_MAIN or (zb.LASTCROUND != zb.CROUND) then
 		zb.CROUND_MAIN = zb:GetMode(zb.CROUND)
 		zb.LASTCROUND = zb.CROUND
@@ -328,6 +362,7 @@ function zb.GetAvailableModes()
 	for i, name in pairs(zb.GetModes()) do
 
 		local tbl = zb.modes[name]
+		if ZB_FORCE_LIMITED_MODE_POOL and !ZB_IsForcedModeAllowed(name) then continue end
 		if (tbl.CanLaunch and tbl:CanLaunch()) and
 		(
 			( not tbl.ForBigMaps ) or
@@ -499,6 +534,7 @@ function zb.GetModesInfo()
 	local modesInfo = {}
 
 	for name, mode in pairs(zb.modes) do
+		if ZB_FORCE_LIMITED_MODE_POOL and !ZB_FORCED_MODE_POOL[name] then continue end
 		if mode.Types then
 			for name2, mode2 in pairs(mode.Types) do
 				table.insert(modesInfo, {
@@ -680,7 +716,7 @@ net.Receive("AdminSetGameMode", function(len, ply)
 		NextRound(modeKey)
 		ply:ChatPrint("Game mode set to: " .. modeKey)
 
-		if addToQueue then
+		if addToQueue and #zb.QueuedModes < 12 then
 			table.insert(zb.QueuedModes, modeKey)
 			zb.NotifyQueueModified(ply, "added " .. modeKey .. " to")
 
@@ -841,6 +877,8 @@ if SERVER then
 		local command = net.ReadString()
 		local modeKey = net.ReadString()
 		local addToQueue = net.ReadBool() or false
+		if command ~= "setmode" and command ~= "setforcemode" then return end
+		if not isstring(modeKey) or not zb.modes[modeKey] then ply:ChatPrint("Invalid game mode") return end
 
 		if !(ply:IsSuperAdmin() or ply:IsAdmin()) and not zb.modes[modeKey]:CanLaunch() then
 			ply:ChatPrint("This mode can't launch (No points or Is blocked): " .. modeKey)
@@ -851,7 +889,7 @@ if SERVER then
 			NextRound(modeKey)
 			ply:ChatPrint("Game mode set to: " .. modeKey)
 
-			if addToQueue then
+			if addToQueue and #zb.QueuedModes < 12 then
 				table.insert(zb.QueuedModes, modeKey)
 				zb.NotifyQueueModified(ply, "added " .. modeKey .. " to")
 
@@ -862,7 +900,7 @@ if SERVER then
 			NextRound(forcemode)
 			ply:ChatPrint("Force mode set to: " .. modeKey)
 
-			if addToQueue then
+			if addToQueue and #zb.QueuedModes < 12 then
 				table.insert(zb.QueuedModes, modeKey)
 				zb.NotifyQueueModified(ply, "added " .. modeKey .. " to")
 
@@ -883,6 +921,13 @@ if SERVER then
 		if not ply:IsAdmin() then return end
 
 		local modeQueue = net.ReadTable()
+		if not istable(modeQueue) then return end
+		local cleanQueue = {}
+		for _, modeKey in ipairs(modeQueue) do
+			if #cleanQueue >= 12 then break end
+			if isstring(modeKey) and zb.modes[modeKey] then cleanQueue[#cleanQueue + 1] = modeKey end
+		end
+		modeQueue = cleanQueue
 		zb.QueuedModes = modeQueue
 
 		if #modeQueue == 0 then
