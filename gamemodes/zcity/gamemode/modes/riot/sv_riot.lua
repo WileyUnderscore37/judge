@@ -274,14 +274,14 @@ function MODE:CheckAlivePlayers()
 
     for _, ply in player.Iterator() do
         if GetRiotTeam(ply) ~= 0 then continue end
-        if ply:Alive() and not ply:GetNetVar("handcuffed", false) then
+        if ply:Alive() and not (ply.organism and ply.organism.incapacitated) and not ply:GetNetVar("handcuffed", false) then
             table.insert(swatPlayers, ply)
         end
     end
 
     for _, ply in player.Iterator() do
         if GetRiotTeam(ply) ~= 1 then continue end
-        if ply:Alive() and not ply:GetNetVar("handcuffed", false) then
+        if ply:Alive() and not (ply.organism and ply.organism.incapacitated) and not ply:GetNetVar("handcuffed", false) then
             table.insert(banditPlayers, ply)
         end
     end
