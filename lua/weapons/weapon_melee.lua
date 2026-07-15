@@ -610,7 +610,7 @@ function SWEP:AddBlockHitShake(state, normal)
     local owner = self:GetOwner()
     if not IsValid(owner) or owner ~= LocalPlayer() then return end
 
-    local strength = state == "break" and (self.BlockHitShakeBreakMul or 2.1) or state == "parry" and (self.BlockHitShakeParryMul or 1.35) or (self.BlockHitShakeMul or 1)
+    local strength = state == "break" and (self.BlockHitShakeBreakMul or 2.1) or state == "parry" and (self.BlockHitShakeParryMul or 1.35) or state == "feint" and (self.BlockHitShakeFeintMul or 0.5) or state == "clash" and (self.BlockHitShakeClashMul or 0.9) or (self.BlockHitShakeMul or 1)
     local posMul = self.BlockHitShakePosMul or 1
     local angMul = self.BlockHitShakeAngMul or 1
     self.BlockPushPos = self.BlockPushPos or Vector(0,0,0)
@@ -630,6 +630,55 @@ function SWEP:AddBlockHitShake(state, normal)
     self.BlockPushAngVel.p = self.BlockPushAngVel.p + localY * 18 * angMul * strength
     self.BlockPushAngVel.y = self.BlockPushAngVel.y + -localX * 10 * angMul * strength
     self.BlockPushAngVel.r = self.BlockPushAngVel.r + -localY * 26 * angMul * strength
+end
+
+function SWEP:StartReverseRewind(duration, shakeState)
+    if not CLIENT then return end
+
+    duration = duration or (self.FeintTime or 0.25)
+
+    local animspeed = math.max(self.animspeed or 0, 0.001)
+    local timing = 1 - math.Clamp((self.animtime - CurTime()) / animspeed, 0, 1)
+    local c = self.reverseanim and (1 - timing) or timing
+
+    c = math.max(c, 0.15)
+
+    self.reverseanim = true
+    self.animspeed = duration / c
+    self.animbasespeed = duration / c
+    self.animtime = CurTime() + duration
+    self.cycling = false
+    self.callback = nil
+
+    self.ClashShakePos = Vector(0, 0, 0)
+    self.ClashShakeAng = Angle(0, 0, 0)
+
+    if shakeState == "clash" then
+        self.ClashShakeStart = CurTime()
+        self.ClashShakeDuration = duration
+    else
+        self.ClashShakeStart = nil
+        self.ClashShakeDuration = nil
+    end
+
+    if shakeState and self.AddBlockHitShake then
+        self:AddBlockHitShake(shakeState, self:GetOwner() and self:GetOwner():GetAimVector() * -1 or vector_up)
+    end
+
+    local idx = self:EntIndex()
+    timer.Remove("hg_melee_rewind_" .. idx)
+    timer.Create("hg_melee_rewind_" .. idx, duration, 1, function()
+        if not IsValid(self) then return end
+        if self:GetInAttack() or self.Charging then return end
+        self.reverseanim = false
+        self.cycling = false
+        self.animspeed = 99999
+        self.animtime = CurTime() + 99999
+        self.ClashShakeStart = nil
+        self.ClashShakeDuration = nil
+        self.ClashShakePos = Vector(0, 0, 0)
+        self.ClashShakeAng = Angle(0, 0, 0)
+    end)
 end
 
 SWEP.SuicidePos = Vector(5, -24, 5)
@@ -698,6 +747,27 @@ function SWEP:ModelAnim(model, pos, ang)
         addAng.p = addAng.p + (self.BlockPushAng and self.BlockPushAng.p or 0)
         addAng.y = addAng.y + (self.BlockPushAng and self.BlockPushAng.y or 0)
         addAng.r = addAng.r + (self.BlockPushAng and self.BlockPushAng.r or 0)
+
+        if self.ClashShakeStart and self.ClashShakeDuration then
+            local elapsed = CurTime() - self.ClashShakeStart
+            local fade = 1 - math.Clamp(elapsed / self.ClashShakeDuration, 0, 1)
+            local shake = fade * (self.ClashShakeIntensity or 0.035)
+
+            self.ClashShakePos = self.ClashShakePos or Vector(0, 0, 0)
+            self.ClashShakeAng = self.ClashShakeAng or Angle(0, 0, 0)
+
+            self.ClashShakePos = self.ClashShakePos + VectorRand() * shake
+            self.ClashShakeAng = self.ClashShakeAng + AngleRand() * (shake * 0.5)
+
+            local decayTarget = vector_origin
+            self.ClashShakePos = LerpVector(FrameTime() * 12, self.ClashShakePos, decayTarget)
+            self.ClashShakeAng = LerpAngle(FrameTime() * 12, self.ClashShakeAng, angle_zero)
+
+            addPos:Add(self.ClashShakePos)
+            addAng.p = addAng.p + self.ClashShakeAng.p
+            addAng.y = addAng.y + self.ClashShakeAng.y
+            addAng.r = addAng.r + self.ClashShakeAng.r
+        end
     end
 
     if owner:GetNWFloat("InLegKick",0) > CurTime() + 0.1 then
@@ -1786,8 +1856,14 @@ function SWEP:GetClashMaterial()
     end
 end
 
+function SWEP:IsKnifeWeapon()
+    local cls = self:GetClass():lower()
+    return cls:find("knife") ~= nil or cls:find("nozh") ~= nil or cls:find("bayonet") ~= nil
+end
+
 function SWEP:CanClashWeapon()
     if self.CantClash then return false end
+    if self:IsKnifeWeapon() then return false end
 
     return self:GetClashMaterial() ~= nil
 end
@@ -2191,10 +2267,68 @@ function SWEP:ShouldAbortForClash()
     return (self.ClashAbortUntil or 0) > CurTime()
 end
 
+function SWEP:Feint()
+    if not SERVER then return end
+    if not self:GetInAttack() then return end
+    if self.Feinting then return end
+
+    local owner = self:GetOwner()
+    if not IsValid(owner) then return end
+
+    self.Feinting = true
+
+    if owner.organism then
+        local attacktype = self:GetAttackType()
+        local vellen = IsValid(owner) and owner:GetVelocity():Length() or 0
+        local staminaCost = self:GetAttackConfigValue(self.StaminaPrimary, self.StaminaSecondary, self.ChargeStamina, attacktype) or 0
+        owner.organism.stamina.subadd = owner.organism.stamina.subadd + staminaCost * 0.5 * 0.5 * math.Clamp(vellen / 200, 1, 1.25)
+    end
+
+    self:SetInAttack(false)
+    self.HitEnts = nil
+    self.FirstAttackTick = false
+    self.AttackHitPlayed = false
+    self.SoftHitPlayed = false
+    self.ComboAppliedThisAttack = nil
+    self.HitWorld = true
+    self.Charging = nil
+    self.ChargeIdleLooping = nil
+
+    local recover = self.FeintRecovery or 0.18
+    self:SetLastAttack(CurTime())
+    self:SetAttackTime(CurTime())
+    self:SetAttackWait(recover)
+    self.lastattack = CurTime()
+    self.attackwait = recover
+
+    self:SendFeintAnim()
+end
+
+function SWEP:SendFeintAnim()
+    if not SERVER then return end
+
+    net.Start("hg_melee_feint")
+    net.WriteEntity(self)
+    net.SendPVS(self:GetPos())
+
+    timer.Simple(self.FeintRecovery or 0.18, function()
+        if IsValid(self) then self.Feinting = false end
+    end)
+end
+
 function SWEP:SendClashAnimStop(wep, normal)
     if not SERVER or not IsValid(wep) then return end
 
     net.Start("hg_melee_clash_stop")
+    net.WriteEntity(wep)
+    net.WriteVector(normal and normal:GetNormalized() or vector_up)
+    net.SendPVS(wep:GetPos())
+end
+
+function SWEP:SendClashRewind(wep, normal)
+    if not SERVER or not IsValid(wep) then return end
+
+    net.Start("hg_melee_clash_rewind")
     net.WriteEntity(wep)
     net.WriteVector(normal and normal:GetNormalized() or vector_up)
     net.SendPVS(wep:GetPos())
@@ -2216,19 +2350,12 @@ function SWEP:HandleMeleeClash(otherWep, clashPos, hitNormal, attacktype, otherA
     self:PlayConfiguredWorldSound(self:GetClashSoundData(otherWep, attacktype, otherAttacktype), clashPos, 1)
     self:DispatchBlockImpactFx(clashTrace, self, "parry")
     self:DispatchBlockImpactFx(clashTrace, otherWep, "parry")
-    if self:IsChargeAttackType(attacktype) then
-        self:SendMeleeHitStop(attacktype, clashTrace.HitNormal, "parry")
-    else
-        self:AbortClashAttack()
-        self:SendClashAnimStop(self, clashTrace.HitNormal)
-    end
 
-    if otherWep.IsChargeAttackType and otherWep:IsChargeAttackType(otherAttacktype) then
-        otherWep:SendMeleeHitStop(otherAttacktype, -clashTrace.HitNormal, "parry")
-    else
-        otherWep:AbortClashAttack()
-        self:SendClashAnimStop(otherWep, -clashTrace.HitNormal)
-    end
+    self:AbortClashAttack()
+    self:SendClashRewind(self, clashTrace.HitNormal)
+
+    otherWep:AbortClashAttack()
+    self:SendClashRewind(otherWep, -clashTrace.HitNormal)
 
     local owner1 = self:GetOwner()
     local owner2 = otherWep:GetOwner()
@@ -2249,7 +2376,7 @@ function SWEP:HandleMeleeClash(otherWep, clashPos, hitNormal, attacktype, otherA
     }
 end
 
-function SWEP:FindMeleeClash(owner, ent, attacktype, inattackLength, tr)
+function SWEP:FindMeleeClash(owner, ent, attacktype, inattackLength, tr, windupOnly)
     if not SERVER then return end
     if not IsValid(owner) or not IsValid(ent) then return end
     if not self:CanClashWeapon() then return end
@@ -2269,8 +2396,10 @@ function SWEP:FindMeleeClash(owner, ent, attacktype, inattackLength, tr)
         if not otherWep.ismelee2 and otherWep.Base ~= "weapon_melee" then continue end
         if not otherWep.CanClashWeapon or not otherWep:CanClashWeapon() then continue end
         if not otherWep.GetInAttack or not otherWep:GetInAttack() then continue end
+        if windupOnly and (otherWep.GetLastAttack and otherWep:GetLastAttack() or 0) <= CurTime() then continue end
 
         local otherAttacktype = otherWep.GetAttackType and otherWep:GetAttackType() or 1
+        if otherAttacktype == 3 and attacktype ~= 3 then continue end
         local otherEnt = hg.GetCurrentCharacter(clashOwner)
 
         if not IsValid(otherEnt) then continue end
@@ -2589,6 +2718,12 @@ SWEP.ClashFrontDot = 0.2
 SWEP.ClashFacingDot = -0.2
 SWEP.ClashCooldown = nil
 SWEP.ClashRegenMul = 0.2
+SWEP.ClashRewindTime = 0.7
+SWEP.ClashMinWindupTime = 0.7
+SWEP.BlockHitShakeClashMul = 0.9
+SWEP.FeintTime = 0.25
+SWEP.FeintRecovery = 0.18
+SWEP.BlockHitShakeFeintMul = 0.5
 SWEP.noreverse = false
 SWEP.blockPoseSoundState = nil
 SWEP.ShouldAttackOnce = true
@@ -2834,6 +2969,11 @@ function SWEP:CustomThink()
     end
 
     if self:GetInAttack() then
+        if SERVER and hg.KeyDown(owner, IN_RELOAD) and CurTime() < self:GetLastAttack() then
+            self:Feint()
+            return
+        end
+
         local inattack1 = math.max(self:GetLastAttack() - CurTime(), 0) / self.AttackTime
         local inattack2 = math.max(self:GetLastAttack() - CurTime(), 0) / self.Attack2Time
         local inattack3 = math.max(self:GetLastAttack() - CurTime(), 0) / (self.ChargeAttackTime or self.AttackTime)
@@ -3363,6 +3503,44 @@ function SWEP:CustomThink()
                 self.ComboAppliedThisAttack = nil
             end
         else
+            if SERVER and not self:ShouldAbortForClash() then
+                local attacktype = self:GetAttackType()
+                local inattackLen = attacktype == 2 and inattackL2 or attacktype == 3 and inattackL3 or inattackL1
+                local secondary = self:IsSecondaryAttackType(attacktype)
+                local charge = self:IsChargeAttackType(attacktype)
+
+                local attackTime = attacktype == 2 and self.Attack2Time or attacktype == 3 and (self.ChargeAttackTime or self.AttackTime) or self.AttackTime
+                local swingElapsed = attackTime * (1 - inattackLen)
+                if swingElapsed < (self.ClashMinWindupTime or 0.7) then
+                    goto meleeskip_clash
+                end
+
+                local vellen2 = math.min(owner:GetVelocity():Length() * 0.05, 40)
+                local eyetr = hg.eyeTrace(owner, (self:GetAttackLength() + vellen2), ent, owner:GetAimVector())
+                local swingAng = self:GetAttackConfigValue(self.SwingAng, self.SwingAng2, self.ChargeSwingAng, attacktype) or -90
+                local attackRads = self:GetAttackConfigValue(self.AttackRads, self.AttackRads2, self.ChargeAttackRads, attacktype) or 65
+                local normal = eyetr.Normal:Angle()
+                normal:RotateAroundAxis(normal:Forward(), swingAng)
+                normal:RotateAroundAxis(normal:Up(), ((0.5 - inattackLen) * attackRads))
+
+                local isKnife = self:IsKnifeWeapon()
+                local knifeBonus = isKnife and (self.MeleeKnifeBonus or 22) or 0
+                local baseReach = self.MeleeRange or (self:GetAttackLength() + vellen2 + knifeBonus)
+                local defMul = self.MeleeRange and 1 or (isKnife and (self.MeleeKnifeMul or 1.15) or 0.7)
+                local reachLen = baseReach * (self.MeleeReachMul or defMul)
+
+                local tr = {
+                    start = eyetr.StartPos,
+                    endpos = eyetr.StartPos + normal:Forward() * reachLen,
+                }
+
+                local clashTrace = self:FindMeleeClash(owner, ent, attacktype, inattackLen, tr, true)
+                if clashTrace and clashTrace.HGClash then
+                    return
+                end
+            end
+
+            ::meleeskip_clash::
             self.attackedOnce = nil
             self.SoftHitPlayed = false
             self.ComboAppliedThisAttack = nil
@@ -3704,6 +3882,8 @@ if SERVER then
     util.AddNetworkString("hg_melee_block_fx")
     util.AddNetworkString("hg_melee_block_shake")
     util.AddNetworkString("hg_melee_clash_stop")
+    util.AddNetworkString("hg_melee_feint")
+    util.AddNetworkString("hg_melee_clash_rewind")
     util.AddNetworkString("MeleeBlockEffect")
     util.AddNetworkString("MeleeBlockPush")
 elseif CLIENT then
@@ -3899,6 +4079,39 @@ elseif CLIENT then
         local owner = wep:GetOwner()
         if IsValid(owner) and owner == LocalPlayer() then
             AddBlockImpact(0.8, wep, wep:GetPos())
+        end
+    end)
+
+    net.Receive("hg_melee_feint", function()
+        local wep = net.ReadEntity()
+
+        if not IsValid(wep) then return end
+
+        wep:StartReverseRewind(wep.FeintTime or 0.25, "feint")
+
+        local owner = wep:GetOwner()
+        if IsValid(owner) then
+            owner:AnimResetGestureSlot(GESTURE_SLOT_ATTACK_AND_RELOAD)
+        end
+        if IsValid(owner) and owner == LocalPlayer() then
+            AddBlockImpact(0.4, wep, wep:GetPos())
+        end
+    end)
+
+    net.Receive("hg_melee_clash_rewind", function()
+        local wep = net.ReadEntity()
+        local normal = net.ReadVector()
+
+        if not IsValid(wep) then return end
+
+        wep:StartReverseRewind(wep.ClashRewindTime or 0.35, "clash")
+
+        local owner = wep:GetOwner()
+        if IsValid(owner) then
+            owner:AnimResetGestureSlot(GESTURE_SLOT_ATTACK_AND_RELOAD)
+        end
+        if IsValid(owner) and owner == LocalPlayer() then
+            AddBlockImpact(0.7, wep, wep:GetPos())
         end
     end)
 

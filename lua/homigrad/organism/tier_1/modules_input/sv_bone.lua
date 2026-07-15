@@ -519,11 +519,25 @@ input_list.skull = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricoch
 	--  - A light tap on the head (weak melee) is not a concussion either way.
 	local hasHelmet = org.owner.armors and org.owner.armors["head"] != nil
 	local effectiveDmg = hasHelmet and dmg * 0.3 or dmg
+	local isBlunt = dmgInfo:IsDamageType(DMG_CLUB + DMG_CRUSH)
 
-		if effectiveDmg > 7 then
+	-- Blunt melee (DMG_CLUB/DMG_CRUSH) is the classic cause of real concussions:
+	-- a club, baton or fist to the head rattles the brain without breaking the
+	-- skull. It concusses at a much lower threshold and higher chance than a
+	-- bullet/blast would, because the force is transferred over a wider area.
+	-- Bullets/explosions keep the old, harder threshold (effectiveDmg > 7).
+	local concThreshold = isBlunt and 3 or 7
+	if effectiveDmg > concThreshold then
+		local baseChance, intensity
+		if isBlunt then
+			-- blunt: generous chance even at moderate blows, lower ceiling
+			baseChance = math.Clamp((effectiveDmg - 3) / 18, 0.2, 0.95)
+			intensity = math.Clamp(effectiveDmg * 0.4, 0.4, hasHelmet and 1.5 or 3.0)
+		else
 			-- chance + severity grow with how hard the (post-helmet) impact is
-			local baseChance = math.Clamp((effectiveDmg - 7) / 30, 0.12, 0.97)
-		local intensity = math.Clamp(effectiveDmg * 0.32, 0.5, hasHelmet and 1.2 or 4.0)
+			baseChance = math.Clamp((effectiveDmg - 7) / 30, 0.12, 0.97)
+			intensity = math.Clamp(effectiveDmg * 0.32, 0.5, hasHelmet and 1.2 or 4.0)
+		end
 
 		if math.random() < baseChance then
 			hg.organism.module.concussion.AddConcussion(org, intensity, math.Clamp(intensity * 6, 6, 50))

@@ -4,6 +4,12 @@ end
 hg.organism.module.concussion = {}
 local module = hg.organism.module.concussion
 
+local CONCUSSION_THRESHOLDS = { 0.5, 1.0, 2.5, 4.0 }
+local STAGE_NAUSEA_GAIN = { 0.0, 0.8, 1.6, 2.6, 4.0 }
+local STAGE_NAUSEA_SPIKE_CHANCE = { 0.0, 0.0, 0.35, 0.65, 0.9 }
+local STAGE_VOMIT_INTERVAL = { 0, 0, 6, 3.5, 2 }
+local STAGE_NAUSEA_CAP = { 0.0, 0.4, 1.5, 3.0, 5.0 }
+
 local concussion_phrases = {
     "My head is ringing...",
     "Everything is spinning...",
@@ -115,8 +121,11 @@ module[2] = function(ply, org, timeValue)
             org.fearadd = math.min((org.fearadd or 0) + timeValue * 0.15 * org.concussion, 2)
         end
 
-        if org.concussion > 0.3 and math.random() < org.concussion * 0.3 then
-            org.nausea = math.max(org.nausea or 0, org.concussion * 2.5)
+        local curStage = module.GetStage(org)
+        local stageCap = STAGE_NAUSEA_CAP[curStage + 1] or 0
+        if stageCap > 0 then
+            local drift = (stageCap - (org.nausea or 0)) * timeValue * 0.05
+            org.nausea = math.min((org.nausea or 0) + drift, stageCap)
         end
 
         if org.concussion > 0.3 then
@@ -156,17 +165,23 @@ module[2] = function(ply, org, timeValue)
         org.nausea = math.max(org.nausea - timeValue * 0.04, 0)
         if org.nausea == 0 then org.nextConcussionVomit = nil end
 
-        if org.nausea > 0.6 and not org.otrub then
+        local curStage = module.GetStage(org)
+        local vomitInterval = STAGE_VOMIT_INTERVAL[curStage + 1] or 0
+        if vomitInterval > 0 and org.nausea > 0.6 and not org.otrub then
             local now = CurTime()
             if org.nextConcussionVomit == nil then
-                -- перерыв перед первой блевней: сначала просто копим тошноту
                 org.nextConcussionVomit = now + math.Rand(2.5, 5)
             elseif now > org.nextConcussionVomit then
-                local vomitDelay = math.Rand(3, 6) / math.Clamp(org.nausea, 0.5, 5)
-                -- заметный перерыв между приступами рвоты
-                vomitDelay = math.max(vomitDelay, 3)
-                org.nextConcussionVomit = now + vomitDelay
+                local jitter = math.Rand(0.8, 1.2)
+                org.nextConcussionVomit = now + vomitInterval * jitter
                 hg.organism.VomitConcussion(ply)
+
+                if curStage >= 4 and math.random() < 0.4 then
+                    org.vomitInThroat = true
+                    if org.isPly and IsValid(ply) and ply:IsPlayer() then
+                        ply:Notify("I'm choking... I can't breathe...", 4, "concussion_choke", 0)
+                    end
+                end
             end
         end
 
@@ -185,10 +200,6 @@ function module.AddConcussion(org, intensity, duration)
         org.concussion_effects = {severity = 0, duration = 0, last_impact = 0}
     end
 
-    -- Prevent a flurry of weak hits (e.g. melee on a helmet) from linearly stacking
-    -- into a maxed-out concussion + endless vomiting. Successive impacts that land
-    -- very close together count far less, and the closer the brain already is to
-    -- being fully rattled, the less each additional blow adds (diminishing returns).
     local now = CurTime()
     org.concussion_lastImpact = org.concussion_lastImpact or 0
     local sinceLast = now - org.concussion_lastImpact
@@ -198,11 +209,25 @@ function module.AddConcussion(org, intensity, duration)
     local headroom = math.Clamp((5.0 - org.concussion) / 5.0, 0, 1)
     local add = intensity * rapidScale * (0.35 + 0.65 * headroom)
 
+    local prevStage = module.GetStage(org)
+
     org.concussion = math.min(org.concussion + add, 5.0)
     org.concussion_effects.severity = math.max(org.concussion_effects.severity or 0, add)
     org.concussion_effects.duration = math.max(org.concussion_effects.duration or 0, duration or math.Clamp(intensity * 5, 5, 60))
     org.concussion_tinnitus = math.max(org.concussion_tinnitus or 0, add * 0.6)
-    org.nausea = math.max(org.nausea or 0, add * 0.5)
+
+    local newStage = module.GetStage(org)
+    local stageGain = STAGE_NAUSEA_GAIN[newStage + 1] or 0
+    local nauseaAdd = add * 0.3 + stageGain * 0.4
+    if newStage > prevStage then
+        nauseaAdd = nauseaAdd + STAGE_NAUSEA_GAIN[newStage + 1] * 0.5
+        if math.random() < (STAGE_NAUSEA_SPIKE_CHANCE[newStage + 1] or 0) then
+            nauseaAdd = nauseaAdd + STAGE_NAUSEA_GAIN[newStage + 1] * 0.8
+        end
+    end
+    local nauseaCap = STAGE_NAUSEA_CAP[newStage + 1] or 0
+    org.nausea = math.min(math.max(org.nausea or 0, nauseaAdd), nauseaCap)
+
     if add > 1.5 then
         org.disorientation = math.max(org.disorientation or 0, add * 0.5)
     end
@@ -217,12 +242,23 @@ function module.HasConcussionSymptoms(org)
 end
 
 function module.GetConcussionSeverity(org)
-    if not org or not org.concussion then return 0 end
+    if not org or not org.concussion then return "none" end
     if org.concussion < 1.0 then return "mild"
     elseif org.concussion < 2.5 then return "moderate"
     elseif org.concussion < 4.0 then return "severe"
     else return "critical" end
 end
+
+function module.GetStage(org)
+    if not org or not org.concussion then return 0 end
+    local c = org.concussion
+    if c < CONCUSSION_THRESHOLDS[1] then return 0
+    elseif c < CONCUSSION_THRESHOLDS[2] then return 1
+    elseif c < CONCUSSION_THRESHOLDS[3] then return 2
+    elseif c < CONCUSSION_THRESHOLDS[4] then return 3
+    else return 4 end
+end
+
 local min, max, Clamp, Approach = math.min, math.max, math.Clamp, math.Approach
 hg.organism.module.trauma_combo = {}
 local module = hg.organism.module.trauma_combo
