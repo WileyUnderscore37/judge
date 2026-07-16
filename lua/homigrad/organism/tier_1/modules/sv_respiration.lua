@@ -107,6 +107,20 @@ local lowoxy = {
 	"I'm gasping for air...",
 	"Need to breathe air... or I'm gonna faint right here..."
 }
+local lowoxy_critical = {
+	"Can't... breathe...",
+	"Air... please...",
+	"I'm suffocating...",
+	"Help... I can't...",
+	"Everything's... going dark..."
+}
+local hypoxia_symptoms = {
+	"My head is spinning... I need air...",
+	"I feel lightheaded...",
+	"Everything's getting fuzzy...",
+	"I can't think straight... need oxygen...",
+	"My fingers are tingling..."
+}
 local not_enough_intake = {
 	"I need to breathe...",
 	"I'm struggling to breathe...",
@@ -116,6 +130,20 @@ local drop_mask = {
 	"Drop the mask, it's not worth it...",
 	"It's fucking disgusting... and I surely can't breathe in this...",
 	"Fucking stinks... Gotta take this mask off...",
+}
+local pneumothorax_phrases = {
+	"I can feel something filling my lungs.",
+	"It's getting harder to breathe.",
+	"I'm really struggling to breathe.",
+	"My chest feels tight... something's wrong.",
+	"Every breath hurts...",
+	"I can't get enough air in..."
+}
+local choking_phrases = {
+	"I'm choking!",
+	"Can't... breathe... something's stuck...",
+	"I can't get air in!",
+	"Help me... I'm choking!"
 }
 local drugged = {
 	"Ohhh hohoohoooo Ie-like it.....",
@@ -127,6 +155,26 @@ local drugged = {
 	"Why am I here even?.. wWhatever whuhhh heh",
 	"Whoa re you? Gett outtaheree...",
 	"Don't want anything else... this is pERRRfect!..",
+}
+local hunger_phrases = {
+	"My stomach is growling...",
+	"I need to eat something...",
+	"Haven't eaten in a while...",
+	"I'm getting hungry...",
+	"Need to find some food..."
+}
+local starvation_phrases = {
+	"I'm starving... I need food...",
+	"My body is eating itself...",
+	"I feel so weak from hunger...",
+	"Can't... think... need calories...",
+	"I'm dying of hunger..."
+}
+local starvation_critical = {
+	"Can't... move... no energy...",
+	"Everything's... fading...",
+	"So... hungry...",
+	"I can't... hold on..."
 }
 local bit_band,util_PointContents = bit.band,util.PointContents
 local color_white, color_red, color_red2, color_red3 = Color(255, 255, 255), Color(255, 0, 0), Color(200, 55, 55), Color(255, 100, 100)
@@ -204,7 +252,13 @@ module[2] = function(owner, org, timeValue)
 		if o2[1] < 12 then
 			org.owner:Notify(lowoxy[math.random(#lowoxy)], 30, "lowoxy", 0, nil, color_red3)
 			if o2[1] < 6 then
-				org.owner:Notify("Oxygen... please...", 30, "lowoxy2", 0, nil, color_red)
+				org.owner:Notify(lowoxy_critical[math.random(#lowoxy_critical)], 30, "lowoxy2", 0, nil, color_red)
+			end
+		end
+		if o2[1] < 20 and o2[1] > 10 then
+			if not org.nextHypoxiaPhrase or org.nextHypoxiaPhrase < CurTime() then
+				org.owner:Notify(hypoxia_symptoms[math.random(#hypoxia_symptoms)], 15, "hypoxia_symptoms", 0)
+				org.nextHypoxiaPhrase = CurTime() + math.Rand(20, 35)
 			end
 		end
 	end
@@ -229,17 +283,17 @@ module[2] = function(owner, org, timeValue)
 	end
 	if org.isPly then
 		if org.pneumothorax > 0 then
-			org.owner:Notify("I can feel something filling my lungs.", true, "pneumothorax1",10)
+			org.owner:Notify(pneumothorax_phrases[1], true, "pneumothorax1",10)
 		else
 			org.owner:ResetNotification("pneumothorax1")
 		end
 		if org.pneumothorax > 0.3 then
-			org.owner:Notify("It's getting harder to breathe.", true, "pneumothorax2", 5)
+			org.owner:Notify(pneumothorax_phrases[2], true, "pneumothorax2", 5)
 		else
 			org.owner:ResetNotification("pneumothorax2")
 		end
 		if org.pneumothorax > 0.5 then
-			org.owner:Notify("I'm really struggling to breathe.", true, "pneumothorax3", 5)
+			org.owner:Notify(pneumothorax_phrases[3], true, "pneumothorax3", 5)
 		else
 			org.owner:ResetNotification("pneumothorax3")
 		end
@@ -352,4 +406,23 @@ module[2] = function(owner, org, timeValue)
     org.blood = min(org.blood + timeValue * (org.satiety/10) , 5000)
     org.regeneratehp = (!((org.regeneratehp or 0) >= 1) and min( (org.regeneratehp or 0) + timeValue * (org.satiety/100), 1)) or 0
     owner:SetHealth(min(owner:Health() + org.regeneratehp,100))
+
+    if org.isPly and not org.otrub and org.hungry > 0 then
+        if org.hungry > 30 and org.hungry <= 60 then
+            if not org.nextHungerPhrase or org.nextHungerPhrase < CurTime() then
+                owner:Notify(hunger_phrases[math.random(#hunger_phrases)], 12, "hunger_mild", 0)
+                org.nextHungerPhrase = CurTime() + math.Rand(30, 50)
+            end
+        elseif org.hungry > 60 and org.hungry <= 80 then
+            if not org.nextHungerPhrase or org.nextHungerPhrase < CurTime() then
+                owner:Notify(starvation_phrases[math.random(#starvation_phrases)], 12, "starvation_moderate", 0)
+                org.nextHungerPhrase = CurTime() + math.Rand(20, 35)
+            end
+        elseif org.hungry > 80 then
+            if not org.nextHungerPhrase or org.nextHungerPhrase < CurTime() then
+                owner:Notify(starvation_critical[math.random(#starvation_critical)], 12, "starvation_critical", 0)
+                org.nextHungerPhrase = CurTime() + math.Rand(12, 22)
+            end
+        end
+    end
 end

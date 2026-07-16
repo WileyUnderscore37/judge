@@ -615,9 +615,6 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 
 	if concussion > 0 and lply:Alive() then
 		concLerp = LerpFT(0.03, concLerp, concussion)
-		if concLerp > 0.3 then
-			DrawMaterialOverlay("sprites/mat_jack_hmcd_scope_aberration", concLerp * 0.15)
-		end
 		if concLerp > 1.0 then
 			local wobbleTime = CurTime() * 2.5
 			local wobbleAmt = math.Clamp((concLerp - 1.0) / 3, 0, 0.4)
@@ -633,7 +630,8 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 			DrawToyTown(2, blurAmt * ScrH())
 		end
 	else
-		concLerp = LerpFT(0.08, concLerp, 0)
+		concLerp = LerpFT(0.15, concLerp, 0)
+		if concLerp < 0.05 then concLerp = 0 end
 	end
 
 	if concussionNausea > 0 and lply:Alive() then
@@ -649,13 +647,15 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 			ViewPunch(swayAng)
 		end
 	else
-		nauseaLerp = LerpFT(0.08, nauseaLerp, 0)
+		nauseaLerp = LerpFT(0.15, nauseaLerp, 0)
+		if nauseaLerp < 0.05 then nauseaLerp = 0 end
 	end
 
 	if concussionTinnitus > 0.1 and lply:Alive() then
 		tinnitusConcLerp = LerpFT(0.02, tinnitusConcLerp, concussionTinnitus)
 	else
-		tinnitusConcLerp = LerpFT(0.08, tinnitusConcLerp, 0)
+		tinnitusConcLerp = LerpFT(0.15, tinnitusConcLerp, 0)
+		if tinnitusConcLerp < 0.05 then tinnitusConcLerp = 0 end
 	end
 
 	local ent = IsValid(lply.FakeRagdoll) and lply.FakeRagdoll or lply

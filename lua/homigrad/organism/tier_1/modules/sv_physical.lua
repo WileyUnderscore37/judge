@@ -23,6 +23,69 @@ local otrub_pain_tolerance = 90
 local pain_fake_threshold = 0.9
 local pain_drain_base = 20
 local pain_drain_otrub_mul = 4.5
+local pain_light = {
+	"That's gonna bruise...",
+	"Ouch... that hurt...",
+	"I'm bleeding a bit...",
+	"Damn, that stings...",
+	"Need to watch that..."
+}
+local pain_moderate = {
+	"That really hurts...",
+	"I need to tend to this wound...",
+	"The pain is building up...",
+	"I can feel it throbbing...",
+	"Need to find something for the pain..."
+}
+local pain_severe = {
+	"The pain is unbearable...",
+	"I can't take this anymore...",
+	"Make it stop... please...",
+	"It hurts so much...",
+	"I'm in agony..."
+}
+local pain_critical = {
+	"I can't... the pain...",
+	"Everything hurts...",
+	"I'm going to pass out from the pain...",
+	"Please... make it stop...",
+	"I can't feel anything but pain..."
+}
+local shock_phrases = {
+	"I'm going into shock...",
+	"I feel cold... so cold...",
+	"My hands are shaking...",
+	"I can't stop trembling...",
+	"Everything's spinning..."
+}
+local shock_severe = {
+	"I'm losing it...",
+	"Can't... focus...",
+	"Everything's fading...",
+	"I'm slipping away...",
+	"Help... I can't..."
+}
+local adrenaline_phrases = {
+	"I feel so alive!",
+	"Let's go! I can do this!",
+	"Nothing's gonna stop me!",
+	"I'm pumped up!",
+	"Bring it on!"
+}
+local adrenaline_crash = {
+	"Oh god... the crash...",
+	"I feel so drained...",
+	"The adrenaline wore off...",
+	"I'm exhausted...",
+	"Everything hurts now..."
+}
+local stamina_exhausted = {
+	"I can't... go on...",
+	"No more... I'm done...",
+	"I need to rest...",
+	"Can't... move...",
+	"Legs won't work..."
+}
 module[1] = function(org)
 	org.shock = 0
 	org.pain = 0
@@ -59,8 +122,8 @@ module[2] = function(owner, org, timeValue)
 	local add = math.min(timeValue * 15, org.painadd)
 	local sub = (add <= 0.2) and (timeValue * pain_drain_base * (org.otrub and pain_drain_otrub_mul or 1) + timeValue * (org.painkiller * 2) + timeValue * (org.analgesia * 4)) or (0)
 	if adrenaline > 0.5 then
-		sub = sub * math.max(1 - adrenaline, 0.05) / 1.5// / (adrenaline >= 2 and 16 or 8)
-		add = add * math.max(1 - adrenaline, 0.05) / 1.5// / (adrenaline >= 2 and 16 or 8)
+		sub = sub * math.max(1 - adrenaline, 0.05) / 1.5
+		add = add * math.max(1 - adrenaline, 0.05) / 1.5
 	end
 	if org.pain > 60 and not org.otrub then
 		add = add / 5
@@ -140,6 +203,55 @@ module[2] = function(owner, org, timeValue)
 	if org.pain > 100 then
 	end
 	org.disorientation = math.Approach(org.disorientation, 0, timeValue / 5)
+
+	if org.isPly and not org.otrub and org.analgesia <= 1 then
+		if org.pain > 30 and org.pain <= 50 then
+			if not org.nextPainPhrase or org.nextPainPhrase < CurTime() then
+				owner:Notify(pain_light[math.random(#pain_light)], 12, "pain_light", 0)
+				org.nextPainPhrase = CurTime() + math.Rand(25, 45)
+			end
+		elseif org.pain > 50 and org.pain <= 70 then
+			if not org.nextPainPhrase or org.nextPainPhrase < CurTime() then
+				owner:Notify(pain_moderate[math.random(#pain_moderate)], 12, "pain_moderate", 0)
+				org.nextPainPhrase = CurTime() + math.Rand(15, 30)
+			end
+		elseif org.pain > 70 and org.pain <= 90 then
+			if not org.nextPainPhrase or org.nextPainPhrase < CurTime() then
+				owner:Notify(pain_severe[math.random(#pain_severe)], 12, "pain_severe", 0)
+				org.nextPainPhrase = CurTime() + math.Rand(10, 20)
+			end
+		elseif org.pain > 90 then
+			if not org.nextPainPhrase or org.nextPainPhrase < CurTime() then
+				owner:Notify(pain_critical[math.random(#pain_critical)], 12, "pain_critical", 0)
+				org.nextPainPhrase = CurTime() + math.Rand(8, 15)
+			end
+		end
+
+		if org.shock > 30 and org.shock <= 60 then
+			if not org.nextShockPhrase or org.nextShockPhrase < CurTime() then
+				owner:Notify(shock_phrases[math.random(#shock_phrases)], 12, "shock_moderate", 0)
+				org.nextShockPhrase = CurTime() + math.Rand(20, 35)
+			end
+		elseif org.shock > 60 then
+			if not org.nextShockPhrase or org.nextShockPhrase < CurTime() then
+				owner:Notify(shock_severe[math.random(#shock_severe)], 12, "shock_severe", 0)
+				org.nextShockPhrase = CurTime() + math.Rand(12, 22)
+			end
+		end
+
+		if org.adrenaline > 1.5 and org.adrenaline <= 3 then
+			if not org.nextAdrenalinePhrase or org.nextAdrenalinePhrase < CurTime() then
+				owner:Notify(adrenaline_phrases[math.random(#adrenaline_phrases)], 10, "adrenaline_high", 0)
+				org.nextAdrenalinePhrase = CurTime() + math.Rand(15, 25)
+			end
+		elseif org.adrenaline < 0.3 and org._hadAdrenaline then
+			if not org.nextAdrenalineCrashPhrase or org.nextAdrenalineCrashPhrase < CurTime() then
+				owner:Notify(adrenaline_crash[math.random(#adrenaline_crash)], 12, "adrenaline_crash", 0)
+				org.nextAdrenalineCrashPhrase = CurTime() + math.Rand(20, 35)
+			end
+		end
+		org._hadAdrenaline = org.adrenaline > 1.5
+	end
 end
 local min, max, Round = math.min, math.max, math.Round
 local hg_organism_stamina_sprint_mul = CreateConVar("hg_organism_stamina_sprint_mul","1",{FCVAR_ARCHIVE,FCVAR_NOTIFY,FCVAR_NEVER_AS_STRING},"Multiply stamina drain when sprinting",0,10)
@@ -225,6 +337,21 @@ module[2] = function(owner, org, timeValue)
 	if hg_infstamina:GetBool() then
 		stamina.sub = 0
 		stamina[1] = stamina.max
+	end
+
+	if org.isPly and not org.otrub then
+		local staminaPercent = stamina[1] / stamina.max
+		if staminaPercent < 0.15 then
+			if not org.nextStaminaPhrase or org.nextStaminaPhrase < CurTime() then
+				owner:Notify(stamina_exhausted[math.random(#stamina_exhausted)], 12, "stamina_exhausted", 0)
+				org.nextStaminaPhrase = CurTime() + math.Rand(8, 18)
+			end
+		elseif staminaPercent < 0.3 then
+			if not org.nextStaminaPhrase or org.nextStaminaPhrase < CurTime() then
+				owner:Notify("I'm getting tired... need to rest...", 12, "stamina_low", 0)
+				org.nextStaminaPhrase = CurTime() + math.Rand(15, 25)
+			end
+		end
 	end
 end
 function hg.organism.AddNaturalAdrenaline(org, fAmount)

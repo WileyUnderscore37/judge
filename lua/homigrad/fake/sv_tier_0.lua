@@ -468,6 +468,20 @@ end)
 local function RemoveRag(self, ply)
 	if self.override then return end
 	if not IsValid(ply) or ply.FakeRagdoll ~= self then return end
+	
+	self._slideActive = false
+	self._slideStartTime = nil
+	self._slideDir = nil
+	self._slideCooldown = nil
+	if self._slideLoopPath then
+		self:StopSound(self._slideLoopPath)
+		self._slideLoopPath = nil
+	end
+	if self._slideLoopTimer then
+		timer.Remove(self._slideLoopTimer)
+		self._slideLoopTimer = nil
+	end
+	
 	ply.FakeRagdoll = nil
 	ply.Removed = true
 	if ply:Alive() then ply:Kill() end
@@ -1129,6 +1143,11 @@ function hg.FakeUp(ply, forced, instant)
 	local ragdoll = ply.FakeRagdoll
 	
 	if !IsValid(ragdoll) then return end
+
+	ragdoll._slideActive = false
+	ragdoll._slideStartTime = nil
+	ragdoll._slideDir = nil
+	ragdoll._slideCooldown = nil
 
 	if ragdoll.welds then
 		if ply:InVehicle() then

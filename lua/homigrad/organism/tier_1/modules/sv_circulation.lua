@@ -87,6 +87,50 @@ module[2] = function(owner, org, timeValue)
 		org.owner:EmitSound("breathing/agonalbreathing_"..math.random(13)..".wav", 60)
 		org.lastsoundtime = CurTime() + math.random(25,35)
 	end
+
+	if org.isPly and not org.otrub and org.temperature then
+		if org.temperature < 35 and org.temperature >= 33 then
+			if not org.nextTempPhrase or org.nextTempPhrase < CurTime() then
+				org.owner:Notify(hypothermia_mild[math.random(#hypothermia_mild)], 12, "hypothermia_mild", 0)
+				org.nextTempPhrase = CurTime() + math.Rand(25, 40)
+			end
+		elseif org.temperature < 33 and org.temperature >= 30 then
+			if not org.nextTempPhrase or org.nextTempPhrase < CurTime() then
+				org.owner:Notify(hypothermia_moderate[math.random(#hypothermia_moderate)], 12, "hypothermia_moderate", 0)
+				org.nextTempPhrase = CurTime() + math.Rand(15, 25)
+			end
+		elseif org.temperature < 30 and org.temperature >= 28 then
+			if not org.nextTempPhrase or org.nextTempPhrase < CurTime() then
+				org.owner:Notify(hypothermia_severe[math.random(#hypothermia_severe)], 12, "hypothermia_severe", 0)
+				org.nextTempPhrase = CurTime() + math.Rand(10, 18)
+			end
+		elseif org.temperature < 28 then
+			if not org.nextTempPhrase or org.nextTempPhrase < CurTime() then
+				org.owner:Notify(hypothermia_critical[math.random(#hypothermia_critical)], 12, "hypothermia_critical", 0)
+				org.nextTempPhrase = CurTime() + math.Rand(8, 14)
+			end
+		elseif org.temperature > 38 and org.temperature <= 40 then
+			if not org.nextTempPhrase or org.nextTempPhrase < CurTime() then
+				org.owner:Notify(hyperthermia_mild[math.random(#hyperthermia_mild)], 12, "hyperthermia_mild", 0)
+				org.nextTempPhrase = CurTime() + math.Rand(20, 35)
+			end
+		elseif org.temperature > 40 and org.temperature <= 41 then
+			if not org.nextTempPhrase or org.nextTempPhrase < CurTime() then
+				org.owner:Notify(hyperthermia_moderate[math.random(#hyperthermia_moderate)], 12, "hyperthermia_moderate", 0)
+				org.nextTempPhrase = CurTime() + math.Rand(12, 22)
+			end
+		elseif org.temperature > 41 and org.temperature <= 42 then
+			if not org.nextTempPhrase or org.nextTempPhrase < CurTime() then
+				org.owner:Notify(hyperthermia_severe[math.random(#hyperthermia_severe)], 12, "hyperthermia_severe", 0)
+				org.nextTempPhrase = CurTime() + math.Rand(8, 16)
+			end
+		elseif org.temperature > 42 then
+			if not org.nextTempPhrase or org.nextTempPhrase < CurTime() then
+				org.owner:Notify(hyperthermia_critical[math.random(#hyperthermia_critical)], 12, "hyperthermia_critical", 0)
+				org.nextTempPhrase = CurTime() + math.Rand(6, 12)
+			end
+		end
+	end
 end
 util.AddNetworkString("pulse")
 function hg.organism.Pulse(owner, org, timeValue)
@@ -150,6 +194,99 @@ local about_to_puke = {
 	"Not feeling good...",
 	"Gonna puke right now...",
 	"I want to vomit...",
+}
+local bloodloss_light = {
+	"I'm bleeding... I need to stop it...",
+	"Damn, that's gonna leave a mark...",
+	"I need to patch this up...",
+	"Blood's flowing... shit...",
+	"Gotta find something to wrap this with..."
+}
+local bloodloss_moderate = {
+	"I'm losing too much blood...",
+	"I can feel myself getting weaker...",
+	"The blood won't stop... I need help...",
+	"I'm getting dizzy from the blood loss...",
+	"Need to stop the bleeding... now..."
+}
+local bloodloss_severe = {
+	"I can't... I'm losing so much blood...",
+	"My vision is going dark...",
+	"I feel so cold... so weak...",
+	"Please... someone help me...",
+	"I can't feel my fingers..."
+}
+local bloodloss_critical = {
+	"I'm dying... I know it...",
+	"Everything's fading away...",
+	"I can't... hold on...",
+	"Tell them... I tried...",
+	"So... cold..."
+}
+local tachycardia_phrases = {
+	"My heart is racing...",
+	"I can feel my heartbeat in my ears...",
+	"Why is my heart pounding so hard...",
+	"I can hear my own heartbeat...",
+	"My chest is pounding..."
+}
+local cardiac_arrest_phrases = {
+	"My heart... it's stopping...",
+	"I can't... feel my pulse...",
+	"Something's wrong with my heart...",
+	"I'm fading... I can feel it..."
+}
+local hypothermia_mild = {
+	"I'm getting cold...",
+	"Chilly out here...",
+	"Need to warm up...",
+	"My fingers are numb...",
+	"Shivering..."
+}
+local hypothermia_moderate = {
+	"I can't stop shaking...",
+	"So cold... can't feel my hands...",
+	"Need warmth... now...",
+	"My body won't stop trembling...",
+	"I'm freezing..."
+}
+local hypothermia_severe = {
+	"I can't... feel anything...",
+	"So... tired... just want to sleep...",
+	"The cold is... numbing everything...",
+	"I'm so sleepy...",
+	"Can't... move..."
+}
+local hypothermia_critical = {
+	"Everything's... going dark...",
+	"So... cold...",
+	"I can't... feel my body...",
+	"Sleep... just... sleep..."
+}
+local hyperthermia_mild = {
+	"It's too hot...",
+	"I'm sweating so much...",
+	"Need water... need shade...",
+	"I'm overheating...",
+	"Can't take this heat..."
+}
+local hyperthermia_moderate = {
+	"I'm burning up...",
+	"Everything's spinning from the heat...",
+	"Can't... think straight... too hot...",
+	"I need to cool down...",
+	"My head is pounding from the heat..."
+}
+local hyperthermia_severe = {
+	"I can't... breathe in this heat...",
+	"Everything's... blurring...",
+	"Need... water...",
+	"I'm going to collapse..."
+}
+local hyperthermia_critical = {
+	"Can't... take it...",
+	"Everything's... fading...",
+	"Too... hot..."
 }
 local vecZero = Vector(0, 0, 0)
 local hold_wound_size_threshold = 4
@@ -235,6 +372,42 @@ module[2] = function(owner, org, mulTime)
 		end
 	end
 	if org.isPly and not org.otrub and org.blood < 2900 then org.owner:Notify(math.random(2) == 1 and "I cant feel anything..." or (math.random(2) == 1 and "I think I'm gonna faint right now...") or "I dont feel so good...",60,"blood2",0) end
+	if org.isPly and not org.otrub and org.blood < 4000 and org.blood >= 3000 then
+		if not org.nextBloodPhrase or org.nextBloodPhrase < CurTime() then
+			org.owner:Notify(bloodloss_light[math.random(#bloodloss_light)], 15, "bloodloss_light", 0)
+			org.nextBloodPhrase = CurTime() + math.Rand(20, 40)
+		end
+	end
+	if org.isPly and not org.otrub and org.blood < 3000 and org.blood >= 2000 then
+		if not org.nextBloodPhrase or org.nextBloodPhrase < CurTime() then
+			org.owner:Notify(bloodloss_moderate[math.random(#bloodloss_moderate)], 15, "bloodloss_moderate", 0)
+			org.nextBloodPhrase = CurTime() + math.Rand(15, 30)
+		end
+	end
+	if org.isPly and not org.otrub and org.blood < 2000 and org.blood >= 1200 then
+		if not org.nextBloodPhrase or org.nextBloodPhrase < CurTime() then
+			org.owner:Notify(bloodloss_severe[math.random(#bloodloss_severe)], 15, "bloodloss_severe", 0)
+			org.nextBloodPhrase = CurTime() + math.Rand(10, 20)
+		end
+	end
+	if org.isPly and not org.otrub and org.blood < 1200 then
+		if not org.nextBloodPhrase or org.nextBloodPhrase < CurTime() then
+			org.owner:Notify(bloodloss_critical[math.random(#bloodloss_critical)], 15, "bloodloss_critical", 0)
+			org.nextBloodPhrase = CurTime() + math.Rand(8, 15)
+		end
+	end
+	if org.isPly and not org.otrub and org.pulse > 120 and org.pulse < 160 then
+		if not org.nextPulsePhrase or org.nextPulsePhrase < CurTime() then
+			org.owner:Notify(tachycardia_phrases[math.random(#tachycardia_phrases)], 10, "tachycardia", 0)
+			org.nextPulsePhrase = CurTime() + math.Rand(15, 25)
+		end
+	end
+	if org.isPly and not org.otrub and org.heartstop then
+		if not org.nextCardiacPhrase or org.nextCardiacPhrase < CurTime() then
+			org.owner:Notify(cardiac_arrest_phrases[math.random(#cardiac_arrest_phrases)], 10, "cardiac_arrest", 0)
+			org.nextCardiacPhrase = CurTime() + math.Rand(5, 12)
+		end
+	end
 	if org.internalBleed < 0.5 and org.bleed < 0.05 and org.pulse > 5 then
 		org.blood = min(org.blood + mulTime * 5 * (adrenaline * 1.5 + 1) * (org.satiety / 100 + 1) * org.pulse / 70, 5000)
 	end

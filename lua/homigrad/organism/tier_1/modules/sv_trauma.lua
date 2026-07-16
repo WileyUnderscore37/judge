@@ -4,11 +4,39 @@ end
 hg.organism.module.concussion = {}
 local module = hg.organism.module.concussion
 
-local CONCUSSION_THRESHOLDS = { 0.5, 1.0, 2.5, 4.0 }
-local STAGE_NAUSEA_GAIN = { 0.0, 0.8, 1.6, 2.6, 4.0 }
-local STAGE_NAUSEA_SPIKE_CHANCE = { 0.0, 0.0, 0.35, 0.65, 0.9 }
-local STAGE_VOMIT_INTERVAL = { 0, 0, 6, 3.5, 2 }
-local STAGE_NAUSEA_CAP = { 0.0, 0.4, 1.5, 3.0, 5.0 }
+local CONCUSSION_MAX = 6.0
+local DECAY_BASE = 0.025
+local DECAY_SEVERE_BONUS = 0.015
+local ONSET_SPEED = 0.4
+local POST_CONCUSSION_THRESHOLD = 0.3
+local POST_CONCUSSION_DECAY = 0.008
+local SECOND_IMPACT_WINDOW = 8.0
+local SECOND_IMPACT_SCALE = 0.35
+local LOC_THRESHOLD = 3.8
+local LOC_CHANCE_BASE = 0.15
+local LOC_CHANCE_PER_POINT = 0.12
+local NAUSEA_WAVE_FREQ = 0.18
+local NAUSEA_WAVE_AMP = 0.35
+local NAUSEA_ONSET_DELAY_LIGHT = 25.0
+local NAUSEA_ONSET_DELAY_SEVERE = 6.0
+local NAUSEA_RAMP_SPEED = 0.025
+local VOMIT_RELIEF = 0.6
+local VOMIT_STAMINA_DRAIN = 8.0
+local VOMIT_PULSE_SPIKE = 15.0
+local VOMIT_DEHYDRATION = 0.4
+local DRY_HEAVE_NAUSEA = 1.8
+local DRY_HEAVE_CHANCE = 0.25
+local LUCID_INTERVAL_CHANCE = 0.15
+local LUCID_INTERVAL_MIN = 30.0
+local LUCID_INTERVAL_MAX = 120.0
+local SYMPTOM_WAVE_FREQ = 0.08
+local SYMPTOM_WAVE_AMP = 0.25
+local HEADACHE_BASE = 0.3
+local HEADACHE_SEVERE = 0.8
+local FATIGUE_DRAIN = 0.15
+local COGNITIVE_THRESHOLD = 1.5
+local PHOTOPHOBIA_THRESHOLD = 2.0
+local PHONOPHOBIA_THRESHOLD = 1.8
 
 local concussion_phrases = {
     "My head is ringing...",
@@ -61,7 +89,7 @@ local concussion_phrases_severe = {
 }
 local concussion_phrases_vomit = {
     "I'm gonna be sick...",
-    "Bleargh— I can't stop throwing up...",
+    "Bleargh... I can't stop throwing up...",
     "My stomach's turning inside out...",
     "I think I'm gonna hurl again...",
     "Everything's making me puke...",
@@ -75,13 +103,81 @@ local concussion_phrases_vomit = {
     "I'm gonna be sick all over the floor...",
     "My stomach's cramping so bad..."
 }
+local concussion_phrases_dryheave = {
+    "Hkk... I can't... nothing's coming out...",
+    "Uugh... dry heaving... my chest hurts...",
+    "I'm trying to puke but... nothing...",
+    "Hkk... hkk... god... my throat...",
+    "Can't even throw up properly..."
+}
+local concussion_phrases_cognitive = {
+    "What was I doing...?",
+    "I can't remember...",
+    "My thoughts are so slow...",
+    "Why is it so hard to think...?",
+    "I keep losing my train of thought...",
+    "What happened just now...?",
+    "I can't concentrate...",
+    "My mind feels foggy...",
+    "I'm so confused...",
+    "I can't process anything..."
+}
+local concussion_phrases_photophobia = {
+    "The light... it hurts my eyes...",
+    "Everything's too bright...",
+    "I can't stand the light...",
+    "My eyes are burning...",
+    "Please... turn off the lights..."
+}
+local concussion_phrases_phonophobia = {
+    "Everything's too loud...",
+    "The noise is unbearable...",
+    "My ears... stop the noise...",
+    "I can't stand any more sound...",
+    "Even breathing sounds too loud..."
+}
+local concussion_phrases_headache = {
+    "My head is pounding...",
+    "The pain in my skull...",
+    "It feels like my head's splitting...",
+    "My temples are throbbing...",
+    "The headache won't stop...",
+    "Every heartbeat makes my head hurt more..."
+}
+local concussion_phrases_fatigue = {
+    "I'm so tired...",
+    "I just want to sleep...",
+    "Can barely keep my eyes open...",
+    "So exhausted...",
+    "I need to rest... I can't go on..."
+}
 
 module[1] = function(org)
     org.concussion = 0
+    org.concussion_onset = 0
+    org.concussion_peak = 0
+    org.concussion_impacts = 0
+    org.concussion_lastImpact = 0
+    org.concussion_lucid_end = 0
+    org.concussion_symptom_wave_timer = 0
     org.nausea = 0
+    org.nausea_target = 0
+    org.nausea_pending = 0
+    org.nausea_onset_time = 0
+    org.nausea_wave_timer = 0
+    org.nausea_vomit_count = 0
     org.nextConcussionVomit = 0
     org.nextConcussionPhrase = 0
+    org.nextDryHeave = 0
+    org.nextCognitivePhrase = 0
+    org.nextSensoryPhrase = 0
+    org.nextHeadachePhrase = 0
+    org.nextFatiguePhrase = 0
     org.concussion_tinnitus = 0
+    org.concussion_headache = 0
+    org.concussion_fatigue = 0
+    org.concussion_post = 0
+    org.concussion_loc_timer = 0
     org.concussion_effects = {
         severity = 0,
         duration = 0,
@@ -91,102 +187,291 @@ end
 
 module[2] = function(ply, org, timeValue)
     if not org.concussion then org.concussion = 0 end
+    if not org.concussion_onset then org.concussion_onset = 0 end
+    if not org.concussion_peak then org.concussion_peak = 0 end
+    if not org.concussion_lucid_end then org.concussion_lucid_end = 0 end
+    if not org.concussion_symptom_wave_timer then org.concussion_symptom_wave_timer = 0 end
     if not org.nausea then org.nausea = 0 end
+    if not org.nausea_target then org.nausea_target = 0 end
+    if not org.nausea_pending then org.nausea_pending = 0 end
+    if not org.nausea_onset_time then org.nausea_onset_time = 0 end
+    if not org.nausea_wave_timer then org.nausea_wave_timer = 0 end
     if not org.concussion_tinnitus then org.concussion_tinnitus = 0 end
+    if not org.concussion_headache then org.concussion_headache = 0 end
+    if not org.concussion_fatigue then org.concussion_fatigue = 0 end
+    if not org.concussion_post then org.concussion_post = 0 end
     if not org.concussion_effects then
         org.concussion_effects = {severity = 0, duration = 0, last_impact = 0}
     end
-    if org.concussion <= 0 and org.nausea <= 0 then return end
+
+    local hasConcussion = org.concussion > 0 or org.concussion_onset > 0
+    local hasNausea = org.nausea > 0 or org.nausea_target > 0 or org.nausea_pending > 0
+    local hasPost = org.concussion_post > POST_CONCUSSION_THRESHOLD
+    local hasHeadache = org.concussion_headache > 0.1
+    local hasFatigue = org.concussion_fatigue > 0.1
+
+    if not hasConcussion and not hasNausea and not hasPost and not hasHeadache and not hasFatigue then return end
+
+    local now = CurTime()
+
+    if org.concussion_lucid_end > now then
+        if org.concussion > 0 then
+            org.concussion = math.max(org.concussion - timeValue * DECAY_BASE * 0.3, 0)
+        end
+        return
+    end
+
+    if org.concussion_onset > 0 then
+        local onsetTransfer = math.min(org.concussion_onset, timeValue * ONSET_SPEED * (1 + org.concussion_peak * 0.15))
+        org.concussion_onset = org.concussion_onset - onsetTransfer
+        org.concussion = org.concussion + onsetTransfer
+    end
 
     if org.concussion > 0 then
-        local decayRate = 0.04 + (org.concussion > 3 and 0.02 or 0)
-        org.concussion = math.max(org.concussion - timeValue * decayRate, 0)
+        local severityRatio = org.concussion / CONCUSSION_MAX
+        local decayMul = 1.0 - severityRatio * 0.4
+        local decay = DECAY_BASE * decayMul
+        if org.concussion > 3.0 then
+            decay = decay + DECAY_SEVERE_BONUS * (1.0 - severityRatio)
+        end
+        org.concussion = math.max(org.concussion - timeValue * decay, 0)
+
+        if org.concussion < POST_CONCUSSION_THRESHOLD and org.concussion_peak > 1.0 then
+            org.concussion_post = math.max(org.concussion_post, org.concussion_peak * 0.3)
+        end
+
+        if org.concussion_peak > org.concussion then
+            org.concussion_peak = math.max(org.concussion_peak - timeValue * decay * 0.5, org.concussion)
+        end
+
+        org.concussion_symptom_wave_timer = (org.concussion_symptom_wave_timer or 0) + timeValue * SYMPTOM_WAVE_FREQ
+        local symptomWave = math.sin(org.concussion_symptom_wave_timer * math.pi * 2) * SYMPTOM_WAVE_AMP
+        local effectiveConcussion = org.concussion + org.concussion_post * 0.2 + symptomWave * org.concussion * 0.3
 
         if org.consciousness then
-            local drainRate = 0.032 + (org.concussion_effects.severity * 0.02)
-            org.consciousness = math.max(org.consciousness - (org.concussion * drainRate) * timeValue, 0)
+            local drainBase = 0.02 + severityRatio * 0.04
+            local drainMul = 1.0 + (org.concussion_impacts * 0.08)
+            org.consciousness = math.max(org.consciousness - (effectiveConcussion * drainBase * drainMul) * timeValue, 0)
         end
 
-        if org.concussion > 1.0 then
-            org.disorientation = math.max(org.disorientation or 0, org.concussion * 0.6)
+        if effectiveConcussion > 0.8 then
+            org.disorientation = math.max(org.disorientation or 0, effectiveConcussion * 0.55 + severityRatio * 0.3)
         end
 
-        if org.concussion > 2.0 then
+        if effectiveConcussion > 1.8 then
             org.needfake = true
-            org.immobilization = math.max(org.immobilization or 0, org.concussion * 8)
+            local immobScale = (effectiveConcussion - 1.8) * 6.0
+            org.immobilization = math.max(org.immobilization or 0, immobScale)
         end
 
-        if org.concussion > 1.5 then
-            org.shock = math.min((org.shock or 0) + timeValue * 2 * org.concussion, 50)
-            org.fearadd = math.min((org.fearadd or 0) + timeValue * 0.15 * org.concussion, 2)
+        if effectiveConcussion > 1.2 then
+            local shockRate = 1.5 + severityRatio * 2.0
+            org.shock = math.min((org.shock or 0) + timeValue * shockRate, 55)
+            org.fearadd = math.min((org.fearadd or 0) + timeValue * 0.12 * effectiveConcussion, 2.5)
         end
 
-        local curStage = module.GetStage(org)
-        local stageCap = STAGE_NAUSEA_CAP[curStage + 1] or 0
-        if stageCap > 0 then
-            local drift = (stageCap - (org.nausea or 0)) * timeValue * 0.05
-            org.nausea = math.min((org.nausea or 0) + drift, stageCap)
+        if effectiveConcussion > 0.5 then
+            local pulseAdd = effectiveConcussion * 3.5
+            org.pulse = math.min((org.pulse or 70) + timeValue * pulseAdd, 160)
         end
 
-        if org.concussion > 0.3 then
-            org.concussion_tinnitus = math.max(org.concussion_tinnitus or 0, org.concussion * 0.4)
+        local headacheTarget = HEADACHE_BASE * effectiveConcussion
+        if effectiveConcussion > 2.5 then headacheTarget = headacheTarget + HEADACHE_SEVERE end
+        org.concussion_headache = math.Approach(org.concussion_headache or 0, headacheTarget, timeValue * 0.05)
+
+        local fatigueTarget = effectiveConcussion * FATIGUE_DRAIN
+        if org.concussion_impacts > 1 then fatigueTarget = fatigueTarget * (1 + org.concussion_impacts * 0.15) end
+        org.concussion_fatigue = math.Approach(org.concussion_fatigue or 0, fatigueTarget, timeValue * 0.03)
+        if org.concussion_fatigue > 0.3 and org.stamina then
+            org.stamina.subadd = (org.stamina.subadd or 0) + org.concussion_fatigue * timeValue * 2
         end
 
-        if org.isPly and not org.otrub and IsValid(ply) and ply:IsPlayer() and (org.nextConcussionPhrase or 0) < CurTime() then
-            local phrase
-            if org.nausea > 0.6 then
-                phrase = concussion_phrases_vomit[math.random(#concussion_phrases_vomit)]
-            elseif org.concussion > 2.5 then
-                phrase = concussion_phrases_severe[math.random(#concussion_phrases_severe)]
-            elseif org.concussion > 1.0 then
-                phrase = concussion_phrases[math.random(#concussion_phrases)]
+        if org.concussion > LOC_THRESHOLD and org.alive and not org.otrub then
+            local locChance = LOC_CHANCE_BASE + (org.concussion - LOC_THRESHOLD) * LOC_CHANCE_PER_POINT
+            org.concussion_loc_timer = (org.concussion_loc_timer or 0) + timeValue
+            if org.concussion_loc_timer > 2.0 and math.random() < locChance * timeValue then
+                if org.consciousness then
+                    org.consciousness = math.max(org.consciousness - 0.4, 0)
+                end
+                org.concussion_loc_timer = 0
+                if org.isPly and IsValid(ply) and ply:IsPlayer() then
+                    ply:Notify("Everything goes black...", 6, "concussion_loc", 0)
+                end
             end
-            if phrase then
-                ply:Notify(phrase, 5, "concussion_phrase", 0)
-                org.nextConcussionPhrase = CurTime() + math.random(8, 18)
+        else
+            org.concussion_loc_timer = math.max((org.concussion_loc_timer or 0) - timeValue * 0.5, 0)
+        end
+
+        local stage = module.GetStage(org)
+        local nauseaTargetBase = 0
+        if stage >= 1 then nauseaTargetBase = 0.4 end
+        if stage >= 2 then nauseaTargetBase = 1.2 + (effectiveConcussion - 1.0) * 0.6 end
+        if stage >= 3 then nauseaTargetBase = 2.5 + (effectiveConcussion - 2.5) * 0.8 end
+        if stage >= 4 then nauseaTargetBase = 4.0 + (effectiveConcussion - 4.0) * 1.2 end
+
+        if not org.nausea_pending then org.nausea_pending = 0 end
+        if not org.nausea_onset_time then org.nausea_onset_time = 0 end
+        if org.nausea_pending > 0 and now >= org.nausea_onset_time then
+            local rampAmount = math.min(org.nausea_pending, timeValue * NAUSEA_RAMP_SPEED * (1 + stage * 0.15))
+            org.nausea_target = math.min((org.nausea_target or 0) + rampAmount, nauseaTargetBase + org.nausea_pending)
+            org.nausea_pending = org.nausea_pending - rampAmount
+        end
+
+        if nauseaTargetBase > (org.nausea_target or 0) then
+            org.nausea_target = math.min((org.nausea_target or 0) + timeValue * NAUSEA_RAMP_SPEED * 0.5, nauseaTargetBase)
+        elseif nauseaTargetBase < (org.nausea_target or 0) then
+            org.nausea_target = math.Approach(org.nausea_target or 0, nauseaTargetBase, timeValue * 0.02)
+        end
+
+        if effectiveConcussion > 0.2 then
+            org.concussion_tinnitus = math.max(org.concussion_tinnitus or 0, effectiveConcussion * 0.35)
+        end
+
+        if org.isPly and not org.otrub and IsValid(ply) and ply:IsPlayer() then
+            if (org.nextConcussionPhrase or 0) < now then
+                local phrase
+                if org.nausea > 1.0 then
+                    phrase = concussion_phrases_vomit[math.random(#concussion_phrases_vomit)]
+                elseif effectiveConcussion > 2.5 then
+                    phrase = concussion_phrases_severe[math.random(#concussion_phrases_severe)]
+                elseif effectiveConcussion > 0.8 then
+                    phrase = concussion_phrases[math.random(#concussion_phrases)]
+                end
+                if phrase then
+                    ply:Notify(phrase, 5, "concussion_phrase", 0)
+                    local phraseDelay = 10 + math.random(0, 12)
+                    if stage >= 3 then phraseDelay = 6 + math.random(0, 8) end
+                    org.nextConcussionPhrase = now + phraseDelay
+                end
+            end
+
+            if effectiveConcussion > COGNITIVE_THRESHOLD and (org.nextCognitivePhrase or 0) < now then
+                ply:Notify(concussion_phrases_cognitive[math.random(#concussion_phrases_cognitive)], 5, "concussion_cognitive", 0)
+                org.nextCognitivePhrase = now + math.Rand(12, 20)
+            end
+
+            if effectiveConcussion > PHOTOPHOBIA_THRESHOLD and (org.nextSensoryPhrase or 0) < now then
+                if math.random() < 0.5 then
+                    ply:Notify(concussion_phrases_photophobia[math.random(#concussion_phrases_photophobia)], 5, "concussion_photophobia", 0)
+                else
+                    ply:Notify(concussion_phrases_phonophobia[math.random(#concussion_phrases_phonophobia)], 5, "concussion_phonophobia", 0)
+                end
+                org.nextSensoryPhrase = now + math.Rand(15, 25)
+            end
+
+            if org.concussion_headache > 0.5 and (org.nextHeadachePhrase or 0) < now then
+                ply:Notify(concussion_phrases_headache[math.random(#concussion_phrases_headache)], 5, "concussion_headache", 0)
+                org.nextHeadachePhrase = now + math.Rand(10, 18)
+            end
+
+            if org.concussion_fatigue > 0.4 and (org.nextFatiguePhrase or 0) < now then
+                ply:Notify(concussion_phrases_fatigue[math.random(#concussion_phrases_fatigue)], 5, "concussion_fatigue", 0)
+                org.nextFatiguePhrase = now + math.Rand(14, 22)
             end
         end
 
         if org.concussion_effects.duration > 0 then
             org.concussion_effects.duration = math.max(org.concussion_effects.duration - timeValue, 0)
-            if org.concussion_effects.severity > 0.3 and IsValid(ply) and ply:IsPlayer() and (org.concussion_effects.last_impact or 0) < CurTime() - 1.5 then
+            if org.concussion_effects.severity > 0.3 and IsValid(ply) and ply:IsPlayer() and (org.concussion_effects.last_impact or 0) < now - 1.5 then
                 net.Start("headtrauma_concussion_update")
                     net.WriteFloat(org.concussion_effects.severity)
                     net.WriteFloat(org.concussion)
                 net.Send(ply)
-                org.concussion_effects.last_impact = CurTime()
+                org.concussion_effects.last_impact = now
             end
         end
     end
 
-    org.concussion_tinnitus = math.Approach(org.concussion_tinnitus or 0, 0, timeValue * 0.15)
+    if org.concussion_post > 0 then
+        org.concussion_post = math.max(org.concussion_post - timeValue * POST_CONCUSSION_DECAY, 0)
+        if org.concussion_post > POST_CONCUSSION_THRESHOLD then
+            org.disorientation = math.max(org.disorientation or 0, org.concussion_post * 0.15)
+            org.concussion_tinnitus = math.max(org.concussion_tinnitus or 0, org.concussion_post * 0.1)
+        end
+    end
 
-    if (org.nausea or 0) > 0 then
-        org.nausea = math.max(org.nausea - timeValue * 0.04, 0)
-        if org.nausea == 0 then org.nextConcussionVomit = nil end
+    org.concussion_tinnitus = math.Approach(org.concussion_tinnitus or 0, 0, timeValue * 0.12)
+    org.concussion_headache = math.Approach(org.concussion_headache or 0, 0, timeValue * 0.04)
+    org.concussion_fatigue = math.Approach(org.concussion_fatigue or 0, 0, timeValue * 0.02)
 
-        local curStage = module.GetStage(org)
-        local vomitInterval = STAGE_VOMIT_INTERVAL[curStage + 1] or 0
-        if vomitInterval > 0 and org.nausea > 0.6 and not org.otrub then
-            local now = CurTime()
-            if org.nextConcussionVomit == nil then
-                org.nextConcussionVomit = now + math.Rand(2.5, 5)
-            elseif now > org.nextConcussionVomit then
-                local jitter = math.Rand(0.8, 1.2)
-                org.nextConcussionVomit = now + vomitInterval * jitter
-                hg.organism.VomitConcussion(ply)
+    org.nausea_wave_timer = (org.nausea_wave_timer or 0) + timeValue * NAUSEA_WAVE_FREQ
+    local waveOffset = math.sin(org.nausea_wave_timer * math.pi * 2) * NAUSEA_WAVE_AMP
+    local nauseaTargetWithWave = math.max(0, (org.nausea_target or 0) + waveOffset * (org.nausea_target or 0) * 0.5)
 
-                if curStage >= 4 and math.random() < 0.4 then
-                    org.vomitInThroat = true
-                    if org.isPly and IsValid(ply) and ply:IsPlayer() then
-                        ply:Notify("I'm choking... I can't breathe...", 4, "concussion_choke", 0)
-                    end
+    if nauseaTargetWithWave > 0 then
+        local approachSpeed = timeValue * 0.08
+        if org.nausea < nauseaTargetWithWave then
+            org.nausea = math.min(org.nausea + approachSpeed * (1 + nauseaTargetWithWave * 0.1), nauseaTargetWithWave)
+        else
+            org.nausea = math.Approach(org.nausea, nauseaTargetWithWave, timeValue * 0.03)
+        end
+    else
+        org.nausea = math.max(org.nausea - timeValue * 0.025, 0)
+    end
+
+    if org.nausea <= 0.05 then
+        org.nausea = 0
+        org.nausea_vomit_count = 0
+        org.nextConcussionVomit = nil
+    end
+
+    if org.nausea > 0.8 and not org.otrub then
+        org.disorientation = math.max(org.disorientation or 0, org.nausea * 0.35)
+    end
+
+    if org.nausea > 0.6 and not org.otrub then
+        local stage = module.GetStage(org)
+        local baseInterval
+        if stage <= 1 then
+            baseInterval = 0
+        elseif stage == 2 then
+            baseInterval = 8.0 - (org.nausea_vomit_count or 0) * 0.3
+        elseif stage == 3 then
+            baseInterval = 5.0 - (org.nausea_vomit_count or 0) * 0.2
+        else
+            baseInterval = 3.0 - (org.nausea_vomit_count or 0) * 0.15
+        end
+        baseInterval = math.max(baseInterval, 1.5)
+
+        if org.nextConcussionVomit == nil then
+            local initialDelay = math.Rand(3.0, 6.0)
+            if stage >= 3 then initialDelay = math.Rand(1.5, 3.5) end
+            org.nextConcussionVomit = now + initialDelay
+        elseif now > org.nextConcussionVomit then
+            local jitter = math.Rand(0.85, 1.15)
+            org.nextConcussionVomit = now + baseInterval * jitter
+            hg.organism.VomitConcussion(ply)
+            org.nausea_vomit_count = (org.nausea_vomit_count or 0) + 1
+            org.nausea = math.max(org.nausea - VOMIT_RELIEF, 0)
+
+            if org.stamina then
+                org.stamina.subadd = (org.stamina.subadd or 0) + VOMIT_STAMINA_DRAIN
+            end
+            org.pulse = math.min((org.pulse or 70) + VOMIT_PULSE_SPIKE, 180)
+            if org.satiety then
+                org.satiety = math.max((org.satiety or 0) - VOMIT_DEHYDRATION * 10, 0)
+            end
+
+            if stage >= 4 and math.random() < 0.35 then
+                org.vomitInThroat = true
+                if org.isPly and IsValid(ply) and ply:IsPlayer() then
+                    ply:Notify("I'm choking... I can't breathe...", 4, "concussion_choke", 0)
                 end
             end
         end
+    else
+        org.nextConcussionVomit = nil
+    end
 
-        if org.nausea > 2.0 and not org.otrub then
-            org.disorientation = math.max(org.disorientation or 0, org.nausea * 0.4)
+    if org.nausea > DRY_HEAVE_NAUSEA and not org.otrub and (org.nextDryHeave or 0) < now then
+        if math.random() < DRY_HEAVE_CHANCE then
+            if org.isPly and IsValid(ply) and ply:IsPlayer() then
+                ply:Notify(concussion_phrases_dryheave[math.random(#concussion_phrases_dryheave)], 4, "concussion_dryheave", 0)
+            end
+            if org.stamina then
+                org.stamina.subadd = (org.stamina.subadd or 0) + VOMIT_STAMINA_DRAIN * 0.4
+            end
+            org.nextDryHeave = now + math.Rand(4.0, 8.0)
         end
     end
 end
@@ -194,68 +479,110 @@ end
 function module.AddConcussion(org, intensity, duration)
     if not org then return end
     if not org.concussion then org.concussion = 0 end
+    if not org.concussion_onset then org.concussion_onset = 0 end
+    if not org.concussion_peak then org.concussion_peak = 0 end
+    if not org.concussion_impacts then org.concussion_impacts = 0 end
+    if not org.concussion_lastImpact then org.concussion_lastImpact = 0 end
+    if not org.concussion_lucid_end then org.concussion_lucid_end = 0 end
     if not org.nausea then org.nausea = 0 end
+    if not org.nausea_target then org.nausea_target = 0 end
+    if not org.nausea_pending then org.nausea_pending = 0 end
+    if not org.nausea_onset_time then org.nausea_onset_time = 0 end
     if not org.concussion_tinnitus then org.concussion_tinnitus = 0 end
+    if not org.concussion_headache then org.concussion_headache = 0 end
+    if not org.concussion_fatigue then org.concussion_fatigue = 0 end
+    if not org.concussion_post then org.concussion_post = 0 end
     if not org.concussion_effects then
         org.concussion_effects = {severity = 0, duration = 0, last_impact = 0}
     end
 
     local now = CurTime()
-    org.concussion_lastImpact = org.concussion_lastImpact or 0
     local sinceLast = now - org.concussion_lastImpact
-    local rapidScale = math.Clamp(sinceLast / 1.5, 0.15, 1)
+
+    local rapidScale = 1.0
+    if sinceLast < SECOND_IMPACT_WINDOW then
+        rapidScale = 1.0 + SECOND_IMPACT_SCALE * (1.0 - sinceLast / SECOND_IMPACT_WINDOW)
+    end
+
+    local headroom = math.Clamp((CONCUSSION_MAX - org.concussion - org.concussion_onset) / CONCUSSION_MAX, 0.05, 1)
+    local cumulativeBonus = 1.0 + org.concussion_impacts * 0.06
+    local add = intensity * rapidScale * headroom * cumulativeBonus
+
     org.concussion_lastImpact = now
+    org.concussion_impacts = org.concussion_impacts + 1
 
-    local headroom = math.Clamp((5.0 - org.concussion) / 5.0, 0, 1)
-    local add = intensity * rapidScale * (0.35 + 0.65 * headroom)
-
-    local prevStage = module.GetStage(org)
-
-    org.concussion = math.min(org.concussion + add, 5.0)
-    org.concussion_effects.severity = math.max(org.concussion_effects.severity or 0, add)
-    org.concussion_effects.duration = math.max(org.concussion_effects.duration or 0, duration or math.Clamp(intensity * 5, 5, 60))
-    org.concussion_tinnitus = math.max(org.concussion_tinnitus or 0, add * 0.6)
-
-    local newStage = module.GetStage(org)
-    local stageGain = STAGE_NAUSEA_GAIN[newStage + 1] or 0
-    local nauseaAdd = add * 0.3 + stageGain * 0.4
-    if newStage > prevStage then
-        nauseaAdd = nauseaAdd + STAGE_NAUSEA_GAIN[newStage + 1] * 0.5
-        if math.random() < (STAGE_NAUSEA_SPIKE_CHANCE[newStage + 1] or 0) then
-            nauseaAdd = nauseaAdd + STAGE_NAUSEA_GAIN[newStage + 1] * 0.8
+    if org.concussion_peak > 1.5 and math.random() < LUCID_INTERVAL_CHANCE then
+        local lucidDuration = math.Rand(LUCID_INTERVAL_MIN, LUCID_INTERVAL_MAX)
+        org.concussion_lucid_end = now + lucidDuration
+        org.concussion_onset = org.concussion_onset + add
+        org.concussion_peak = math.max(org.concussion_peak, org.concussion + org.concussion_onset)
+        if org.isPly and IsValid(org.owner) and org.owner:IsPlayer() then
+            org.owner:Notify("I feel... okay? Maybe it wasn't that bad...", 6, "concussion_lucid", 0)
         end
+        return
     end
-    local nauseaCap = STAGE_NAUSEA_CAP[newStage + 1] or 0
-    org.nausea = math.min(math.max(org.nausea or 0, nauseaAdd), nauseaCap)
 
-    if add > 1.5 then
-        org.disorientation = math.max(org.disorientation or 0, add * 0.5)
+    local onsetPortion = math.min(add * 0.4, add)
+    local immediatePortion = add - onsetPortion
+
+    org.concussion = math.min(org.concussion + immediatePortion, CONCUSSION_MAX)
+    org.concussion_onset = math.min(org.concussion_onset + onsetPortion, CONCUSSION_MAX - org.concussion)
+    org.concussion_peak = math.max(org.concussion_peak, org.concussion + org.concussion_onset)
+
+    org.concussion_effects.severity = math.max(org.concussion_effects.severity or 0, add)
+    org.concussion_effects.duration = math.max(org.concussion_effects.duration or 0, duration or math.Clamp(intensity * 6, 5, 80))
+    org.concussion_tinnitus = math.max(org.concussion_tinnitus or 0, add * 0.5)
+    org.concussion_headache = math.max(org.concussion_headache or 0, add * 0.4)
+    org.concussion_fatigue = math.max(org.concussion_fatigue or 0, add * 0.2)
+
+    local stage = module.GetStage(org)
+    local nauseaSpike = add * 0.25
+    if stage >= 2 then nauseaSpike = nauseaSpike + 0.5 end
+    if stage >= 3 then nauseaSpike = nauseaSpike + 1.2 end
+    if stage >= 4 then nauseaSpike = nauseaSpike + 2.0 end
+
+    local delay = NAUSEA_ONSET_DELAY_LIGHT
+    if add > 2.0 then delay = NAUSEA_ONSET_DELAY_SEVERE
+    elseif add > 1.0 then delay = NAUSEA_ONSET_DELAY_LIGHT * 0.6 end
+
+    org.nausea_pending = org.nausea_pending + nauseaSpike
+    org.nausea_onset_time = math.max(org.nausea_onset_time, now + delay)
+
+    if add > 1.2 then
+        org.disorientation = math.max(org.disorientation or 0, add * 0.45)
     end
-    if add > 2.0 then
-        org.panic = math.max(org.panic or 0, add * 0.3)
+    if add > 1.8 then
+        org.panic = math.max(org.panic or 0, add * 0.25)
         org.needfake = true
+    end
+    if add > 2.5 and org.alive then
+        org.shock = math.min((org.shock or 0) + add * 3, 60)
+        if org.consciousness then
+            org.consciousness = math.max(org.consciousness - add * 0.15, 0)
+        end
     end
 end
 
 function module.HasConcussionSymptoms(org)
-    return org and org.concussion and org.concussion > 0.5
+    return org and ((org.concussion and org.concussion > 0.4) or (org.concussion_post and org.concussion_post > POST_CONCUSSION_THRESHOLD))
 end
 
 function module.GetConcussionSeverity(org)
-    if not org or not org.concussion then return "none" end
-    if org.concussion < 1.0 then return "mild"
-    elseif org.concussion < 2.5 then return "moderate"
-    elseif org.concussion < 4.0 then return "severe"
+    if not org then return "none" end
+    local c = (org.concussion or 0) + (org.concussion_post or 0) * 0.2
+    if c < 0.8 then return "mild"
+    elseif c < 2.0 then return "moderate"
+    elseif c < 3.5 then return "severe"
     else return "critical" end
 end
 
 function module.GetStage(org)
-    if not org or not org.concussion then return 0 end
-    local c = org.concussion
-    if c < CONCUSSION_THRESHOLDS[1] then return 0
-    elseif c < CONCUSSION_THRESHOLDS[2] then return 1
-    elseif c < CONCUSSION_THRESHOLDS[3] then return 2
-    elseif c < CONCUSSION_THRESHOLDS[4] then return 3
+    if not org then return 0 end
+    local c = (org.concussion or 0) + (org.concussion_onset or 0) * 0.5
+    if c < 0.5 then return 0
+    elseif c < 1.0 then return 1
+    elseif c < 2.5 then return 2
+    elseif c < 4.0 then return 3
     else return 4 end
 end
 
