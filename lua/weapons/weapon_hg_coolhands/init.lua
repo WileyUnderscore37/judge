@@ -22,9 +22,11 @@ local shoveCooldownPrimary = 1.1
 local shoveCooldownSecondary = 1.35
 local shoveRange = 50
 local shoveForce = 200
-local shoveRagdollChance = 6
+local shoveRagdollChance = 4
 local shoveStumbleChance = 1
 local specialDamageMul = 2.5
+local runningSpecialDamageMul = 3
+local incomingVelocityDamageMul = 2
 
 local function PlayPunchSound(pos, level)
         local id = math_random(1, 11)
@@ -89,7 +91,8 @@ end
 function SWEP:CanShove()
         local owner = self:GetOwner()
         if not IsValid(owner) or owner:InVehicle() then return false end
-        if not self:GetFists() or self:GetBlocking() or self.Charging then return false end
+        local sprintShove = owner:KeyDown(IN_SPEED) and owner:KeyDown(IN_USE)
+        if (not self:GetFists() and not sprintShove) or self:GetBlocking() or self.Charging then return false end
         if owner:GetNetVar("handcuffed",false) then return false end
         if (self.ShoveEnd or 0) > CurTime() then return false end
         if (self.SpecialAttackUntil or 0) > CurTime() then return false end
@@ -123,10 +126,13 @@ function SWEP:SecondaryAttack()
 	if self:GetOwner():InVehicle() then return end
 	if not IsFirstTimePredicted() then return end
         if self:CanShove() and self:GetOwner():KeyDown(IN_USE) then
+                local sprintShove = self:GetOwner():KeyDown(IN_SPEED)
                 self.ShoveEnd = CurTime() + shoveAnimTime
                 self.Charging = nil
                 self.ChargeStarted = nil
                 self.ChargeIdlePlayed = nil
+                self.ChargeComfort = nil
+                if sprintShove then self:SetFists(true) end
                 self:SetBlocking(false)
                 self:SetNextPrimaryFire(CurTime() + shoveCooldownPrimary)
                 self:SetNextSecondaryFire(CurTime() + shoveCooldownSecondary)
@@ -136,7 +142,7 @@ function SWEP:SecondaryAttack()
                 self:PlayAnim("Shove",1)
                 self:GetOwner():ViewPunch(Angle(2, 0, 0))
                 sound.Play("player/shove_0"..math_random(5)..".wav", self:GetPos(), 65, math_random(105, 115))
-                self:ShoveFront()
+                self:ShoveFront(sprintShove)
                 return
         end
 	if self:GetFists() and self:GetOwner().PlayerClassName == "sc_infiltrator" then
@@ -622,21 +628,34 @@ function SWEP:Think()
 		self:SetBlocking(false)
 	end
 
-        local wantsCharge = self:GetFists() and owner.PlayerClassName ~= "furry" and owner:KeyDown(IN_USE) and owner:KeyDown(IN_ATTACK)
-        if self.Charging and (not wantsCharge or self:GetBlocking() or owner:InVehicle()) then
+        local chargeHeld = owner:KeyDown(IN_USE) or owner:KeyDown(IN_ATTACK)
+        local wantsCharge = owner.PlayerClassName ~= "furry" and owner:KeyDown(IN_USE) and owner:KeyDown(IN_ATTACK) and (self:GetFists() or owner:KeyDown(IN_SPEED))
+        if self.Charging and self.ChargeComfort and wantsCharge then
+                self.Charging = nil
+                self.ChargeStarted = nil
+                self.ChargeIdlePlayed = nil
+                self.ChargeComfort = nil
+                self:PrimaryAttack(true)
+                return
+        elseif self.Charging and (not chargeHeld or self:GetBlocking() or owner:InVehicle()) then
                 local startedAt = self.ChargeStarted or CurTime()
                 self.Charging = nil
                 self.ChargeStarted = nil
                 self.ChargeIdlePlayed = nil
+                self.ChargeComfort = nil
 
                 if not self:GetBlocking() and not owner:InVehicle() and CurTime() - startedAt >= chargeHoldTime then
                         self:PrimaryAttack(true)
                         return
                 end
+        elseif self.Charging and chargeHeld and not wantsCharge then
+                self.ChargeComfort = true
         elseif wantsCharge and not self.Charging and not self:GetBlocking() and self:GetNextPrimaryFire() < CurTime() and self:GetNextSecondaryFire() < CurTime() and (self.attacked or 0) <= CurTime() then
+                self:SetFists(true)
                 self.Charging = true
                 self.ChargeStarted = CurTime()
                 self.ChargeIdlePlayed = nil
+                self.ChargeComfort = nil
                 self:PlayAnim("attack_charge_begin", chargeAnimTime)
         elseif self.Charging and not self.ChargeIdlePlayed and (self.ChargeStarted or 0) + chargeAnimTime <= CurTime() then
                 self.ChargeIdlePlayed = true
@@ -672,7 +691,7 @@ function SWEP:Think()
 		end
 
 		//if (self:GetNextDown() < Time) or owner:KeyDown(IN_SPEED) then
-		if owner:KeyDown(IN_SPEED) and (owner.PlayerClassName != "furry" or owner:KeyDown(IN_WALK)) then
+		if owner:KeyDown(IN_SPEED) and not self.Charging and (self.ShoveEnd or 0) <= Time and (self.SpecialAttackUntil or 0) <= Time and (owner.PlayerClassName != "furry" or owner:KeyDown(IN_WALK)) then
 			self:SetNextDown(Time + 1)
 			self:SetFists(false)
 			self:SetBlocking(false)
@@ -682,7 +701,7 @@ function SWEP:Think()
 	end
 
 	if IsValid(self.CarryEnt) or self.CarryEnt then HoldType = "normal" end
-	if owner:KeyDown(IN_SPEED) and (owner.PlayerClassName != "furry" or owner:KeyDown(IN_WALK)) then HoldType = "normal" end
+	if owner:KeyDown(IN_SPEED) and (self.ShoveEnd or 0) <= CurTime() and (self.SpecialAttackUntil or 0) <= CurTime() and (owner.PlayerClassName != "furry" or owner:KeyDown(IN_WALK)) then HoldType = "normal" end
 	if SERVER then self:SetHoldType(HoldType) end
 end
 
@@ -834,7 +853,7 @@ local concrete = {
 	"physics/concrete/boulder_impact_hard4.wav"
 }
 
-function SWEP:ShoveFront()
+function SWEP:ShoveFront(sprintShove)
         if CLIENT then return end
         local owner = self:GetOwner()
         owner:LagCompensation(true)
@@ -852,7 +871,7 @@ function SWEP:ShoveFront()
         local pushVel = owner:GetAimVector()
         pushVel.z = math.max(pushVel.z, 0.08)
         pushVel:Normalize()
-        pushVel = pushVel * shoveForce
+        pushVel = pushVel * shoveForce * (sprintShove and 1.3 or 1)
 
         if IsValid(ent) and ent:IsRagdoll() then
                 sound.Play("physics/body/body_medium_impact_soft" .. math_random(1, 7) .. ".wav", trace.HitPos, 75, 110)
@@ -872,14 +891,18 @@ function SWEP:ShoveFront()
         if IsValid(target) and target:IsPlayer() and target ~= owner then
                 local ragdolled = false
 
-                if math_random(shoveRagdollChance) == 1 and hg.TriggerSprintCollisionRagdoll then
+                local victimSprinting = target:KeyDown(IN_SPEED) or (target.IsSprinting and target:IsSprinting())
+                local victimVel = victimSprinting and target:GetVelocity() * 0.5 or vector_origin
+                local ragdollPushVel = pushVel * (victimSprinting and 1.5 or 1) + victimVel
+
+                if (victimSprinting or math_random(sprintShove and math.max(math.floor(shoveRagdollChance * 0.5), 1) or shoveRagdollChance) == 1) and hg.TriggerSprintCollisionRagdoll then
                         ragdolled = true
-                        hg.TriggerSprintCollisionRagdoll(target, trace, pushVel, pushVel:Length() * 0.45)
+                        hg.TriggerSprintCollisionRagdoll(target, trace, ragdollPushVel, ragdollPushVel:Length() * 0.45)
                         timer.Simple(0, function()
                                 if not IsValid(target) then return end
                                 local rag = hg.GetCurrentCharacter(target)
                                 if not IsValid(rag) or rag == target then return end
-                                PushRagdoll(rag, trace.PhysicsBone or 0, pushVel * 0.55, trace.HitPos)
+                                PushRagdoll(rag, trace.PhysicsBone or 0, ragdollPushVel * 0.55, trace.HitPos)
                         end)
                 end
 
@@ -999,7 +1022,10 @@ function SWEP:AttackFront(special_attack, rand)
                         end
                 end
 
-                local DamageAmt = ((math_random(8, 10) * (special_attack and specialDamageMul or 1)) * ((isfur and (owner:IsBerserk() and 10 or 0.85)) or 1)) * (self.DamageMul or 1)
+                local runningChargeMul = special_attack and owner:KeyDown(IN_SPEED) and owner:GetVelocity():LengthSqr() > 10000 and runningSpecialDamageMul or 1
+                local incomingSpeed = math.max(Ent:GetVelocity():Dot(-AimVec), 0)
+                local incomingDamageMul = 1 + math_Clamp((incomingSpeed - 150) / 450, 0, 1) * (incomingVelocityDamageMul - 1)
+                local DamageAmt = ((math_random(8, 10) * (special_attack and specialDamageMul * runningChargeMul or 1) * incomingDamageMul) * ((isfur and (owner:IsBerserk() and 10 or 0.85)) or 1)) * (self.DamageMul or 1)
                 local ent = Ent
                 local vec = AimVec
                 local hitForceVec = AimVec
@@ -1065,7 +1091,7 @@ function SWEP:AttackFront(special_attack, rand)
         end
 
         if SERVER then
-                owner.organism.stamina.subadd = owner.organism.stamina.subadd + 6
+                owner.organism.stamina.subadd = owner.organism.stamina.subadd + (special_attack and owner:KeyDown(IN_SPEED) and 12 or 6)
         end
 
         owner:LagCompensation(false)

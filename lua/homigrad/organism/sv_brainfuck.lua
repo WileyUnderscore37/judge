@@ -21,8 +21,8 @@ local RIGOR_DAMP, FLEXION_FORCE = 8, 400
 local DECORTICATE_START, DECEREBRATE_START = 0.2, 0.7
 local POSTURE_DEATH_FADE = 8
 local FENCING_DURATION, FENCING_FADE, FENCING_RECENT_DAMAGE = 3.8, 0.35, 1.5
-local FENCING_HEAVY_DURATION, FENCING_HEAVY_FORCE = 0.18, 35
-local POSTURE_SHAKE_REFRESH = {0.08, 0.36}
+local FENCING_HEAVY_DURATION, FENCING_HEAVY_FORCE = 0.18, 15
+local POSTURE_SHAKE_REFRESH = {0.035, 0.095}
 local FENCING_FORCE_MUL, FENCING_DAMP_MUL = 1, 1
 local POSTURE_FADE_IN, POSTURE_FADE_OUT = {0.35, 0.75}, 2.5
 local POSTURE_FORCE_MUL, POSTURE_DAMP_MUL = 1, 1
@@ -140,28 +140,43 @@ local fencingOffsets = {
 }
 
 local fencingArmBones = {[2] = true, [3] = true, [4] = true, [5] = true, [6] = true, [7] = true}
+local seizureArmBones = {[2] = true, [3] = true, [4] = true, [5] = true, [6] = true, [7] = true}
+local fencingSpineBones = {[1] = 0.18}
+local postureBoneFadeDelays = {[1] = 0, [2] = 0.08, [3] = 0.08, [4] = 0.18, [6] = 0.18, [5] = 0.28, [7] = 0.28, [8] = 0.38, [10] = 0.46, [11] = 0.58, [9] = 0.7, [12] = 0.7, [13] = 0.84, [14] = 0.84}
+
+local function getPostureBoneFade(org, physBone, postureType)
+	if not org or postureType ~= org.postureFadeType or not org.postureFadeStart then return 1 end
+
+	local fade = math_clamp((CurTime() - org.postureFadeStart) / (org.postureFadeDur or POSTURE_FADE_IN[2]), 0, 1)
+	local delay = postureBoneFadeDelays[physBone] or 0.5
+	local boneFade = math_clamp((fade - delay) / (1 - delay), 0, 1)
+	return boneFade * boneFade * (3 - 2 * boneFade)
+end
 
 local function getPostureShake(rag, physBone, postureType, scale)
 	local time = CurTime()
 	rag.postureShake = rag.postureShake or {}
 	local shake = rag.postureShake[physBone]
 	if not shake or shake.postureType ~= postureType or time >= shake.next then
-		local amp = postureType == "fencing" and (fencingArmBones[physBone] and 0.85 or 0.12) or 1.15
-		local burst = math_random(100) <= (postureType == "fencing" and fencingArmBones[physBone] and 14 or 18) and math_rand(1.15, 1.7) or 1
+		local amp = postureType == "seizure" and (seizureArmBones[physBone] and 0.45 or 0.08) or postureType == "fencing" and (fencingArmBones[physBone] and 0.18 or 0.045) or 0.13
+		local burst = math_random(100) <= (postureType == "seizure" and 14 or 6) and math_rand(1.35, postureType == "seizure" and 2.8 or 2.1) or 1
 		shake = {
 			postureType = postureType,
 			next = time + math_rand(POSTURE_SHAKE_REFRESH[1], POSTURE_SHAKE_REFRESH[2]),
-			p = math_rand(-amp, amp) * burst * scale,
-			y = math_rand(-amp, amp) * burst * scale,
-			r = math_rand(-amp * 0.28, amp * 0.28) * burst * scale,
-			phase = math_rand(0, 6.28),
-			freq = math_rand(2.2, 9.5)
+			p = shake and shake.p or 0,
+			y = shake and shake.y or 0,
+			r = shake and shake.r or 0,
+			tp = math_rand(-amp, amp) * burst * scale,
+			ty = math_rand(-amp, amp) * burst * scale,
+			tr = math_rand(-amp * 0.35, amp * 0.35) * burst * scale
 		}
 		rag.postureShake[physBone] = shake
 	end
 
-	local pulse = 0.45 + math_sin(time * shake.freq + shake.phase) * 0.55
-	return shake.p * pulse, shake.y * pulse, shake.r * pulse
+	shake.p = shake.p + (shake.tp - shake.p) * 0.38
+	shake.y = shake.y + (shake.ty - shake.y) * 0.38
+	shake.r = shake.r + (shake.tr - shake.r) * 0.38
+	return shake.p, shake.y, shake.r
 end
 
 local function getBrainLobeSeverity(org)
@@ -277,12 +292,13 @@ local function processPosture(rag, postureType, scale)
 	if not IsValid(reference) then return end
 
 	local model = string.lower(rag:GetModel() or "")
-	local postureOffsets = postureType == "fencing" and fencingOffsets or postureType == "decorticate" and decorticateOffsets or decerebrateOffsets
+	local postureOffsets = (postureType == "fencing" or postureType == "seizure") and fencingOffsets or postureType == "decorticate" and decorticateOffsets or decerebrateOffsets
 	local offsets = string.find(model, "female", 1, true) and postureOffsets.female06 or postureOffsets.male09
 	local referenceAng = reference:GetAngles()
+	local org = rag.organism
 	local force = 450 + 750 * scale
 	local damp = 18 + 42 * scale
-	if postureType == "fencing" then
+	if postureType == "fencing" or postureType == "seizure" then
 		force = force * FENCING_FORCE_MUL
 		damp = damp * FENCING_DAMP_MUL
 	else
@@ -293,14 +309,31 @@ local function processPosture(rag, postureType, scale)
 
 	for physBone, offset in pairs(offsets) do
 		local ang = offset.ang
-		local boneForce, boneDamp = force, damp
-		if postureType == "fencing" and not fencingArmBones[physBone] then boneForce, boneDamp = boneForce * 0.45, boneDamp * 0.45 end
-		local shakeP, shakeY, shakeR = getPostureShake(rag, physBone, postureType, scale)
+		local boneFade = getPostureBoneFade(org, physBone, postureType)
+		if boneFade <= 0.01 then continue end
+		local boneScale = scale * boneFade
+		local boneForce, boneDamp = force * boneFade, damp * boneFade
+		if postureType == "fencing" or postureType == "seizure" then
+			local spineMul = fencingSpineBones[physBone]
+			if spineMul then
+				boneForce, boneDamp = boneForce * spineMul, boneDamp * 0.35
+			elseif not fencingArmBones[physBone] then
+				boneForce, boneDamp = boneForce * 0.65, boneDamp * 0.65
+			end
+		end
+		if postureType == "seizure" and seizureArmBones[physBone] then boneForce, boneDamp = boneForce * 1.25, boneDamp * 1.1 end
+		local shakeP, shakeY, shakeR = getPostureShake(rag, physBone, postureType, boneScale)
 		ang = Angle(ang.p + shakeP, ang.y + shakeY, ang.r + shakeR)
 
 		local _, targetAng = LocalToWorld(vector_origin, ang, vector_origin, referenceAng)
-		hg.ShadowControl(rag, physBone, postureType == "fencing" and 0.07 or 0.04, targetAng, boneForce, boneDamp, vector_origin, 0, 0)
+		hg.ShadowControl(rag, physBone, (postureType == "fencing" or postureType == "seizure") and 0.07 or 0.04, targetAng, boneForce, boneDamp, vector_origin, 0, 0)
 	end
+end
+
+function hg.applySeizurePostureToRagdoll(rag, org, scale)
+	if not IsValid(rag) then return end
+	rag.organism = rag.organism or org
+	processPosture(rag, "seizure", scale or 1)
 end
 
 local function getPosturePlayer(owner, rag, org)
@@ -540,6 +573,7 @@ hook.Add("Org Think", "BrainfuckThink", function(owner)
 	org.postureSeverity = postureSeverity
 	org.postureScale = postureScale
 	if not postureType then org.postureDebugLastType = nil return end
+	if not IsValid(rag) then return end
 	printPostureDebug(owner, rag, org, postureType, postureSeverity, postureScale)
 	if rag.spasm then clearSpasm(rag) end
 	if postureType == "fencing" then applyFencingHeavy(rag, org) end

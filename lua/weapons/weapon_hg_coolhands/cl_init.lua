@@ -87,7 +87,8 @@ local clamp = math_Clamp
 function SWEP:CanShove()
         local owner = self:GetOwner()
         if not IsValid(owner) or owner:InVehicle() then return false end
-        if not self:GetFists() or self:GetBlocking() or self.Charging then return false end
+        local sprintShove = owner:KeyDown(IN_SPEED) and owner:KeyDown(IN_USE)
+        if (not self:GetFists() and not sprintShove) or self:GetBlocking() or self.Charging then return false end
         if owner:GetNetVar("handcuffed",false) then return false end
         if (self.ShoveEnd or 0) > CurTime() then return false end
         if (self.SpecialAttackUntil or 0) > CurTime() then return false end
@@ -108,6 +109,8 @@ function SWEP:SecondaryAttack()
         self.Charging = nil
         self.ChargeStarted = nil
         self.ChargeIdlePlayed = nil
+        self.ChargeComfort = nil
+        if owner:KeyDown(IN_SPEED) then self:SetFists(true) end
         self.attacked = CurTime() + 0.2
         self:SetNextPrimaryFire(CurTime() + shoveCooldownPrimary)
         self:SetNextSecondaryFire(CurTime() + shoveCooldownSecondary)
@@ -698,21 +701,34 @@ function SWEP:Think()
                 self.blockSound = nil
         end
 
-        local wantsCharge = self:GetFists() and owner.PlayerClassName ~= "furry" and owner:KeyDown(IN_USE) and owner:KeyDown(IN_ATTACK)
-        if self.Charging and (not wantsCharge or self:GetBlocking() or owner:InVehicle()) then
+        local chargeHeld = owner:KeyDown(IN_USE) or owner:KeyDown(IN_ATTACK)
+        local wantsCharge = owner.PlayerClassName ~= "furry" and owner:KeyDown(IN_USE) and owner:KeyDown(IN_ATTACK) and (self:GetFists() or owner:KeyDown(IN_SPEED))
+        if self.Charging and self.ChargeComfort and wantsCharge then
+                self.Charging = nil
+                self.ChargeStarted = nil
+                self.ChargeIdlePlayed = nil
+                self.ChargeComfort = nil
+                self:PrimaryAttack(true)
+                return
+        elseif self.Charging and (not chargeHeld or self:GetBlocking() or owner:InVehicle()) then
                 local startedAt = self.ChargeStarted or CurTime()
                 self.Charging = nil
                 self.ChargeStarted = nil
                 self.ChargeIdlePlayed = nil
+                self.ChargeComfort = nil
 
                 if not self:GetBlocking() and not owner:InVehicle() and CurTime() - startedAt >= chargeHoldTime then
                         self:PrimaryAttack(true)
                         return
                 end
+        elseif self.Charging and chargeHeld and not wantsCharge then
+                self.ChargeComfort = true
         elseif wantsCharge and not self.Charging and not self:GetBlocking() and self:GetNextPrimaryFire() < CurTime() and self:GetNextSecondaryFire() < CurTime() and (self.attacked or 0) <= CurTime() then
+                self:SetFists(true)
                 self.Charging = true
                 self.ChargeStarted = CurTime()
                 self.ChargeIdlePlayed = nil
+                self.ChargeComfort = nil
                 self:PlayAnim("attack_charge_begin", chargeAnimTime)
         elseif self.Charging and not self.ChargeIdlePlayed and (self.ChargeStarted or 0) + chargeAnimTime <= CurTime() then
                 self.ChargeIdlePlayed = true

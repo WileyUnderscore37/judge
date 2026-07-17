@@ -72,10 +72,8 @@ SWEP.FakeReloadEvents = {
 function SWEP:PostFireBullet(bullet)
 	--self:GetWM():SetBodygroup(1,math.min(self:Clip1()-1,1))
 	local owner = self:GetOwner()
-	if ( SERVER or self:IsLocal2() ) and owner:OnGround() then
-		if IsValid(owner) and owner:IsPlayer() then
-			owner:SetVelocity(owner:GetVelocity() - owner:GetVelocity()/0.45)
-		end
+	if IsValid(owner) and owner:IsPlayer() and ( SERVER or self:IsLocal2() ) and owner:OnGround() then
+		owner:SetVelocity(owner:GetVelocity() - owner:GetVelocity()/0.45)
 	end
 end
 

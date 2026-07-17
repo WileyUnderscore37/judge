@@ -181,11 +181,23 @@ function SWEP:Initialize()
 	self:InitializePost()
 end
 
-function SWEP:PhysicsCollide(ent, data)
-	if !self.CantFireFromCollision and (!self.lastshotfromhit or (self.lastshotfromhit + 0.5 < CurTime())) and data.Speed > 250 and math.random(45) == 1 then
-		self:PrimaryAttack()
+function SWEP:TryDropMisfire(chance, speed, force)
+	if !self.CantFireFromCollision and (force or !self.lastshotfromhit or (self.lastshotfromhit + 0.5 < CurTime())) and (force or speed > 250) and (force or math.random(chance or 45) == 1) then
+		if self.Clip1 and self:Clip1() <= 0 then return end
+		if self.Shoot then self:Shoot(true) else self:PrimaryAttack() end
+		if SERVER and self.Shoot then
+			net.Start("hgwep shoot", true)
+			net.WriteEntity(self)
+			net.WriteBool(true)
+			net.WriteBool(true)
+			net.Broadcast()
+		end
 		self.lastshotfromhit = CurTime()
 	end
+end
+
+function SWEP:PhysicsCollide(ent, data)
+	self:TryDropMisfire(45, data.Speed)
 end
 
 SWEP.WepSelectIcon2 = Material("null")

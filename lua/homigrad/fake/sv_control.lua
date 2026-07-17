@@ -267,6 +267,28 @@ function hg.ShadowControl(ragdoll, physNumber, ss, ang, maxang, maxangdamp, pos,
 	phys:ComputeShadowControl(shadowparams)
 end
 
+local function processPostureGunfire(ply, ragdoll, org, wep)
+	if not org then return end
+	if not (org.posturing or org.seizureActive) then org.postureGunfireWeapon = nil ragdoll.nextPostureGunFire = nil return end
+	wep = IsValid(org.postureGunfireWeapon) and org.postureGunfireWeapon or wep
+	if not IsValid(wep) then org.postureGunfireWeapon = nil return end
+	if not ishgweapon(wep) or wep.reload or wep.deploy then return end
+	if wep.Clip1 and wep:Clip1() <= 0 then return end
+	if not wep.TryDropMisfire then return end
+
+	local time = CurTime()
+	if (ragdoll.nextPostureGunFire or 0) > time then return end
+	ragdoll.nextPostureGunFire = time + math.Rand(0.08, 0.22)
+
+	if wep:GetOwner() == ply then
+		local hand = ragdoll:GetPhysicsObjectNum(realPhysNum(ragdoll, 7))
+		local ang = IsValid(hand) and hand:GetAngles() or ply:EyeAngles()
+		local fireAng = Angle(math.Clamp(ang.p + math.Rand(-65, 65), -89, 89), ang.y + math.Rand(-140, 140), math.Rand(-45, 45))
+		ply:SetEyeAngles(fireAng)
+	end
+	wep:TryDropMisfire(1, 251, true)
+end
+
 local shadowControl = hg.ShadowControl
 
 hook.Add("Fake", "Contorl", function(ply, ragdoll)
@@ -406,6 +428,10 @@ hook.Add("Think", "Fake", function()
 			end
 		end
 
+		local org = ply.organism
+		local wep = ply:GetActiveWeapon()
+		processPostureGunfire(ply, ragdoll, org, wep)
+
 		if hook_Run("CanControlFake", ply, ragdoll) ~= nil then
 			ply.lastFake = 0
 			//ply:SetNetVar("lastFake",0)
@@ -417,8 +443,6 @@ hook.Add("Think", "Fake", function()
 
 		local vellen = ragdoll:GetPhysicsObject():GetVelocity():Length()
 
-		local org = ply.organism
-		local wep = ply:GetActiveWeapon()
 		local floppyBones = ragdoll.hg_floppy_bones or org.fake_floppy_bones
 		local leftArmFloppy = floppyBones and (floppyBones["ValveBiped.Bip01_L_UpperArm"] or floppyBones["ValveBiped.Bip01_L_Forearm"])
 		local rightArmFloppy = floppyBones and (floppyBones["ValveBiped.Bip01_R_UpperArm"] or floppyBones["ValveBiped.Bip01_R_Forearm"])

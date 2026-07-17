@@ -192,7 +192,7 @@ function SWEP:Camera(eyePos, eyeAng, view, vellen, ply)
 	local justzoomed = zooming and !oldzoom
 	lastzoom = (justzoomed or (cocking or self.shot2 == 1)) and CurTime() or lastzoom
 
-	local tta = math.Clamp(self.weight / 4, 0.25, 1) * 0.5
+	local tta = math.Clamp((self.weight or 1) / 8, 0.25, 0.75) * 0.5
 	if isvector(vellen) then
 		vellen = vellen:Length()
 	end

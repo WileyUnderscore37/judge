@@ -151,6 +151,7 @@ hook.Add("PlayerDropWeapon", "homigrad-inventory", function(ply)
     ply.inventory.Weapons[wep:GetClass()] = nil
     ply:SetNetVar("Inventory", ply.inventory)
     ply:SetActiveWeapon(NULL)
+	if ply.organism and ishgweapon(wep) then ply.organism.postureGunfireWeapon = wep end
 
     timer.Simple(0.1,function()
         if not IsValid(wep) then return end
@@ -178,6 +179,7 @@ hook.Add("PlayerDropWeapon", "homigrad-inventory", function(ply)
         local physbonetorso = ent:TranslateBoneToPhysBone(ent:LookupBone("ValveBiped.Bip01_Spine2"))
 
         local cons = constraint.Weld(wep, ent, 0, physbone, 600, true, false)
+		if ply.organism and ishgweapon(wep) then ply.organism.postureGunfireWeapon = wep end
 
         if math.random(1,10) <= 2 then
             timer.Simple(4, function()
@@ -277,7 +279,8 @@ local functions = {
         --if not weapon then return end
         
         local weapon
-        local weaponIsEnt = (not isbool(ent.inventory.Weapons[wep]) )and IsValid(ent.inventory.Weapons[wep]) and ent.inventory.Weapons[wep]:IsWeapon()
+        local storedWeapon = ent.inventory.Weapons[wep]
+        local weaponIsEnt = IsEntity(storedWeapon) and IsValid(storedWeapon) and storedWeapon:IsWeapon()
         --print(weaponIsEnt)
         if not weaponIsEnt then
             weapon = ents.Create(wep)
