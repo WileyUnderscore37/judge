@@ -119,10 +119,10 @@ hg.bonetohitgroup = bonetohitgroup
 hg.amputeetable = {
 	--["ValveBiped.Bip01_L_UpperArm"] = "larm",
 	["ValveBiped.Bip01_L_Forearm"] = "larm",
-	["ValveBiped.Bip01_L_Hand"] = "larm",
+	["ValveBiped.Bip01_L_Hand"] = "lhand",
 	--["ValveBiped.Bip01_R_UpperArm"] = "rarm",
 	["ValveBiped.Bip01_R_Forearm"] = "rarm",
-	["ValveBiped.Bip01_R_Hand"] = "rarm",
+	["ValveBiped.Bip01_R_Hand"] = "rhand",
 	--["ValveBiped.Bip01_L_Thigh"] = "lleg",
 	["ValveBiped.Bip01_L_Calf"] = "lleg",
 	["ValveBiped.Bip01_L_Foot"] = "lleg",
@@ -159,6 +159,8 @@ local limbs = {
 	["rleg"] = "ValveBiped.Bip01_R_Calf",
 	["larm"] = "ValveBiped.Bip01_L_Forearm",
 	["rarm"] = "ValveBiped.Bip01_R_Forearm",
+	["lhand"] = "ValveBiped.Bip01_L_Hand",
+	["rhand"] = "ValveBiped.Bip01_R_Hand",
 }
 
 local function getHeadImpactPos(ent, fallback)
@@ -211,10 +213,12 @@ function hg.organism.AmputateLimb(org, limb)
 		hg.organism.AddWoundManual(org.owner, 50, vec + VectorRand(-2, 2), ang, boneup, CurTime() + math.Rand(0, 2))
 	end
 
-	local dmgInfo = DamageInfo()
-	hg.organism.input_list[limb.."up"](org, 0, 5, dmgInfo)
+    if hg.organism.input_list[limb.."up"] then
+        local dmgInfo = DamageInfo()
+        hg.organism.input_list[limb.."up"](org, 0, 5, dmgInfo)
+    end
 
-	org.owner:EmitSound(sounds[math.random(#sounds)], 70, math.random(95, 105), 2)
+    org.owner:EmitSound(sounds[math.random(#sounds)], 70, math.random(95, 105), 2)
 	
 	local ent = hg.GetCurrentCharacter(org.owner)
 	SpawnMeatGore(ent, select(1, ent:GetBonePosition(ent:LookupBone(bone))), 4)
@@ -609,6 +613,25 @@ hook.Add("EntityTakeDamage", "homigrad-damage", function(ent, dmgInfo)
 	--print(dmgInfo:GetDamageType() == DMG_BULLET)
 
 	ent.armors = ent.armors or {}
+
+	if not next(ent.armors) then
+		local owner = hg.RagdollOwner(ent)
+		if not IsValid(owner) and ent:IsPlayer() then owner = ent end
+		if IsValid(owner) then
+			if istable(owner.armors) and next(owner.armors) then
+				ent.armors = table.Copy(owner.armors)
+				ent.armors_health = table.Copy(owner.armors_health or {})
+				ent.armors_broken = table.Copy(owner.armors_broken or {})
+				ent.armors_broken_mul = table.Copy(owner.armors_broken_mul or {})
+				ent.armors_shots = table.Copy(owner.armors_shots or {})
+			else
+				local deathRag = owner:GetNWEntity("RagdollDeath", NULL)
+				if IsValid(deathRag) and deathRag.armors then
+					ent.armors = deathRag.armors
+				end
+			end
+		end
+	end
 	
 	if dmgInfo:GetInflictor().poisoned2 and dmgInfo:IsDamageType(DMG_SLASH) then
 		org.poison4 = CurTime()
@@ -637,6 +660,8 @@ hook.Add("EntityTakeDamage", "homigrad-damage", function(ent, dmgInfo)
 	end
 	
 	local dmg_before = dmgInfo:GetDamage()
+
+	org.lastArmorMitigation = 1
 
 	local lastPos, hitBoxs, inputHole, outputHole, outputDir, distance, tracePoses = nil,{},{},{},{},nil,nil
 	if dmgInfo:IsDamageType(DMG_BULLET+DMG_BUCKSHOT+DMG_SLASH+DMG_CLUB+DMG_GENERIC) then
@@ -730,6 +755,13 @@ hook.Add("EntityTakeDamage", "homigrad-damage", function(ent, dmgInfo)
 				effectdata1:SetEntity(inf)
 				effectdata1:SetMagnitude(2)
 				util.Effect("eff_tracer", effectdata1)
+
+				local effdata = EffectData()
+				effdata:SetOrigin(outputHole[#outputHole])
+				effdata:SetRadius(dmg / 10)
+				effdata:SetMagnitude(dmg / 10)
+				effdata:SetScale(1)
+				util.Effect("BloodImpact", effdata)
 			end
 
 			--[[local ent = ents.Create("prop_physics")
@@ -796,6 +828,17 @@ hook.Add("EntityTakeDamage", "homigrad-damage", function(ent, dmgInfo)
 	--end
 
 	if inputHole and #inputHole > 0 and dmgInfo:IsDamageType(DMG_BULLET+DMG_BUCKSHOT) then
+		local effdata = EffectData()
+		effdata:SetOrigin(inputHole[1])
+		effdata:SetRadius(dmg / 10)
+		effdata:SetMagnitude(dmg / 10)
+		effdata:SetScale(1)
+		util.Effect("BloodImpact", effdata)
+
+		if IsValid(ply) and ply:IsPlayer() and ply:Alive() then
+			ply:ViewPunch(AngleRand(-3, 3))
+		end
+
 		ent.bloodamt2 = ent.bloodamt2 or 0
 		ent.bloodamt2 = ent.bloodamt2 + 1
 
@@ -815,6 +858,12 @@ hook.Add("EntityTakeDamage", "homigrad-damage", function(ent, dmgInfo)
 
 	--print(dmg_before, 2)
 	local dmgBlood, dmgHurt, instaPain, immobilization = hg.organism.DamageTypeAffliction(dmg_before / 12, dmgInfo, ent, org)
+
+	local armMit = org.lastArmorMitigation or 1
+	dmgBlood = dmgBlood * armMit
+	dmgHurt = dmgHurt * armMit
+	instaPain = instaPain * armMit
+	immobilization = immobilization * armMit
 	
 	local hitbody = #inputHole > 0 or not dmgInfo:IsDamageType(DMG_BULLET+DMG_BUCKSHOT)
 	
@@ -932,8 +981,9 @@ hook.Add("EntityTakeDamage", "homigrad-damage", function(ent, dmgInfo)
 			
 			hg.AddForceRag(ply, bone, force * 0.5, 0.5)
 
-			if ply.AddForceRag[bone][2] and ply.AddForceRag[bone][2]:Length() > 4500 then //по-моему какие-то большие значения, не?
-				if ply.AddForceRag[bone][2]:Length() > 7000 then
+			local afr = ply.AddForceRag
+			if afr and afr[bone] and afr[bone][2] and afr[bone][2]:Length() > 4500 then
+				if afr[bone][2]:Length() > 7000 then
 					hg.StunPlayer(ply, 0.5)
 					hg.LightStunPlayer(ply, 2)
 				else
@@ -958,7 +1008,8 @@ hook.Add("EntityTakeDamage", "homigrad-damage", function(ent, dmgInfo)
 	end
 
 	local lend = math.max(0.1, (ent:GetPos() - dmgInfo:GetDamagePosition()):Length())
-	local damageStack = dmg_before / (dmgInfo:IsDamageType(DMG_BULLET) and RagdollDamageBoneMul[hitgroup] or 1)
+	local headMit = (hitgroup == HITGROUP_HEAD) and (org.lastHeadArmorMitigation or 1) or 1
+	local damageStack = (dmg_before * headMit) / (dmgInfo:IsDamageType(DMG_BULLET) and RagdollDamageBoneMul[hitgroup] or 1)
 	--print(damageStack, 3)
 	damageStack = damageStack * (dmgInfo:IsDamageType(DMG_BLAST) and 200 / lend or 1) * (!dmgInfo:IsDamageType(DMG_CLUB+DMG_SLASH+DMG_BULLET+DMG_BLAST+DMG_SNIPER) and 0 or 1) * (ent:IsNPC() and 3 or 1)
 	--damageStack = damageStack * (bullet and bullet.AmmoType and hg.ammotypeshuy[bullet.AmmoType] and hg.ammotypeshuy[bullet.AmmoType].BulletSettings and hg.ammotypeshuy[bullet.AmmoType].BulletSettings.Mass or 1) / 8
@@ -1248,6 +1299,19 @@ function hg.organism.DamageTypeAffliction(dmg, dmgInfo, ply, org)
 		dmgBlood = dmg * 5
 		dmgHurt = dmg * 4
 		instaPain = dmg * 3
+
+		local blastConc = math.Clamp(dmg * 0.6, 0.3, 4.0)
+		hg.organism.module.concussion.AddConcussion(org, blastConc, math.Clamp(dmg * 4, 8, 90))
+	end
+
+	if dmgInfo:IsDamageType(DMG_VEHICLE) then
+		local vehConc = math.Clamp(dmg * 0.4, 0.2, 2.5)
+		hg.organism.module.concussion.AddConcussion(org, vehConc, math.Clamp(dmg * 3, 5, 45))
+	end
+
+	if dmgInfo:IsDamageType(DMG_FALL) and dmg >= 25 then
+		local fallConc = math.Clamp((dmg - 25) * 0.12, 0.1, 2.0)
+		hg.organism.module.concussion.AddConcussion(org, fallConc, math.Clamp(fallConc * 5, 5, 30))
 	end
 	
 	if dmgInfo:IsDamageType(DMG_NERVEGAS) then
@@ -1381,9 +1445,13 @@ local bleedSurfaces = { -- https://developer.valvesoftware.com/wiki/Material_sur
 	["glass_breakable"] = true
 }
 
+local hg_safe_landing_legmul = 0.6
+local hg_safe_landing_painmul = 0.7
+local hg_safe_landing_minspeed = 350
+
 local function velocityDamage(ent, data)
 	local speed = (data.OurOldVelocity - data.TheirOldVelocity):Length()
-	if speed < 350 then return end
+	if speed < 545 then return end
 	if data.HitEntity.Throwable then return end
 	
 	if !data.HitEntity:IsWorld() and data.HitEntity.lasttouched and data.HitEntity.lasttouched[ent] then
@@ -1437,6 +1505,16 @@ local function velocityDamage(ent, data)
                 dmg = dmg * (ply.hgSprintCollisionDamageMul or 0.08)
         end
 
+	-- Safe landing: holding crouch (Ctrl) while ragdolled dampens the fall.
+	-- Only kicks in on real impacts and only helps at moderate heights,
+	-- since the multipliers are constant and big falls still exceed the fracture threshold.
+	local safeLanding = false
+	local safeLegMul = hg_safe_landing_legmul
+	local safePainMul = hg_safe_landing_painmul
+	if (speed >= hg_safe_landing_minspeed) and IsValid(ply) and ply:Alive() and ply:KeyDown(IN_DUCK) then
+		safeLanding = true
+	end
+
 	local traceResult = GetTraceDamage(ent, data.HitPos, -(data.OurOldVelocity - data.TheirOldVelocity))
 	
 	if not bone then
@@ -1456,11 +1534,31 @@ local function velocityDamage(ent, data)
 
 	local org = ent.organism
 	if org.godmode then return end
-	org.fearadd = org.fearadd + dmg * 0.5
+
+	-- Armor protection vs physical/fall damage
+	local armorDmgMul = 1
+	local eqArmors = org.owner.armors or {}
+	if hitgroup == HITGROUP_CHEST or hitgroup == HITGROUP_STOMACH then
+		local a = eqArmors["torso"]
+		if a and hg.armor.torso[a] then
+			armorDmgMul = math.Clamp(1 - (hg.armor.torso[a].protection or 0) / 40, 0.25, 1)
+		end
+	elseif hitgroup == HITGROUP_HEAD then
+		local a = eqArmors["head"]
+		if a and hg.armor.head[a] then
+			armorDmgMul = math.Clamp(1 - (hg.armor.head[a].protection or 0) / 40, 0.3, 1)
+		end
+	end
+	dmg = dmg * armorDmgMul
+
+
+	org.fearadd = org.fearadd + dmg * 0.5 * (safeLanding and safePainMul or 1)
 
 	if not org.superfighter then
-		if hitgroup == HITGROUP_LEFTLEG and (dmg * 3 > 0.25) then hg.organism.input_list.llegup(org, bone, dmg * 1 * math.Rand(1, 2), dmgInfo) end--org.lleg = math.min(org.lleg + dmg, 1) end
-		if hitgroup == HITGROUP_RIGHTLEG and (dmg * 3 > 0.25) then hg.organism.input_list.rlegup(org, bone, dmg * 1 * math.Rand(1, 2), dmgInfo) end
+		local legMul = safeLanding and safeLegMul or 1
+
+		if hitgroup == HITGROUP_LEFTLEG and (dmg * 3 > 0.25) then hg.organism.input_list.llegup(org, bone, dmg * legMul * math.Rand(1, 2), dmgInfo) end--org.lleg = math.min(org.lleg + dmg, 1) end
+		if hitgroup == HITGROUP_RIGHTLEG and (dmg * 3 > 0.25) then hg.organism.input_list.rlegup(org, bone, dmg * legMul * math.Rand(1, 2), dmgInfo) end
 		if hitgroup == HITGROUP_LEFTARM and (dmg * 2 > 0.2) then hg.organism.input_list.larmup(org, bone, dmg * 1 * math.Rand(1, 2), dmgInfo) end
 		if hitgroup == HITGROUP_RIGHTARM and (dmg * 2 > 0.2) then hg.organism.input_list.rarmup(org, bone, dmg * 1 * math.Rand(1, 2), dmgInfo) end
 		if hitgroup == HITGROUP_CHEST and (dmg * 3 > 0.25) then hg.organism.input_list.chest(org, bone, dmg * 3, dmgInfo) end
@@ -1557,7 +1655,7 @@ local function velocityDamage(ent, data)
 
 	att.harm = 0
 
-	local dmghuy = dmg * 20
+	local dmghuy = dmg * 20 * (safeLanding and safePainMul or 1)
 
 	if not org.superfighter then
 		org.painadd = org.painadd + dmghuy

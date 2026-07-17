@@ -1,3 +1,5 @@
+EXHAUSTED_THRESHOLD = 89
+
 hg.bonetohitgroup = {
 	["ValveBiped.Bip01_Head1"] = HITGROUP_HEAD,
 	["ValveBiped.Bip01_L_UpperArm"] = HITGROUP_LEFTARM,
@@ -22,10 +24,10 @@ hg.bonetohitgroup = {
 hg.amputeetable = {
 	--["ValveBiped.Bip01_L_UpperArm"] = "larm",
 	["ValveBiped.Bip01_L_Forearm"] = "larm",
-	["ValveBiped.Bip01_L_Hand"] = "larm",
+	["ValveBiped.Bip01_L_Hand"] = "lhand",
 	--["ValveBiped.Bip01_R_UpperArm"] = "rarm",
 	["ValveBiped.Bip01_R_Forearm"] = "rarm",
-	["ValveBiped.Bip01_R_Hand"] = "rarm",
+	["ValveBiped.Bip01_R_Hand"] = "rhand",
 	--["ValveBiped.Bip01_L_Thigh"] = "lleg",
 	["ValveBiped.Bip01_L_Calf"] = "lleg",
 	["ValveBiped.Bip01_L_Foot"] = "lleg",
@@ -191,12 +193,18 @@ local function remove_imgs()
 end
 
 local disorientationLerp = 0
+local concLerp = 0
+local nauseaLerp = 0
+local tinnitusConcLerp = 0
 
 hook.Add("Player Spawn", "screenshot_game", function(ply)
 	if OverrideSpawn then return end
 
 	if ply == lply then
 		disorientationLerp = 0
+		concLerp = 0
+		nauseaLerp = 0
+		tinnitusConcLerp = 0
 
 		alivestart = CurTime()
 		lply.tried_fixing_limb = nil
@@ -229,25 +237,27 @@ hook.Add("radialOptions", "DislocatedJoint", function()
         local tbl = {
             function()
 				lply.tried_fixing_limb = CurTime() + 0.5
-				RunConsoleCommand("hg_fixdislocation", 1, 0)
+				if hg.StartDislocationMinigame then hg.StartDislocationMinigame(1) else RunConsoleCommand("hg_fixdislocation", 1, 0) end
             end,
             "Fix dislocation (leg)"
         }
         hg.radialOptions[#hg.radialOptions + 1] = tbl
-	else
-		local ent = hg.eyeTrace(lply).Entity
+	end
 
-		if ent.organism and (ent.organism.llegdislocation or ent.organism.rlegdislocation) then
-			local tbl = {
-				function()
-					lply.tried_fixing_limb = CurTime() + 0.5
-					RunConsoleCommand("hg_fixdislocation", 1, 1)
-				end,
-				"Fix "..ent:GetPlayerName().."'s dislocation (leg)"
-			}
-			hg.radialOptions[#hg.radialOptions + 1] = tbl
-		end
-    end
+	local ent = hg.eyeTrace(lply).Entity
+
+	if IsValid(ent) and ent.organism and ent.organism != org and (ent.organism.llegdislocation or ent.organism.rlegdislocation) then
+		local target = (IsValid(ent:GetNWEntity("ply")) and ent:GetNWEntity("ply")) or (ent.organism and ent.organism.owner) or ent
+		local tbl = {
+			function()
+			lply.tried_fixing_limb = CurTime() + 0.5
+			if hg.StartDislocationMinigame then hg.StartDislocationMinigame(1, target) else RunConsoleCommand("hg_fixdislocation", 1, 1) end
+		end,
+		"Fix "..(IsValid(target) and target:GetPlayerName() or ent:GetPlayerName()).."'s dislocation (leg)",
+		[5] = Material("radialmenu/broken.png", "smooth mips")
+		}
+		hg.radialOptions[#hg.radialOptions + 1] = tbl
+	end
 end)
 
 hook.Add("radialOptions", "DislocatedJoint2", function()
@@ -260,25 +270,27 @@ hook.Add("radialOptions", "DislocatedJoint2", function()
         local tbl = {
             function()
 				lply.tried_fixing_limb = CurTime() + 0.5
-				RunConsoleCommand("hg_fixdislocation", 2, 0)
+				if hg.StartDislocationMinigame then hg.StartDislocationMinigame(2) else RunConsoleCommand("hg_fixdislocation", 2, 0) end
             end,
             "Fix dislocation (arm)"
         }
         hg.radialOptions[#hg.radialOptions + 1] = tbl
-	else
-		local ent = hg.eyeTrace(lply).Entity
+	end
 
-		if ent.organism and (ent.organism.larmdislocation or ent.organism.rarmdislocation) then
-			local tbl = {
-				function()
-					lply.tried_fixing_limb = CurTime() + 0.5
-					RunConsoleCommand("hg_fixdislocation", 2, 1)
-				end,
-				"Fix "..ent:GetPlayerName().."'s dislocation (arm)"
-			}
-			hg.radialOptions[#hg.radialOptions + 1] = tbl
-		end
-    end
+	local ent = hg.eyeTrace(lply).Entity
+
+	if IsValid(ent) and ent.organism and ent.organism != org and (ent.organism.larmdislocation or ent.organism.rarmdislocation) then
+		local target = (IsValid(ent:GetNWEntity("ply")) and ent:GetNWEntity("ply")) or (ent.organism and ent.organism.owner) or ent
+		local tbl = {
+			function()
+			lply.tried_fixing_limb = CurTime() + 0.5
+			if hg.StartDislocationMinigame then hg.StartDislocationMinigame(2, target) else RunConsoleCommand("hg_fixdislocation", 2, 1) end
+		end,
+		"Fix "..(IsValid(target) and target:GetPlayerName() or ent:GetPlayerName()).."'s dislocation (arm)",
+		[5] = Material("radialmenu/broken.png", "smooth mips")
+		}
+		hg.radialOptions[#hg.radialOptions + 1] = tbl
+	end
 end)
 
 hook.Add("radialOptions", "DislocatedJaw", function()
@@ -291,25 +303,27 @@ hook.Add("radialOptions", "DislocatedJaw", function()
         local tbl = {
             function()
 				lply.tried_fixing_limb = CurTime() + 0.5
-				RunConsoleCommand("hg_fixdislocation", 3, 0)
+				if hg.StartDislocationMinigame then hg.StartDislocationMinigame(3) else RunConsoleCommand("hg_fixdislocation", 3, 0) end
             end,
             "Fix dislocation (jaw)"
         }
         hg.radialOptions[#hg.radialOptions + 1] = tbl
-	else
-		local ent = hg.eyeTrace(lply).Entity
+	end
 
-		if ent.organism and ent.organism.jawdislocation then
-			local tbl = {
-				function()
-					lply.tried_fixing_limb = CurTime() + 0.5
-					RunConsoleCommand("hg_fixdislocation", 3, 1)
-				end,
-				"Fix "..ent:GetPlayerName().."'s dislocation (jaw)"
-			}
-			hg.radialOptions[#hg.radialOptions + 1] = tbl
-		end
-    end
+	local ent = hg.eyeTrace(lply).Entity
+
+	if IsValid(ent) and ent.organism and ent.organism != org and ent.organism.jawdislocation then
+		local target = (IsValid(ent:GetNWEntity("ply")) and ent:GetNWEntity("ply")) or (ent.organism and ent.organism.owner) or ent
+		local tbl = {
+			function()
+			lply.tried_fixing_limb = CurTime() + 0.5
+			if hg.StartDislocationMinigame then hg.StartDislocationMinigame(3, target) else RunConsoleCommand("hg_fixdislocation", 3, 1) end
+		end,
+		"Fix "..(IsValid(target) and target:GetPlayerName() or ent:GetPlayerName()).."'s dislocation (jaw)",
+		[5] = Material("radialmenu/broken.png", "smooth mips")
+		}
+		hg.radialOptions[#hg.radialOptions + 1] = tbl
+	end
 end)
 
 hook.Add("PostRender", "screenshot_think", function()
@@ -436,6 +450,9 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 	local immobilization = org.immobilization or 0
 	local incapacitated = org.incapacitated or new_organism.incapacitated or false
 	local critical = org.critical or false
+	local concussion = org.concussion or 0
+	local concussionNausea = org.nausea or 0
+	local concussionTinnitus = org.concussion_tinnitus or 0
 	local deathStateEnd = new_organism.deathStateEnd or org.deathStateEnd
 	if deathStateEnd and deathStateEnd <= 0 then deathStateEnd = nil end
 	tinnitusSoundFactor = Lerp(FrameTime()*2.5,tinnitusSoundFactor or 0, math.min(math.max( lply.tinnitus and (lply.tinnitus - CurTime()) or 0, 0)*7.5,120))
@@ -494,6 +511,9 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 	k2 = (30 - (o2 or 30)) / 30 + (1 - (consciousnessLerp or 1)) * 1-- + brain * 2
 	k3 = ((5000 / math.max(blood, 1000)) - 1) * 1.5
 
+	local stamina = org.stamina and org.stamina[1] or 180
+	local k4 = math.Clamp((EXHAUSTED_THRESHOLD - stamina) / EXHAUSTED_THRESHOLD, 0, 1)
+
 	DrawSharpen(k1 * 2, k1 * 1)
 	local lowpulse = math.max((70 - pulse) / 70, 0) + math.max(3000 * ((math.cos(CurTime()/2) + 1) / 2 * 0.1 + 1) - (blood * adrenK - 300),0) / 400
 
@@ -505,7 +525,7 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 
 	local amount = 1 - math.Clamp(lowpulse + disorientation / 4 + k2 * 2,0,1)
 
-	disorientationLerp = LerpFT(disorientation > disorientationLerp and 1 or 0.01, disorientationLerp, math.max(lply.suiciding and 1.5 or 0, disorientation))
+	disorientationLerp = LerpFT(disorientation > disorientationLerp and 1 or 0.15, disorientationLerp, math.max(lply.suiciding and 1.5 or 0, disorientation))
 
 	if (disorientationLerp > 1) and lply:Alive() or brain > 0 then
 		local add2 = disorientationLerp - 1
@@ -547,9 +567,9 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 	end
 	hg_potatopc = hg_potatopc or hg.ConVars.potatopc
 	local potato = hg_potatopc:GetBool()
-	if (k1 > 0) or (k2 > 0) or (k3 > 0) or brain > 0 then
+	if (k1 > 0) or (k2 > 0) or (k3 > 0) or (k4 > 0) or brain > 0 then
 		if !potato then
-			DrawToyTown(2, (k3 * 3 + k2 * 1 + brain * 10) * ScrH() / 2)
+			DrawToyTown(2, (k3 * 3 + k2 * 1 + k4 * 1.5 + brain * 10) * ScrH() / 2)
 		else
 
 		end
@@ -580,9 +600,9 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 
 	*/
 
-	tabblood["$pp_colour_colour"] = Lerp(FrameTime() * 30, tabblood["$pp_colour_colour"], math.max(0, (blood / 5000) * (potato and (blood / 5000) or 1) - (!org.otrub and potato and k2 or 0) + (math.max(analgesiaVisual - 1, 0) * math.sin(CurTime()) * 5)))
+	tabblood["$pp_colour_colour"] = Lerp(FrameTime() * 30, tabblood["$pp_colour_colour"], math.max(0, (blood / 5000) * (potato and (blood / 5000) or 1) - (!org.otrub and potato and k2 or 0) - k4 * 0.5 + (math.max(analgesiaVisual - 1, 0) * math.sin(CurTime()) * 5)))
 	//tabblood["$pp_colour_contrast"] = Lerp(FrameTime() * 30, tabblood["$pp_colour_contrast"], health < 80 and math.max(1.5 * ( 1 - math.min(health / 50, 1) ), 1 ) or 1)
-	tabblood["$pp_colour_brightness"] = Lerp(FrameTime() * 30, tabblood["$pp_colour_brightness"], (potato and ((blood / 5000 - 1) / 2 - (!org.otrub and k2 / 10 or 0)) or 0) )
+	tabblood["$pp_colour_brightness"] = Lerp(FrameTime() * 30, tabblood["$pp_colour_brightness"], (potato and ((blood / 5000 - 1) / 2 - (!org.otrub and k2 / 10 or 0) - k4 / 12) or 0) )
 	tabblood["$pp_colour_addb"] = 0
 	//tabblood["$pp_colour_addg"] = k2 / 15
 	//tabblood["$pp_colour_addr"] = k2 / 15
@@ -592,6 +612,51 @@ hook.Add("Post Post Pre Post Processing", "organism-effects", function()
 	//DrawColorModify(tab)
 	
 	DrawColorModify(tabblood)
+
+	if concussion > 0 and lply:Alive() then
+		concLerp = LerpFT(0.03, concLerp, concussion)
+		if concLerp > 1.0 then
+			local wobbleTime = CurTime() * 2.5
+			local wobbleAmt = math.Clamp((concLerp - 1.0) / 3, 0, 0.4)
+			local wobbleAng = Angle(
+				math.sin(wobbleTime) * wobbleAmt * 3,
+				math.cos(wobbleTime * 0.7) * wobbleAmt * 4,
+				math.sin(wobbleTime * 1.3) * wobbleAmt * 2
+			)
+			ViewPunch(wobbleAng)
+		end
+		if concLerp > 2.0 then
+			local blurAmt = math.Clamp((concLerp - 2.0) / 3, 0, 0.15)
+			DrawToyTown(2, blurAmt * ScrH())
+		end
+	else
+		concLerp = LerpFT(0.15, concLerp, 0)
+		if concLerp < 0.05 then concLerp = 0 end
+	end
+
+	if concussionNausea > 0 and lply:Alive() then
+		nauseaLerp = LerpFT(0.02, nauseaLerp, concussionNausea)
+		if nauseaLerp > 1.0 then
+			local swayTime = CurTime() * 1.8
+			local swayAmt = math.Clamp((nauseaLerp - 1.0) / 4, 0, 0.3)
+			local swayAng = Angle(
+				math.sin(swayTime) * swayAmt * 2,
+				math.cos(swayTime * 0.6) * swayAmt * 3,
+				0
+			)
+			ViewPunch(swayAng)
+		end
+	else
+		nauseaLerp = LerpFT(0.15, nauseaLerp, 0)
+		if nauseaLerp < 0.05 then nauseaLerp = 0 end
+	end
+
+	if concussionTinnitus > 0.1 and lply:Alive() then
+		tinnitusConcLerp = LerpFT(0.02, tinnitusConcLerp, concussionTinnitus)
+	else
+		tinnitusConcLerp = LerpFT(0.15, tinnitusConcLerp, 0)
+		if tinnitusConcLerp < 0.05 then tinnitusConcLerp = 0 end
+	end
 
 	local ent = IsValid(lply.FakeRagdoll) and lply.FakeRagdoll or lply
 
@@ -670,7 +735,6 @@ end)
 
 hook.Add("OnNetVarSet","wounds_netvar2",function(index, key, var)
 	if key == "arterialwounds" then
-		var = var or {}
 		local ent = Entity(index)
 		--local ent = hg.RagdollOwner(ent) or ent
 		
@@ -820,6 +884,21 @@ function hg.queueArterialWoundSound(ent, wound)
 end
 
 local hg_heartbeat_volume = ConVarExists("hg_heartbeat_volume") and GetConVar("hg_heartbeat_volume") or CreateClientConVar("hg_heartbeat_volume", 1, true, nil, "heartbeat loudness", 0, 4)
+
+-- Returns a valid bone index or nil. Handles both bone names (string) and
+-- bone indices (number) stored in wound data, and protects against invalid
+-- bone ids (-1) which would crash the engine via GetBonePosition/GetBoneMatrix.
+local function GetValidBone(ent, bone)
+	if not IsValid(ent) then return nil end
+	local id
+	if type(bone) == "number" then
+		id = bone
+	else
+		id = ent:LookupBone(bone or "")
+	end
+	if not id or id < 0 then return nil end
+	return id
+end
 
 hook.Add("Player-Ragdoll think", "organism-think-client-blood", function(ply, ent, time)
 	--local ent = IsValid(ply.FakeRagdoll) and ply.FakeRagdoll or ply
@@ -1001,18 +1080,19 @@ hook.Add("Player-Ragdoll think", "organism-think-client-blood", function(ply, en
 		if (owner:IsPlayer() and owner:Alive()) or not owner:IsPlayer() then
 			for i, wound in pairs(wounds) do
 				local size = math.random(0, 1) * math.max(math.min(wound[1], 1), 0.5)
-				
+
 				if wound[5] + beatsPerSecond < time then
-					if seen and ent:LookupBone(wound[4]) then
+					local boneID = GetValidBone(ent, wound[4])
+					if seen and boneID then
 						local bone = wound[4]
 						local should = !(hg.amputatedlimbs2[bone] and org[hg.amputatedlimbs2[bone].."amputated"])
 
 						if !should then continue end
 
-						local mat = ent:GetBoneMatrix(ent:LookupBone(bone))
-						if not mat then return end
+						local mat = ent:GetBoneMatrix(boneID)
+						if not mat then continue end
 						local bonePos, boneAng = mat:GetTranslation(), mat:GetAngles()
-						if not wound[2] or not wound[3] or not bonePos or not boneAng then return end
+						if not wound[2] or not wound[3] or not bonePos or not boneAng then continue end
 						local pos, ang = LocalToWorld(wound[2], wound[3], bonePos, boneAng)
 
 						local water = bit.band(util.PointContents(pos), CONTENTS_WATER) == CONTENTS_WATER
@@ -1045,21 +1125,23 @@ hook.Add("Player-Ragdoll think", "organism-think-client-blood", function(ply, en
 	if org and org.blood and org.blood > 10 and arterialwounds and #arterialwounds > 0 then
 		for i, wound in pairs(arterialwounds) do
 			local addtime = seen and 1 / math.Clamp(org.pulse or 70, 1,15) * 0.25 or 0.06
-			if wound[5] + addtime < time and ent:LookupBone(wound[4]) then
-				local pos, ang = ent:GetBonePosition(ent:LookupBone(wound[4]))
+			local boneID = GetValidBone(ent, wound[4])
+			if wound[5] + addtime < time and boneID then
+				local bonePos, ang = ent:GetBonePosition(boneID)
+				if not bonePos or not ang then continue end
 				if (owner:IsPlayer() and owner:Alive()) or not owner:IsPlayer() then
 					local size = math.random(1, 2) * math.max(math.min(wound[1], 1), 0.5) * arterySizeMul
-					if seen and ent:LookupBone(wound[4]) then
+					if seen and boneID then
 						local bone = wound[4]
 
 						local should = !(hg.amputatedlimbs2[bone] and org[hg.amputatedlimbs2[bone].."amputated"])
 
 						if !should then continue end
 						
-						local mat = ent:GetBoneMatrix(ent:LookupBone(bone))
-						if not mat then return end
-						local bonePos, boneAng = mat:GetTranslation(), mat:GetAngles()
-						if not wound[2] or not wound[3] or not bonePos or not boneAng then return end
+						local mat = ent:GetBoneMatrix(boneID)
+						if not mat then continue end
+						bonePos, boneAng = mat:GetTranslation(), mat:GetAngles()
+						if not wound[2] or not wound[3] or not bonePos or not boneAng then continue end
 						local pos = LocalToWorld(wound[2], wound[3], bonePos, boneAng)
 
 						local dir = wound[6]
@@ -1114,12 +1196,16 @@ local modelPlacements = {
 		["ValveBiped.Bip01_R_Calf"] = {Vector(15.5, 0, 0), Angle(0, 90, 0)},
 		["ValveBiped.Bip01_R_Forearm"] = {Vector(11, 0.5, 0.5), Angle(0, 90, 0)},
 		["ValveBiped.Bip01_L_Forearm"] = {Vector(11, 0.5, -0.5), Angle(0, 90, 0)},
+		["ValveBiped.Bip01_R_Hand"] = {Vector(2, 0.5, 0.5), Angle(0, 90, 0)},
+		["ValveBiped.Bip01_L_Hand"] = {Vector(2, 0.5, -0.5), Angle(0, 90, 0)},
 	},
 	[0] = {
 		["ValveBiped.Bip01_L_Calf"] = {Vector(17.5, 0, 0), Angle(0, 90, 0)},
 		["ValveBiped.Bip01_R_Calf"] = {Vector(17.5, 0, 0), Angle(0, 90, 0)},
 		["ValveBiped.Bip01_R_Forearm"] = {Vector(11, 0.5, 0.5), Angle(0, 90, 0)},
 		["ValveBiped.Bip01_L_Forearm"] = {Vector(11, 0, -1), Angle(0, 90, 0)},
+		["ValveBiped.Bip01_R_Hand"] = {Vector(2, 0.5, 0.5), Angle(0, 90, 0)},
+		["ValveBiped.Bip01_L_Hand"] = {Vector(2, 0, -1), Angle(0, 90, 0)},
 	}
 }
 
@@ -1128,6 +1214,8 @@ local limbs = {
 	["rleg"] = "ValveBiped.Bip01_R_Calf",
 	["larm"] = "ValveBiped.Bip01_L_Forearm",
 	["rarm"] = "ValveBiped.Bip01_R_Forearm",
+	["lhand"] = "ValveBiped.Bip01_L_Hand",
+	["rhand"] = "ValveBiped.Bip01_R_Hand",
 	["head"] = "ValveBiped.Bip01_Head1"
 }
 
@@ -1155,6 +1243,7 @@ function hg.GoreCalc(ent, ply)
 	for bone, nam in pairs(limbs) do
 		if !org[bone.."amputated"] then
 			local bon = ent:LookupBone(nam)
+			if not bon or bon < 0 then continue end
 
 			if !ent:GetManipulateBoneScale(bon):IsEqualTol(vecFull, 0.01) then
 				ent:ManipulateBoneScale(bon, vecFull)
@@ -1164,8 +1253,10 @@ function hg.GoreCalc(ent, ply)
 		end
 		
 		local bon = ent:LookupBone(nam)
+		if not bon or bon < 0 then continue end
 		local mat = ent:GetBoneMatrix(bon)
 		local mat2 = ent:GetBoneMatrix(bon - 1)
+		if not mat or not mat2 then continue end
 		mat:SetScale(vecalmostzero)
 		
 		hg.bone_apply_matrix(ent, bon, mat)
@@ -1229,4 +1320,64 @@ hook.Add("HG.InputMouseApply","zzzzzzzzzzzzbrain_death",function(tbl)
 	cmd:SetViewAngles(angle)
 
 	return true--]]
+end)
+
+local EXHAUSTED_SOUND = "exhaustedloop.ogg"
+
+local exhaustedSoundPatch
+
+local function StopExhaustedSound()
+	if exhaustedSoundPatch then
+		exhaustedSoundPatch:Stop()
+		exhaustedSoundPatch = nil
+	end
+end
+
+hook.Add("Think", "hg_exhausted_sound", function()
+	if not IsValid(lply) or not lply:Alive() or not lply.organism or not lply.organism.stamina then
+		StopExhaustedSound()
+		return
+	end
+
+	local stamina = lply.organism.stamina[1] or 0
+
+	if stamina >= EXHAUSTED_THRESHOLD then
+		StopExhaustedSound()
+		return
+	end
+
+	local vol = math.Clamp((EXHAUSTED_THRESHOLD - stamina) / EXHAUSTED_THRESHOLD, 0, 1)
+
+	if not exhaustedSoundPatch then
+		exhaustedSoundPatch = CreateSound(lply, EXHAUSTED_SOUND)
+		if not exhaustedSoundPatch then return end
+		exhaustedSoundPatch:Play()
+	end
+
+	exhaustedSoundPatch:ChangeVolume(vol, 0.25)
+end)
+
+hook.Add("LocalPlayerDeath", "hg_exhausted_sound_death", StopExhaustedSound)
+hook.Add("ShutDown", "hg_exhausted_sound_shutdown", StopExhaustedSound)
+
+net.Receive("headtrauma_concussion_update", function()
+	local severity = net.ReadFloat()
+	local concussionLevel = net.ReadFloat()
+	if not lply or not lply:Alive() then return end
+
+	local flashAlpha = math.Clamp(severity * 22, 0, 130)
+	if flashAlpha > 1 then
+		lply:ScreenFade(SCREENFADE.IN, Color(220, 180, 180, flashAlpha), 0.35, 0.45)
+	end
+
+	if severity > 0.4 then
+		local punch = math.Clamp(severity * 3.5, 1, 22)
+		lply:ViewPunch(AngleRand(-punch, punch))
+		lply:ViewPunch(Angle(math.Rand(-1, 1) * punch * 0.4, math.Rand(-1, 1) * punch * 0.4, math.Rand(-1, 1) * punch * 0.5))
+	end
+
+	if severity > 1.2 then
+		local shake = math.Clamp(severity * 2, 2, 16)
+		util.ScreenShake(lply:EyePos(), shake, 6, 0.4, 120)
+	end
 end)

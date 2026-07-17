@@ -113,23 +113,30 @@ local function legs(org, bone, dmg, dmgInfo, key, segment, boneindex, dir, hit, 
 	local result, vecrand = damageBone(org, 0.3, dmg, dmgInfo, key, boneindex, dir, hit, ricochet)
 	
 	local dmg = org[key]
-	
+
 	org[key] = org[key] * 0.5
 
 	if dmg < 0.7 then return 0 end
 	if dmg < 1 and !dmgInfo:IsDamageType(DMG_CLUB+DMG_CRUSH+DMG_FALL) then return 0 end
 
 	if org.isPly and !org[key.."amputated"] then org.just_damaged_bone = CurTime() end
+
+	local stabilized = org[key.."stabilized"]
 	
 	if dmg >= 1 and (!dmgInfo:IsDamageType(DMG_CLUB+DMG_CRUSH+DMG_FALL) or math.random(3) != 1) then
 		org[key] = 1
 		if hg.fakeBoneFlop then
-			hg.fakeBoneFlop.SetLimbSegmentState(org, key, segment, true)
+			hg.fakeBoneFlop.SetLimbSegmentState(org, key, segment, not stabilized)
 		end
 
-		org.painadd = org.painadd + 55
+		if not stabilized then
+			org.painadd = org.painadd + 55
+			org.immobilization = org.immobilization + dmg * 25
+		else
+			org.painadd = org.painadd + 10
+			org.immobilization = org.immobilization + dmg * 5
+		end
 		org.owner:AddNaturalAdrenaline(1)
-		org.immobilization = org.immobilization + dmg * 25
 		org.fearadd = org.fearadd + 0.5
 
 		--if org.isPly and !org[key.."amputated"] then org.owner:Notify(broke_leg[math.random(#broke_leg)], 1, "broke"..key, 1, nil, nil) end
@@ -142,12 +149,17 @@ local function legs(org, bone, dmg, dmgInfo, key, segment, boneindex, dir, hit, 
 		//org[key] = 0.5
 		org[key.."dislocation"] = true
 		if hg.fakeBoneFlop then
-			hg.fakeBoneFlop.SetLimbSegmentState(org, key, segment, true)
+			hg.fakeBoneFlop.SetLimbSegmentState(org, key, segment, not stabilized)
 		end
 
-		org.painadd = org.painadd + 35
+		if not stabilized then
+			org.painadd = org.painadd + 35
+			org.immobilization = org.immobilization + dmg * 10
+		else
+			org.painadd = org.painadd + 10
+			org.immobilization = org.immobilization + dmg * 3
+		end
 		org.owner:AddNaturalAdrenaline(0.5)
-		org.immobilization = org.immobilization + dmg * 10
 		org.fearadd = org.fearadd + 0.5
 
 		--if org.isPly and !org[key.."amputated"] then org.owner:Notify(dislocated_leg[math.random(#dislocated_leg)], 1, "dislocated"..key, 1, nil, nil) end
@@ -186,14 +198,22 @@ local function arms(org, bone, dmg, dmgInfo, key, segment, boneindex, dir, hit, 
 	if dmg < 1 and !dmgInfo:IsDamageType(DMG_CLUB+DMG_CRUSH+DMG_FALL) then return 0 end
 
 	if org.isPly and !org[key.."amputated"] then org.just_damaged_bone = CurTime() end
+
+	local stabilized = org[key.."stabilized"]
 	
 	if dmg >= 1 and (!dmgInfo:IsDamageType(DMG_CLUB+DMG_CRUSH+DMG_FALL) or math.random(3) != 1) then
 		org[key] = 1
 		if hg.fakeBoneFlop then
-			hg.fakeBoneFlop.SetLimbSegmentState(org, key, segment, true)
+			hg.fakeBoneFlop.SetLimbSegmentState(org, key, segment, not stabilized)
 		end
 
-		org.painadd = org.painadd + 55
+		if not stabilized then
+			org.painadd = org.painadd + 55
+			org.immobilization = org.immobilization + dmg * 25
+		else
+			org.painadd = org.painadd + 10
+			org.immobilization = org.immobilization + dmg * 5
+		end
 		org.owner:AddNaturalAdrenaline(1)
 		org.fearadd = org.fearadd + 0.5
 
@@ -206,11 +226,17 @@ local function arms(org, bone, dmg, dmgInfo, key, segment, boneindex, dir, hit, 
 	else
 		org[key.."dislocation"] = true
 		if hg.fakeBoneFlop then
-			hg.fakeBoneFlop.SetLimbSegmentState(org, key, segment, true)
+			hg.fakeBoneFlop.SetLimbSegmentState(org, key, segment, not stabilized)
 		end
 		//org[key] = 0.5
 
-		org.painadd = org.painadd + 35
+		if not stabilized then
+			org.painadd = org.painadd + 35
+			org.immobilization = org.immobilization + dmg * 10
+		else
+			org.painadd = org.painadd + 10
+			org.immobilization = org.immobilization + dmg * 3
+		end
 		org.owner:AddNaturalAdrenaline(0.5)
 		org.fearadd = org.fearadd + 0.5
 
@@ -288,6 +314,56 @@ local jaw_dislocated_msg = {
 	//"I CANT EVEN SPEAK, I NEED TO PUNCH IT BACK IN PLACE... BUT IT HURTS REAL BAD",
 }
 
+local function shouldTriggerTinnitus(dmgInfo, damage, hasHelmet)
+	if damage < 0.1 then return false end
+	local chance = 30
+	if dmgInfo:IsDamageType(DMG_CLUB) then
+		chance = hasHelmet and 12 or 50
+	elseif dmgInfo:IsDamageType(DMG_SLASH) then
+		chance = hasHelmet and 8 or 20
+	end
+	return math.random(100) <= chance
+end
+
+local function manageTinnitusSound(org, targetPlayer)
+	if not IsValid(targetPlayer) or not targetPlayer:IsPlayer() then return end
+	local hasHelmet = org.owner.armors and org.owner.armors["head"] != nil
+	if org.skull >= 0.6 then
+		if not org.tinnitusLongPlaying then
+			org.tinnitusLongPlaying = true
+			targetPlayer:PlayCustomTinnitus("tinnituslong.wav")
+			local timerName = "TinnitusCheck_" .. targetPlayer:SteamID64()
+			timer.Create(timerName, 8.0, 0, function()
+				if not IsValid(targetPlayer) or not targetPlayer:Alive() or org.skull < 0.6 then
+					timer.Remove(timerName)
+					org.tinnitusLongPlaying = false
+					targetPlayer:StopCustomTinnitus()
+					return
+				end
+				targetPlayer:PlayCustomTinnitus("tinnituslong.wav")
+			end)
+			local disorientTimerName = "TinnitusDisorient_" .. targetPlayer:SteamID64()
+			timer.Create(disorientTimerName, 0.1, 0, function()
+				if not IsValid(targetPlayer) or not targetPlayer:Alive() or org.skull < 0.6 then
+					timer.Remove(disorientTimerName)
+					return
+				end
+				local rate = hasHelmet and 0.02 or 0.06
+				org.disorientation = math.min(org.disorientation + rate, 1.5)
+			end)
+		end
+	else
+		if org.tinnitusLongPlaying then
+			org.tinnitusLongPlaying = false
+			local timerName = "TinnitusCheck_" .. targetPlayer:SteamID64()
+			timer.Remove(timerName)
+			local disorientTimerName = "TinnitusDisorient_" .. targetPlayer:SteamID64()
+			timer.Remove(disorientTimerName)
+			targetPlayer:StopCustomTinnitus()
+		end
+	end
+end
+
 local input_list = hg.organism.input_list
 input_list.jaw = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricochet)
 	local oldDmg = org.jaw
@@ -328,6 +404,22 @@ input_list.jaw = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricochet
 
 	if dmg > 0.2 then
 		if org.isPly then timer.Simple(0, function() hg.LightStunPlayer(org.owner,1 + dmg) end) end
+	end
+
+	if (org.jaw - oldDmg) > 0.15 then
+		local disorientationAdd = dmg * 0.5
+		org.disorientation = math.min(org.disorientation + disorientationAdd, 1.5)
+
+		if org.isPly and disorientationAdd > 0.1 and shouldTriggerTinnitus(dmgInfo, dmg, false) then
+			local targetPlayer = org.owner
+			if IsValid(org.owner.FakeRagdoll) then
+				local ragdoll = org.owner.FakeRagdoll
+				if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
+			end
+			if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
+				targetPlayer:PlayCustomTinnitus("tinnitus.wav")
+			end
+		end
 	end
 
 	return result, vecrand
@@ -376,7 +468,19 @@ input_list.skull = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricoch
 	end
 
 	if org.brain >= 0.01 and math.random(3) == 1 and (rnd or (org.skull - oldDmg) > 0.6) then
+		--hg.applyFencingToPlayer(org.owner, org)
 		org.shock = 70
+
+		timer.Simple(0.1, function()
+			local rag = hg.GetCurrentCharacter(org.owner)
+
+			if IsValid(rag) and rag:IsRagdoll() then
+				hg.applyFencingToPlayer(org.owner, org)
+				--local stype = "rigor"--hg.getRandomSpasm()
+				--hg.applySpasm(rag, stype)
+				--if rag.organism then rag.organism.spasm, rag.organism.spasmType = true, stype end
+			end
+		end)
 	end
 
 	if dmg > 0.4 then
@@ -404,7 +508,144 @@ input_list.skull = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricoch
 		end--]]
 	end
 
-	org.disorientation = org.disorientation + (isCrush(dmgInfo) and dmg * 1 or dmg * 1)
+	org.disorientation = math.min(org.disorientation + (isCrush(dmgInfo) and dmg * 1 or dmg * 1), 1.5)
+
+	-- Realistic head trauma:
+	--  - A helmet diffuses the blow: most of a weak/glancing hit is soaked up, so it
+	--    mostly just rings (tinnitus) and barely concusses. You need a really solid
+	--    impact to get through it.
+	--  - A bare head is the dangerous case: the same hit reaches the skull directly and
+	--    concusses far more easily and severely.
+	--  - A light tap on the head (weak melee) is not a concussion either way.
+	local hasHelmet = org.owner.armors and org.owner.armors["head"] != nil
+	local effectiveDmg = hasHelmet and dmg * 0.3 or dmg
+	local isBlunt = dmgInfo:IsDamageType(DMG_CLUB + DMG_CRUSH)
+
+	-- Blunt melee (DMG_CLUB/DMG_CRUSH) is the classic cause of real concussions:
+	-- a club, baton or fist to the head rattles the brain without breaking the
+	-- skull. It concusses at a much lower threshold and higher chance than a
+	-- bullet/blast would, because the force is transferred over a wider area.
+	-- Bullets/explosions keep the old, harder threshold (effectiveDmg > 7).
+	local concThreshold = isBlunt and 3 or 7
+	if effectiveDmg > concThreshold then
+		local baseChance, intensity
+		if isBlunt then
+			-- blunt: generous chance even at moderate blows, lower ceiling
+			baseChance = math.Clamp((effectiveDmg - 3) / 18, 0.2, 0.95)
+			intensity = math.Clamp(effectiveDmg * 0.4, 0.4, hasHelmet and 1.5 or 3.0)
+		else
+			-- chance + severity grow with how hard the (post-helmet) impact is
+			baseChance = math.Clamp((effectiveDmg - 7) / 30, 0.12, 0.97)
+			intensity = math.Clamp(effectiveDmg * 0.32, 0.5, hasHelmet and 1.2 or 4.0)
+		end
+
+		if math.random() < baseChance then
+			hg.organism.module.concussion.AddConcussion(org, intensity, math.Clamp(intensity * 6, 6, 50))
+
+			if org.isPly then
+				local targetPlayer = org.owner
+				if IsValid(org.owner.FakeRagdoll) then
+					local ragdoll = org.owner.FakeRagdoll
+					if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
+				end
+				if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
+					targetPlayer:PlayCustomTinnitus("headhit.mp3")
+
+					net.Start("headtrauma_concussion_update")
+						net.WriteFloat(math.Clamp(intensity * 1.5, 1, 6))
+						net.WriteFloat(org.concussion or 0)
+					net.Send(targetPlayer)
+				end
+			end
+		end
+	else
+		-- Light blow: no real concussion. Helmet just rings, bare head a tiny daze.
+		if org.isPly then
+			local targetPlayer = org.owner
+			if IsValid(org.owner.FakeRagdoll) then
+				local ragdoll = org.owner.FakeRagdoll
+				if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
+			end
+			if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
+				if hasHelmet then
+					targetPlayer:PlayCustomTinnitus("headhit.mp3")
+				else
+					org.disorientation = math.min(org.disorientation + math.Clamp(effectiveDmg * 0.08, 0, 0.25), 1.5)
+				end
+			end
+		end
+	end
+
+	if org.isPly and dmg > 0.3 then
+		local targetPlayer = org.owner
+		if IsValid(org.owner.FakeRagdoll) then
+			local ragdoll = org.owner.FakeRagdoll
+			if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
+		end
+		if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
+			local impactSeverity = math.Clamp(dmg * 1.5, 0.5, 6)
+			net.Start("headtrauma_concussion_update")
+				net.WriteFloat(impactSeverity)
+				net.WriteFloat(org.concussion or 0)
+			net.Send(targetPlayer)
+		end
+	end
+
+	if (org.skull - oldDmg) > 0.02 then
+		local disorientationAdd = math.min(dmg * 1.5, 2.0)
+		local hasHelmet = org.owner.armors and org.owner.armors["head"] != nil
+		local effectiveDisorient = hasHelmet and disorientationAdd * 0.3 or disorientationAdd
+		org.disorientation = math.min(org.disorientation + effectiveDisorient, 1.5)
+
+		if org.isPly and effectiveDisorient > 0.05 then
+			local targetPlayer = org.owner
+			if IsValid(org.owner.FakeRagdoll) then
+				local ragdoll = org.owner.FakeRagdoll
+				if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
+			end
+			if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
+				targetPlayer:PlayCustomTinnitus("headhit.mp3")
+				if not hasHelmet or (org.skull - oldDmg) > 0.15 then
+					manageTinnitusSound(org, targetPlayer)
+				end
+			end
+		end
+
+		if org.isPly and effectiveDisorient > 0.05 and shouldTriggerTinnitus(dmgInfo, dmg, hasHelmet) then
+			local targetPlayer = org.owner
+			if IsValid(org.owner.FakeRagdoll) then
+				local ragdoll = org.owner.FakeRagdoll
+				if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
+			end
+			if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
+				targetPlayer:PlayCustomTinnitus("tinnitus.wav")
+			end
+		end
+	elseif org.isPly then
+		local targetPlayer = org.owner
+		if IsValid(org.owner.FakeRagdoll) then
+			local ragdoll = org.owner.FakeRagdoll
+			if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
+		end
+		if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
+			manageTinnitusSound(org, targetPlayer)
+		end
+	end
+
+	if org.isPly and (org.brain - 0) > 0 and dmg > 0.5 then
+		local targetPlayer = org.owner
+		if IsValid(org.owner.FakeRagdoll) then
+			local ragdoll = org.owner.FakeRagdoll
+			if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
+		end
+		if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
+			local idx = math.random(1, 4)
+			local snd = "concussion" .. idx .. ".mp3"
+			net.Start("hg_play_client_sound_file")
+				net.WriteString(snd)
+			net.Send(targetPlayer)
+		end
+	end
 
 	return result,vecrand
 end
@@ -471,3 +712,64 @@ input_list.llegdown = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ric
 input_list.spine1 = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricochet) return spine(org, bone, dmg, dmgInfo, 1, boneindex, dir, hit, ricochet) end
 input_list.spine2 = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricochet) return spine(org, bone, dmg, dmgInfo, 2, boneindex, dir, hit, ricochet) end
 input_list.spine3 = function(org, bone, dmg, dmgInfo, boneindex, dir, hit, ricochet) return spine(org, bone, dmg, dmgInfo, 3, boneindex, dir, hit, ricochet) end
+
+hook.Add("Org Think", "homigrad_bone_stabilization", function(owner, org, timeValue)
+	if not org.alive then return end
+
+	org._zsh_stab_prev = org._zsh_stab_prev or {}
+
+	for _, info in ipairs({
+		{key = "larm", segs = {"up", "down"}},
+		{key = "rarm", segs = {"up", "down"}},
+		{key = "lleg", segs = {"up", "down"}},
+		{key = "rleg", segs = {"up", "down"}},
+	}) do
+		local key = info.key
+		local stabilized = org[key .. "stabilized"]
+		local broke = (org[key] or 0) >= 0.95 or org[key .. "dislocation"]
+
+		if not stabilized or not broke then
+			org._zsh_stab_prev[key] = false
+		else
+			local prev = org._zsh_stab_prev[key]
+			if not prev then
+				if hg.fakeBoneFlop then
+					for _, seg in ipairs(info.segs) do
+						hg.fakeBoneFlop.SetLimbSegmentState(org, key, seg, false)
+					end
+				end
+				org.painadd = math.max(org.painadd - 25, 0)
+				org.immobilization = math.max(org.immobilization - (broke and 100 or 40), 0)
+			end
+
+			org.painadd = math.Approach(org.painadd, 0, timeValue * 5)
+			org.immobilization = math.Approach(org.immobilization, 0, timeValue * 10)
+
+			org._zsh_stab_prev[key] = true
+		end
+	end
+end)
+
+hook.Add("PlayerDisconnected", "CleanupTinnitusSounds", function(ply)
+	if IsValid(ply) then
+		local timerName = "TinnitusCheck_" .. ply:SteamID64()
+		local disorientTimerName = "TinnitusDisorient_" .. ply:SteamID64()
+		timer.Remove(timerName)
+		timer.Remove(disorientTimerName)
+		if ply.organism then
+			ply.organism.tinnitusLongPlaying = false
+		end
+	end
+end)
+
+hook.Add("PlayerDeath", "CleanupTinnitusOnDeath", function(ply)
+	if IsValid(ply) then
+		local timerName = "TinnitusCheck_" .. ply:SteamID64()
+		local disorientTimerName = "TinnitusDisorient_" .. ply:SteamID64()
+		timer.Remove(timerName)
+		timer.Remove(disorientTimerName)
+		if ply.organism then
+			ply.organism.tinnitusLongPlaying = false
+		end
+	end
+end)
