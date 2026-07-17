@@ -162,6 +162,8 @@ local hg_unreliable_nets = ConVarExists("hg_unreliable_nets") and GetConVar("hg_
 
 util.AddNetworkString("organism_send")
 util.AddNetworkString("organism_sendply")
+util.AddNetworkString("hg_dislocation_minigame_pain")
+util.AddNetworkString("hg_dislocation_minigame_success")
 util.AddNetworkString("rem_deathstate_sound")
 local CurTime = CurTime
 local nullTbl = {}
@@ -1179,6 +1181,90 @@ concommand.Add("hg_fixdislocation", function(ply, cmd, args)
 	elseif math.Round(tonumber(args[1])) == 3 then
 		if org.jawdislocation then
 			fixlimb(org, "jaw", fixer)
+		end
+	end
+end)
+
+local function hg_ResolveDislocationPatient(target, fixer)
+	if not IsValid(target) then return nil end
+	if target:IsPlayer() then return target end
+	if IsValid(target.organism) and IsValid(target.organism.owner) then return target.organism.owner end
+	local plyref = target:GetNWEntity("ply")
+	if IsValid(plyref) then return plyref end
+	return nil
+end
+
+net.Receive("hg_dislocation_minigame_pain", function(len, ply)
+	if not IsValid(ply) or not ply:Alive() then return end
+
+	local target = net.ReadEntity()
+	local patient = hg_ResolveDislocationPatient(target, ply)
+
+	if IsValid(patient) and patient:IsPlayer() and patient != ply then
+		local org = patient.organism
+		if not org then return end
+
+		org.painadd = org.painadd + 5
+		org.fearadd = org.fearadd + 0.1
+		patient:EmitSound("physics/body/body_medium_impact_hard1.wav", 60, 100, 1, CHAN_AUTO)
+		return
+	end
+
+	local org = ply.organism
+	if not org then return end
+
+	org.painadd = org.painadd + 5
+	org.fearadd = org.fearadd + 0.1
+	ply:EmitSound("physics/body/body_medium_impact_hard1.wav", 60, 100, 1, CHAN_AUTO)
+end)
+
+net.Receive("hg_dislocation_minigame_success", function(len, ply)
+	if not IsValid(ply) or not ply:Alive() then return end
+
+	local target = net.ReadEntity()
+	local patient = hg_ResolveDislocationPatient(target, ply) or ply
+
+	if patient != ply and (not IsValid(patient) or not patient:IsPlayer() or patient == ply or ply:GetPos():Distance(patient:GetPos()) > 200) then
+		patient = ply
+	end
+
+	local org = patient.organism
+	if not org then return end
+
+	local limbType = net.ReadInt(4)
+	local failures = net.ReadInt(16)
+
+	local key
+	if limbType == 1 then
+		if org.llegdislocation then key = "lleg"
+		elseif org.rlegdislocation then key = "rleg" end
+	elseif limbType == 2 then
+		if org.larmdislocation then key = "larm"
+		elseif org.rarmdislocation then key = "rarm" end
+	elseif limbType == 3 then
+		if org.jawdislocation then key = "jaw" end
+	end
+
+	if key then
+		org[key.."dislocation"] = false
+		if hg.fakeBoneFlop and hg.fakeBoneFlop.ClearStoredLimb(org, key) then
+			hg.fakeBoneFlop.ScheduleRebuild(org.owner)
+		end
+
+		org.painadd = org.painadd + 5
+		org.fearadd = org.fearadd + 0.1
+
+		if failures > 0 then
+			org.painadd = org.painadd + (failures * 2)
+		end
+
+		patient:EmitSound("physics/body/body_medium_impact_soft1.wav", 60, 100, 1, CHAN_AUTO)
+
+		if patient == ply then
+			ply:Notify("You fixed your dislocation.", 3, "fix", 2)
+		else
+			ply:Notify("You fixed " .. patient:GetName() .. "'s dislocation.", 3, "fix", 2)
+			patient:Notify(ply:GetName() .. " fixed your dislocation.", 3, "fix", 2)
 		end
 	end
 end)
