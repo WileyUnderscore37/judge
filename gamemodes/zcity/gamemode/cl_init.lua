@@ -606,43 +606,51 @@ function GM:ScoreboardShow()
 	local roundName = CurrentRound().name
 	local serverName = GetHostName() or "ZCity | Developer Server | #01"
 
-	local sizeX = math.floor(ScrW() * 0.72)
-	local sizeY = math.floor(ScrH() * 0.82)
+	local sizeX = ScrW()
+	local sizeY = ScrH()
+	local showingSpectators = false
+	local nextSpectators = false
+	local pageAlpha = 255
+	local switchingPage = false
+	local gradient = Material("vgui/gradient-l")
 
 	scoreBoardMenu = vgui.Create("ZFrame")
 	scoreBoardMenu:SetSize(sizeX, sizeY)
-	scoreBoardMenu:SetPos(ScrW() / 2 - sizeX / 2, ScrH() / 2 - sizeY / 2)
+	scoreBoardMenu:SetPos(0, 0)
 	scoreBoardMenu:MakePopup()
 	scoreBoardMenu:SetKeyboardInputEnabled(false)
 	scoreBoardMenu:ShowCloseButton(false)
-	scoreBoardMenu:SetColorBG(Color(SB.bg:Unpack()))
+	scoreBoardMenu:SetColorBG(Color(10, 10, 19, 252))
 	scoreBoardMenu:SetColorBR(SB.accent)
 	scoreBoardMenu:SetBlurStrengh(4)
+	scoreBoardMenu:SetAlpha(0)
+	scoreBoardMenu.OpenAlpha = 0
+	scoreBoardMenu.Think = function(pnl)
+		pnl.OpenAlpha = math.Approach(pnl.OpenAlpha, 255, FrameTime() * 700)
+		pnl:SetAlpha(pnl.OpenAlpha)
+		pnl:SetPos(0, 0)
+	end
 
 	local header = vgui.Create("DPanel", scoreBoardMenu)
 	header:Dock(TOP)
-	header:SetTall(SB_Unit(58))
+	header:SetTall(SB_Unit(92))
 	header.Paint = function(pnl, w, h)
-		surface.SetDrawColor(SB.header)
+		surface.SetDrawColor(0, 0, 0, 215)
 		surface.DrawRect(0, 0, w, h)
-		surface.SetDrawColor(SB.accent.r, SB.accent.g, SB.accent.b, 220)
-		surface.DrawRect(0, 0, SB_Unit(3), h)
 		surface.SetDrawColor(SB.line)
 		surface.DrawRect(0, h - SB_Unit(1), w, SB_Unit(1))
 
-		draw.SimpleText(serverName, "ZCity_SB_Header", SB_Unit(16), h * 0.36, SB.white, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-		draw.SimpleText("ZC Version " .. tostring(hg.Version), "ZCity_SB_Tiny", SB_Unit(16), h * 0.74, SB.textDim, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-
 		local frame = engine.ServerFrameTime()
 		local tick = frame > 0 and math.Round(1 / frame) or 0
-		draw.SimpleText("SV TICK  " .. tick, "ZCity_SB_Title", w - SB_Unit(16), h / 2, SB.textDim, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+		draw.SimpleText(serverName, "ZCity_SB_Header", w / 2, h / 2, SB.white, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		draw.SimpleText("SV TICK  " .. tick, "ZCity_SB_Tiny", w - SB_Unit(18), h / 2, SB.textDim, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 	end
 
 	local footer = vgui.Create("DPanel", scoreBoardMenu)
 	footer:Dock(BOTTOM)
 	footer:SetTall(SB_Unit(50))
 	footer.Paint = function(pnl, w, h)
-		surface.SetDrawColor(SB.header)
+		surface.SetDrawColor(0, 0, 0, 215)
 		surface.DrawRect(0, 0, w, h)
 		surface.SetDrawColor(SB.line)
 		surface.DrawRect(0, 0, w, SB_Unit(1))
@@ -650,14 +658,14 @@ function GM:ScoreboardShow()
 
 	local teamBtn
 	if lp:Team() ~= TEAM_SPECTATOR then
-		teamBtn = SB_MakeButton(footer, "SPECTATE", nil, function()
+		teamBtn = SB_MakeButton(footer, "JOIN SPECTATORS", nil, function()
 			net.Start("ZB_SpecMode")
 				net.WriteBool(true)
 			net.SendToServer()
 			if IsValid(scoreBoardMenu) then scoreBoardMenu:Remove() scoreBoardMenu = nil end
 		end)
 	else
-		teamBtn = SB_MakeButton(footer, "JOIN GAME", nil, function()
+		teamBtn = SB_MakeButton(footer, "JOIN PLAYERS", nil, function()
 			net.Start("ZB_SpecMode")
 				net.WriteBool(false)
 			net.SendToServer()
@@ -665,72 +673,62 @@ function GM:ScoreboardShow()
 		end)
 	end
 
-	local muteAll = SB_MakeButton(footer, "MUTE ALL", function() return hg.muteall end, function()
-		hg.muteall = not hg.muteall
-		for _, ply in player.Iterator() do
-			if hg.muteall then
-				ply:SetVoiceVolumeScale(0)
-			else
-				ply:SetVoiceVolumeScale((not hg.mutespect or ply:Alive()) and (hg.playerInfo[ply:SteamID()] and hg.playerInfo[ply:SteamID()][2] or 1) or 0)
-			end
-		end
-	end)
-
-	local muteSpec = SB_MakeButton(footer, "MUTE SPECTATORS", function() return hg.mutespect end, function()
-		hg.mutespect = not hg.mutespect
-		for _, ply in player.Iterator() do
-			if ply:Alive() then continue end
-			if hg.mutespect then
-				ply:SetVoiceVolumeScale(0)
-			else
-				ply:SetVoiceVolumeScale(not hg.muteall and (hg.playerInfo[ply:SteamID()] and hg.playerInfo[ply:SteamID()][2] or 1) or 0)
-			end
-		end
+	local RefreshRows
+	local viewBtn = SB_MakeButton(footer, "SPECTATORS", function() return showingSpectators end, function()
+		if switchingPage then return end
+		nextSpectators = not showingSpectators
+		switchingPage = true
 	end)
 
 	footer.PerformLayout = function(pnl, w, h)
 		local bh = SB_Unit(30)
 		local pad = SB_Unit(14)
-		local gap = SB_Unit(8)
 		local y = (h - bh) * 0.5
 
-		teamBtn:SetSize(SB_Unit(120), bh)
-		teamBtn:SetPos(pad, y)
-
-		local specW = SB_Unit(160)
-		local allW = SB_Unit(110)
-		muteSpec:SetSize(specW, bh)
-		muteSpec:SetPos(w - pad - specW, y)
-		muteAll:SetSize(allW, bh)
-		muteAll:SetPos(w - pad - specW - gap - allW, y)
+		local viewW = SB_Unit(145)
+		local teamW = SB_Unit(170)
+		viewBtn:SetSize(viewW, bh)
+		viewBtn:SetPos(pad, y)
+		teamBtn:SetSize(teamW, bh)
+		teamBtn:SetPos(w - pad - teamW, y)
 	end
 
 	local body = vgui.Create("DPanel", scoreBoardMenu)
 	body:Dock(FILL)
 	body:DockMargin(SB_Unit(10), SB_Unit(8), SB_Unit(10), SB_Unit(8))
 	body.Paint = function() end
+	body.Think = function()
+		if switchingPage then
+			pageAlpha = math.Approach(pageAlpha, 0, FrameTime() * 850)
+			if pageAlpha <= 0 then
+				showingSpectators = nextSpectators
+				RefreshRows()
+				switchingPage = false
+			end
+		else
+			pageAlpha = math.Approach(pageAlpha, 255, FrameTime() * 850)
+		end
+
+		if IsValid(body.List) then body.List:SetAlpha(pageAlpha) end
+	end
+
+	local function RequestPlayerXP(ply)
+		if not IsValid(ply) or ply.exp ~= nil then return end
+		net.Start("zb_xp_get")
+			net.WriteEntity(ply)
+		net.SendToServer()
+	end
 
 	local function MakeColumn()
 		local column = vgui.Create("DPanel", body)
 		column.TitleText = ""
 		column.Paint = function(pnl, w, h)
-			surface.SetDrawColor(SB.panel)
-			surface.DrawRect(0, 0, w, h)
-
-			surface.SetDrawColor(15, 15, 20, 175)
-			surface.DrawRect(0, 0, w, SB_Unit(26))
-			surface.SetDrawColor(SB.accent.r, SB.accent.g, SB.accent.b, 175)
-			surface.DrawRect(0, SB_Unit(26) - SB_Unit(1), w, SB_Unit(1))
-
-			surface.SetDrawColor(255, 255, 255, 22)
-			surface.DrawOutlinedRect(0, 0, w, h, 1)
-
-			draw.SimpleText(pnl.TitleText, "ZCity_SB_Title", SB_Unit(10), SB_Unit(13), SB.white, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			draw.SimpleText(pnl.TitleText, "ZCity_SB_Title", w / 2, SB_Unit(16), SB.textDim, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 		end
 
 		local scroll = vgui.Create("DScrollPanel", column)
 		scroll:Dock(FILL)
-		scroll:DockMargin(0, SB_Unit(28), 0, SB_Unit(2))
+		scroll:DockMargin(0, SB_Unit(36), 0, SB_Unit(2))
 		scroll.Paint = function() end
 		SB_StyleScrollBar(scroll)
 
@@ -739,12 +737,12 @@ function GM:ScoreboardShow()
 	end
 
 	local function AddPlayerRow(scroll, ply, spectator)
-		local rowH = SB_Unit(44)
+		local rowH = SB_Unit(42)
 		local avaSize = rowH - SB_Unit(14)
 
 		local row = vgui.Create("DButton", scroll)
 		row:Dock(TOP)
-		row:DockMargin(SB_Unit(6), SB_Unit(4), SB_Unit(6), SB_Unit(2))
+		row:DockMargin(SB_Unit(6), SB_Unit(5), SB_Unit(6), SB_Unit(2))
 		row:SetTall(rowH)
 		row:SetText("")
 		row.HoverLerp = 0
@@ -758,7 +756,10 @@ function GM:ScoreboardShow()
 		function row:Paint(w, h)
 			if not IsValid(ply) then return end
 
-			surface.SetDrawColor(20, 20, 30, 120 + 55 * self.HoverLerp)
+			surface.SetMaterial(gradient)
+			surface.SetDrawColor(85, 85, 85, 120 + 40 * self.HoverLerp)
+			surface.DrawTexturedRect(0, 0, w, h)
+			surface.SetDrawColor(0, 0, 0, 145)
 			surface.DrawRect(0, 0, w, h)
 
 			if ply == lp then
@@ -772,8 +773,10 @@ function GM:ScoreboardShow()
 			surface.SetDrawColor(255, 255, 255, 30 + 55 * self.HoverLerp)
 			surface.DrawOutlinedRect(0, 0, w, h, 1)
 
+			local xp = ply.exp or 0
 			draw.SimpleText(ply:Name(), "ZCity_SB_Row", nameX, h / 2, spectator and SB.textDim or SB.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-			draw.SimpleText(ply:Ping() .. " ms", "ZCity_SB_Tiny", w - SB_Unit(42), h / 2, SB.textDim, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+			draw.SimpleText("XP  " .. xp, "ZCity_SB_Tiny", w - SB_Unit(155), h / 2, SB.textDim, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+			draw.SimpleText("PING  " .. ply:Ping(), "ZCity_SB_Tiny", w - SB_Unit(58), h / 2, SB.textDim, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 		end
 
 		local avatar = vgui.Create("AvatarImage", row)
@@ -814,33 +817,31 @@ function GM:ScoreboardShow()
 	end
 
 	local playersCol = MakeColumn()
-	local spectCol = MakeColumn()
+	body.List = playersCol
 
-	local nPlayers, nSpect = 0, 0
-	for _, ply in player.Iterator() do
-		if not IsValid(ply) then continue end
-		if roundName == "fear" and not ply:Alive() then continue end
-		if disappearance and ply ~= lp then continue end
+	RefreshRows = function()
+		playersCol.Scroll:Clear()
+		local count = 0
 
-		if ply:Team() == TEAM_SPECTATOR then
-			AddPlayerRow(spectCol.Scroll, ply, true)
-			nSpect = nSpect + 1
-		else
-			AddPlayerRow(playersCol.Scroll, ply, false)
-			nPlayers = nPlayers + 1
+		for _, ply in player.Iterator() do
+			if not IsValid(ply) then continue end
+			if roundName == "fear" and not ply:Alive() then continue end
+			if disappearance and ply ~= lp then continue end
+			if showingSpectators ~= (ply:Team() == TEAM_SPECTATOR) then continue end
+
+			RequestPlayerXP(ply)
+			AddPlayerRow(playersCol.Scroll, ply, showingSpectators)
+			count = count + 1
 		end
-	end
 
-	playersCol.TitleText = "PLAYERS  —  " .. nPlayers
-	spectCol.TitleText = "SPECTATORS  —  " .. nSpect
+		playersCol.TitleText = (showingSpectators and "SPECTATORS" or "PLAYERS") .. "  —  " .. count
+	end
+	RefreshRows()
 
 	body.PerformLayout = function(pnl, w, h)
-		local gap = SB_Unit(10)
-		local cw = math.floor((w - gap) / 2)
-		playersCol:SetPos(0, 0)
+		local cw = math.floor(w * 0.64)
+		playersCol:SetPos(math.floor((w - cw) / 2), 0)
 		playersCol:SetSize(cw, h)
-		spectCol:SetPos(cw + gap, 0)
-		spectCol:SetSize(w - cw - gap, h)
 	end
 
 	return true

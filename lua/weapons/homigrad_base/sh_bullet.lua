@@ -1,4 +1,4 @@
-﻿AddCSLuaFile()
+AddCSLuaFile()
 --
 local surface_hardness = {
 	[MAT_METAL] = 1,
@@ -765,6 +765,9 @@ function SWEP:FireBullet()
 	
 	local penetration = (ammotype.Penetration or (-(-self.Penetration))) * (self.PenetrationMultiplier or 1)
 	local diameter = ammotype.Diameter or 1
+	if SERVER and isply then
+		bullet.HullSize = math.Clamp((owner:Ping() / 85) + (diameter * 0.04), 0, 3)
+	end
 
     for i = 1, numbullet do
 		local shot = numbullet == 1 and bullet or table_Copy(bullet)

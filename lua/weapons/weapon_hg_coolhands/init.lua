@@ -7,6 +7,8 @@ SWEP.AutoSwitchTo = false
 SWEP.AutoSwitchFrom = false
 SWEP.SpecialTime = 0
 
+util.AddNetworkString("hg_coolhands_hit_stop")
+
 local math = math -- owo
 local math_random, math_Clamp, CurTime, Color = math.random, math.Clamp, CurTime, Color
 
@@ -18,8 +20,8 @@ local clamp = math_Clamp
 local chargeHoldTime = 0.12
 local chargeAnimTime = 0.5
 local shoveAnimTime = 0.7
-local shoveCooldownPrimary = 1.1
-local shoveCooldownSecondary = 1.35
+local shoveCooldownPrimary = 1
+local shoveCooldownSecondary = 1.25
 local shoveRange = 50
 local shoveForce = 200
 local shoveRagdollChance = 4
@@ -39,6 +41,14 @@ end
 
 local function PlayKnuckledusterSound(pos, level)
         sound.Play("knuckledusters/knuckledustershit" .. math_random(1, 4) .. ".mp3", pos, level or 75, math_random(95, 110))
+end
+
+local function SendCoolHandsHitStop(wep, normal, special_attack)
+        net.Start("hg_coolhands_hit_stop")
+        net.WriteEntity(wep)
+        net.WriteFloat(special_attack and 0.1 or 0.07)
+        net.WriteVector(normal and normal:GetNormalized() or vector_up)
+        net.SendPVS(wep:GetPos())
 end
 
 local function PushRagdoll(rag, physbone, pushVel, hitPos)
@@ -142,6 +152,9 @@ function SWEP:SecondaryAttack()
                 self:PlayAnim("Shove",1)
                 self:GetOwner():ViewPunch(Angle(2, 0, 0))
                 sound.Play("player/shove_0"..math_random(5)..".wav", self:GetPos(), 65, math_random(105, 115))
+                if self:GetOwner().organism then
+                        self:GetOwner().organism.stamina.subadd = self:GetOwner().organism.stamina.subadd + 18
+                end
                 self:ShoveFront(sprintShove)
                 return
         end
@@ -593,6 +606,12 @@ function SWEP:BlockingLogic(ent, mul, attacktype, trace)
 				wep:SetLastBlocked(CurTime())
 			end
 
+			local inv = owner:GetNetVar("Inventory",{})
+			local havekastet = inv["Weapons"] and inv["Weapons"]["hg_brassknuckles"]
+			local kastetCount = isnumber(havekastet) and havekastet or (havekastet and 1 or 0)
+
+			if kastetCount <= 0 then return 0 end
+
 			return math_Clamp(selfdmg / dmg / math_Clamp(ent.organism.stamina[1] / (ent.organism.stamina.max * 0.66), 0.1, 1), 0.1, 1)
 		end
 	end
@@ -716,6 +735,7 @@ function SWEP:PrimaryAttack(forcespecial)
 	local side = isfur and "fists_left" or "attack_quick_2"
 	local rand = math.Round(util.SharedRandom( "fist_Punching", 1, 2 ),0) == 1
 	local twohands = (owner:GetNetVar("carrymass",0) ~= 0 and owner:GetNetVar("carrymass",0) or owner:GetNetVar("carrymass2",0)) > 15
+	local org = owner.organism
 
 	local inv = owner:GetNetVar("Inventory",{})
 	if not inv then return end
@@ -724,28 +744,36 @@ function SWEP:PrimaryAttack(forcespecial)
 
         if rand or (CLIENT and ((owner:GetTable().ChatGestureWeight and owner:GetTable().ChatGestureWeight >= 0.1) or twohands)) or kastetCount == 1 then
 		if isfur then
-			if owner.organism and owner.organism.larmamputated then
-				rand = 1
+			if org and org.larmamputated then
+				rand = true
 				side = "fists_right"
 			end
 		
-			if owner.organism and owner.organism.rarmamputated then
-				rand = 2
+			if org and org.rarmamputated then
+				rand = false
 				side = "fists_left"
 			end
 		else
 			side = "attack_quick_1"
 
-			if owner.organism and owner.organism.larmamputated then
-				rand = 1
+			if org and org.larmamputated then
+				rand = true
 				side = "attack_quick_1"
 			end
 		
-			if owner.organism and owner.organism.rarmamputated then
-				rand = 2
+			if org and org.rarmamputated then
+				rand = false
 				side = "attack_quick_2"
 			end
 		end
+	end
+
+	if org and org.larmamputated then
+		rand = true
+		side = isfur and "fists_right" or "attack_quick_1"
+	elseif org and org.rarmamputated then
+		rand = false
+		side = isfur and "fists_left" or "attack_quick_2"
 	end
 
 	if owner:KeyDown(IN_ATTACK2) and owner.PlayerClassName ~= "sc_infiltrator" then return end
@@ -793,8 +821,8 @@ function SWEP:PrimaryAttack(forcespecial)
 
 	self:UpdateNextIdle()
 
-	self:SetNextPrimaryFire(CurTime() + .6 * math_Clamp((180 - owner.organism.stamina[1]) / 90,1,2) + (special_attack and 0.5 or isfur and 0.4 or 0))
-	self:SetNextSecondaryFire(CurTime() + .6 + (special_attack and 0.5 or isfur and 0.4 or 0))
+	self:SetNextPrimaryFire(CurTime() + .55 * math_Clamp((180 - owner.organism.stamina[1]) / 90,1,2) + (special_attack and 0.45 or isfur and 0.35 or 0))
+	self:SetNextSecondaryFire(CurTime() + .55 + (special_attack and 0.45 or isfur and 0.35 or 0))
 	self:SetLastShootTime(CurTime())
 
 	if isfur then
@@ -834,7 +862,7 @@ function SWEP:PrimaryAttack(forcespecial)
 			end
 		end
 	else
-		self:PlayAnim(side,isfur and 1 or 0.85)
+		self:PlayAnim(side,isfur and 0.95 or 0.8)
 		if SERVER then
 			self:AttackFront(special_attack,rand)
                         if isfur then
@@ -892,10 +920,12 @@ function SWEP:ShoveFront(sprintShove)
                 local ragdolled = false
 
                 local victimSprinting = target:KeyDown(IN_SPEED) or (target.IsSprinting and target:IsSprinting())
+			local targetWep = target:GetActiveWeapon()
+			local victimBlocking = IsValid(targetWep) and targetWep.GetBlocking and targetWep:GetBlocking()
                 local victimVel = victimSprinting and target:GetVelocity() * 0.5 or vector_origin
                 local ragdollPushVel = pushVel * (victimSprinting and 1.5 or 1) + victimVel
 
-                if (victimSprinting or math_random(sprintShove and math.max(math.floor(shoveRagdollChance * 0.5), 1) or shoveRagdollChance) == 1) and hg.TriggerSprintCollisionRagdoll then
+			if (victimBlocking or victimSprinting or math_random(sprintShove and math.max(math.floor(shoveRagdollChance * 0.5), 1) or shoveRagdollChance) == 1) and hg.TriggerSprintCollisionRagdoll then
                         ragdolled = true
                         hg.TriggerSprintCollisionRagdoll(target, trace, ragdollPushVel, ragdollPushVel:Length() * 0.45)
                         timer.Simple(0, function()
@@ -967,7 +997,7 @@ function SWEP:AttackFront(special_attack, rand)
 
                 local inv = owner:GetNetVar("Inventory",{})
                 local havekastet = inv["Weapons"] and inv["Weapons"]["hg_brassknuckles"]
-                local SelfForce, Mul = 150, 1 * (havekastet and 1.7 or 1)
+                local SelfForce, Mul = 150, 1 * (havekastet and 2.1 or 1)
                 if self:IsEntSoft(Ent) then
                         SelfForce = 25
                     if Ent:IsPlayer() and IsValid(Ent:GetActiveWeapon()) and Ent:GetActiveWeapon().GetBlocking and Ent:GetActiveWeapon():GetBlocking() and not hg.RagdollOwner(Ent) then
@@ -1077,6 +1107,8 @@ function SWEP:AttackFront(special_attack, rand)
                 Dam:SetDamagePosition(HitPos)
                 Ent:TakeDamageInfo(Dam)
 
+                SendCoolHandsHitStop(self, trace.HitNormal, special_attack)
+
                 local Phys = Ent:IsPlayer() and Ent:GetPhysicsObject() or Ent:GetPhysicsObjectNum(physbone or 0)
 
                 if Ent:IsPlayer() then
@@ -1091,7 +1123,7 @@ function SWEP:AttackFront(special_attack, rand)
         end
 
         if SERVER then
-                owner.organism.stamina.subadd = owner.organism.stamina.subadd + (special_attack and owner:KeyDown(IN_SPEED) and 12 or 6)
+                owner.organism.stamina.subadd = owner.organism.stamina.subadd + (special_attack and owner:KeyDown(IN_SPEED) and 36 or 18)
         end
 
         owner:LagCompensation(false)

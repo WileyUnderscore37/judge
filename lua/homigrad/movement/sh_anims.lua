@@ -1,22 +1,30 @@
 local Angle, Vector, AngleRand, VectorRand, math, hook, util, game = Angle, Vector, AngleRand, VectorRand, math, hook, util, game
 local function IsJogging(ply)
+	if CLIENT and ply == LocalPlayer() then return ply.hg_isJogging == true end
 	return ply.hg_isJogging or ply:GetNWBool("hg_isJogging", false)
 end
 --\\ Custom running anim rate
 	hook.Add("UpdateAnimation", "NormAnimki", function(ply, vel, maxSeqGroundSpeed)
 		if not IsValid(ply) or not ply:Alive() or not ply:OnGround() then return end
+		local lenSqr = vel:LengthSqr()
+		if CLIENT and ply == LocalPlayer() then
+			local target = lenSqr
+			if (ply.hg_isSprinting or ply.hg_isJogging) and ply:KeyDown(IN_FORWARD) then target = math.max(target, ply.hg_isJogging and 65000 or 90000) end
+			ply.hg_animSpeedSqr = math.Approach(ply.hg_animSpeedSqr or target, target, FrameTime() * 220000)
+			lenSqr = ply.hg_animSpeedSqr
+		end
 
 		if IsJogging(ply) then
 			ply:SetPlaybackRate(0.8)
 			return ply, vel, maxSeqGroundSpeed
 		end
 
-		if vel:LengthSqr() >= 77000 and vel:LengthSqr() < 110000 then
+		if lenSqr >= 77000 and lenSqr < 110000 then
 			ply:SetPlaybackRate(1.2)
 			return ply, vel, maxSeqGroundSpeed
 		end
 
-		if vel:LengthSqr() >= 77000 then
+		if lenSqr >= 77000 then
 			ply:SetPlaybackRate(1.4)
 			return ply, vel, maxSeqGroundSpeed
 		end
@@ -33,7 +41,9 @@ end
 	hook.Add( "CalcMainActivity", "RunningAnim", function(ply, vel)
 		local wep = IsValid(ply:GetActiveWeapon()) and ply:GetActiveWeapon()
 		local isAmputated = ply:IsBerserk() and ply.organism and (ply.organism.llegamputated or ply.organism.rlegamputated)
-		if (not ply:InVehicle()) and ply:IsOnGround() and vel:Length() > 180 and wep and runHoldTypes[wep:GetHoldType()] and not isAmputated then
+		local speed = vel:Length()
+		if CLIENT and ply == LocalPlayer() and (ply.hg_isSprinting or ply.hg_isJogging) and ply:KeyDown(IN_FORWARD) then speed = math.max(speed, ply.hg_isJogging and 210 or 280) end
+		if (not ply:InVehicle()) and ply:IsOnGround() and speed > 180 and wep and runHoldTypes[wep:GetHoldType()] and not isAmputated then
 			local isFurry = ply.PlayerClassName == "furry"
 			local anim = ACT_HL2MP_RUN_FAST
 			

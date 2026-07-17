@@ -560,7 +560,7 @@ end
 function hg.ExplosionEffect(pos, dis, dmg)
 	net.Start("add_supression") -- i think this useless for now
 	net.WriteVector(pos)
-	net.Broadcast()
+	net.SendPVS(pos)
 
 	local radius = math.Clamp((dis or 0) * 1.5, 300, 4000)
 	for _, ply in ipairs(ents.FindInSphere(pos, radius)) do

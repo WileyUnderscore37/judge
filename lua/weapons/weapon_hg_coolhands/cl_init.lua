@@ -69,8 +69,8 @@ local math_random, math_Clamp, CurTime, Color = math.random, math.Clamp, CurTime
 local chargeHoldTime = 0.12
 local chargeAnimTime = 0.5
 local shoveAnimTime = 0.7
-local shoveCooldownPrimary = 1.1
-local shoveCooldownSecondary = 1.35
+local shoveCooldownPrimary = 1
+local shoveCooldownSecondary = 1.25
 
 local colWhite = Color(255, 255, 255, 255)
 local lerpthing = 1
@@ -257,7 +257,19 @@ function SWEP:DrawWorldModel()
 
 	local WorldModel = self.worldModel
 
-	WorldModel:SetCycle(1 - math_Clamp(self.animtime - CurTime(),0,1))
+	local cycle = 1 - math_Clamp(self.animtime - CurTime(),0,1)
+	if self.hitstopuntil then
+		if self.hitstopuntil > CurTime() then
+			cycle = self.hitstopcycle or cycle
+		else
+			self.animtime = self.animtime + (self.hitstoppause or 0)
+			self.hitstopuntil = nil
+			self.hitstoppause = nil
+			self.hitstopcycle = nil
+			cycle = 1 - math_Clamp(self.animtime - CurTime(),0,1)
+		end
+	end
+	WorldModel:SetCycle(cycle)
 
 	self.blockinganim = qerp(0.05 * FrameTime() / engine.TickInterval(),self.blockinganim,self:GetBlocking() and 1 or 0)
 
@@ -291,6 +303,24 @@ function SWEP:DrawWorldModel()
 	WorldModel:SetupBones()
 	--WorldModel:DrawModel()
 end
+
+net.Receive("hg_coolhands_hit_stop", function()
+        local wep = net.ReadEntity()
+        local pause = net.ReadFloat()
+        local normal = net.ReadVector()
+
+        if not IsValid(wep) then return end
+
+        wep.hitstoppause = pause
+        wep.hitstopuntil = CurTime() + pause
+        wep.hitstopcycle = 1 - math_Clamp(wep.animtime - CurTime(), 0, 1)
+
+        local owner = wep.GetOwner and wep:GetOwner()
+        if IsValid(owner) and owner == LocalPlayer() then
+                util.ScreenShake(wep:GetPos(), 25, 1, 0.35, 80)
+                ViewPunch(Angle(-1.5, normal.y * 2, normal.x * -2))
+        end
+end)
 
 local host_timescale = game.GetTimeScale
 
@@ -741,9 +771,11 @@ function SWEP:PrimaryAttack(forcespecial)
 	local owner = self:GetOwner()
 	if not IsValid(owner) or owner:InVehicle() then return end
 	if (self.attacked or 0) > CurTime() then return end
+	if owner.organism and owner.organism.rarmamputated and owner.organism.larmamputated then return end
 	local isfur = owner.PlayerClassName == "furry"
 	local side = isfur and "fists_left" or "attack_quick_2"
 	local rand = math.Round(util.SharedRandom( "fist_Punching", 1, 2 ),0) == 1
+	local org = owner.organism
 
 	local inv = owner:GetNetVar("Inventory",{})
 	if not inv then return end
@@ -756,6 +788,14 @@ function SWEP:PrimaryAttack(forcespecial)
 		else
 			side = "attack_quick_1"
 		end
+	end
+
+	if org and org.larmamputated then
+		rand = true
+		side = isfur and "fists_right" or "attack_quick_1"
+	elseif org and org.rarmamputated then
+		rand = false
+		side = isfur and "fists_left" or "attack_quick_2"
 	end
 	if owner:KeyDown(IN_ATTACK2) and owner.PlayerClassName ~= "sc_infiltrator" then return end
 	if owner:GetNetVar("handcuffed",false) then return end
@@ -777,7 +817,7 @@ function SWEP:PrimaryAttack(forcespecial)
         end
 
 	if not IsFirstTimePredicted() then
-                self:PlayAnim(forcespecial and "attack_charge_end" or side,1)
+		self:PlayAnim(forcespecial and "attack_charge_end" or side,forcespecial and 1 or 0.8)
 		return
 	end
 	self.attacked = CurTime() + 0.2

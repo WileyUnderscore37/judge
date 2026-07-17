@@ -808,6 +808,21 @@ PLUGIN.Bullet_StandartMask = MASK_SHOT
 --//
 
 --\\Creation
+	function PLUGIN.ThinkBulletLagCompensated(bullet)
+		local shooter = bullet.Shooter
+		local lag_compensate = SERVER and IsValid(shooter) and shooter:IsPlayer() and (bullet.CreationTime + 1 >= CurTime())
+
+		if(lag_compensate)then
+			shooter:LagCompensation(true)
+		end
+
+		bullet:Think()
+
+		if(lag_compensate)then
+			shooter:LagCompensation(false)
+		end
+	end
+
 	function PLUGIN.CreateBullet(bullet)
 		setmetatable(bullet, PLUGIN.Class_Bullet)
 		translate_default_bullet_to_phys(bullet)
@@ -837,22 +852,11 @@ PLUGIN.Bullet_StandartMask = MASK_SHOT
 		
 		PLUGIN:RunHook("BulletPostSetup", bullet)
 		
-		local lag_compensate = false
-		
 		if(SERVER and bullet.Shooter:IsPlayer())then
-			lag_compensate = true
 			bullet.Vel = bullet.Vel + bullet.Shooter:GetVelocity()
 		end
 		
-		if(lag_compensate)then
-			bullet.Shooter:LagCompensation(true)
-		end
-		
-		bullet:Think()
-		
-		if(lag_compensate)then
-			bullet.Shooter:LagCompensation(false)
-		end
+		PLUGIN.ThinkBulletLagCompensated(bullet)
 		
 		if(bullet.Num and bullet.Num > 1)then
 			local new_bullet = copy_bullet(bullet)
@@ -978,7 +982,7 @@ PLUGIN.Bullet_StandartMask = MASK_SHOT
 --\\Hooks
 	PLUGIN:AddHook("Think", function()
 		for key, bullet in pairs(PLUGIN.BulletsTable) do
-			bullet:Think()
+			PLUGIN.ThinkBulletLagCompensated(bullet)
 		end
 	end)
 
@@ -1031,4 +1035,3 @@ end)
 	-- PLUGIN:Include("sv_plugin.lua")
 	-- PLUGIN:Include("cl_plugin.lua")
 --//
-
