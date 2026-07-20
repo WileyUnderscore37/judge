@@ -87,6 +87,10 @@ local brainLobeProfiles = {
 	brainOccipital = {brain = 0.75, consciousness = 1.3, disorientation = 1.1, shock = 2, pain = 7, hemorrhage = 0.75}
 }
 
+local function getBrainLobeDamage(org)
+	return math.min(org.brainFrontal or 0, 0.2) + math.min(org.brainParietal or 0, 0.2) + math.min(org.brainTemporal or 0, 0.2) + math.min(org.brainOccipital or 0, 0.2)
+end
+
 local function addBrainHemorrhage(org, amount, rate)
 	org.brainHemorrhage = math.min((org.brainHemorrhage or 0) + amount, 1)
 	org.brainBleedRate = math.min((org.brainBleedRate or 0) + (rate or amount * 0.0015), 0.008)
@@ -99,11 +103,12 @@ local function damageBrainLobe(org, bone, dmg, dmgInfo, key)
 	if not profile then return 0 end
 	if dmgInfo:IsDamageType(DMG_BLAST) then dmg = dmg / 50 end
 
+	local oldBrainLobeDamage = getBrainLobeDamage(org)
 	local oldDmg = org[key] or 0
 	local result = damageOrgan(org, dmg, dmgInfo, key)
 	local delta = (org[key] or 0) - oldDmg
 
-	org.brain = math.min((org.brain or 0) + delta * profile.brain, 1)
+	org.brain = math.min((org.brain or 0) + getBrainLobeDamage(org) - oldBrainLobeDamage, 1)
 	org.consciousness = math.Approach(org.consciousness, 0, delta * profile.consciousness)
 	org.disorientation = org.disorientation + delta * profile.disorientation
 	org.shock = org.shock + dmg * profile.shock
@@ -141,56 +146,6 @@ local function damageBrainLobe(org, bone, dmg, dmgInfo, key)
 
 	if org.brain >= 0.01 and delta > 0.01 and math.random(3) == 1 then
 		org.shock = 70
-		timer.Simple(0.1, function()
-			local rag = hg.GetCurrentCharacter(org.owner)
-			if IsValid(rag) and rag:IsRagdoll() then
-				hg.applyFencingToPlayer(org.owner, org)
-			end
-		end)
-	end
-
-	org.consciousness = math.Approach(org.consciousness, 0, dmg * 3)
-
-	org.disorientation = org.disorientation + dmg * 1
-	org.shock = org.shock + dmg * 3
-	org.painadd = org.painadd + dmg * 10
-
-	if org.isPly then
-		local targetPlayer = org.owner
-		if IsValid(org.owner.FakeRagdoll) then
-			local ragdoll = org.owner.FakeRagdoll
-			if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
-		end
-		if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
-			targetPlayer:PlayCustomTinnitus("headhit.mp3")
-
-			if dmg > 0.5 then
-				local idx = math.random(1, 4)
-				local snd = "concussion" .. idx .. ".mp3"
-				net.Start("hg_play_client_sound_file")
-					net.WriteString(snd)
-				net.Send(targetPlayer)
-			end
-		end
-	end
-
-	local concIntensity = math.Clamp(dmg * 0.8, 0.1, 3.0)
-	local concDuration = math.Clamp(dmg * 5, 5, 60)
-	hg.organism.module.concussion.AddConcussion(org, concIntensity, concDuration)
-
-	if org.isPly and dmg > 0.3 then
-		local targetPlayer = org.owner
-		if IsValid(org.owner.FakeRagdoll) then
-			local ragdoll = org.owner.FakeRagdoll
-			if IsValid(ragdoll.ply) then targetPlayer = ragdoll.ply end
-		end
-		if IsValid(targetPlayer) and targetPlayer:IsPlayer() then
-			local impactSeverity = math.Clamp(dmg * 2, 0.5, 6)
-			net.Start("headtrauma_concussion_update")
-				net.WriteFloat(impactSeverity)
-				net.WriteFloat(org.concussion or 0)
-			net.Send(targetPlayer)
-		end
 	end
 
 	return result
@@ -363,7 +318,7 @@ input_list.llegartery = function(org, bone, dmg, dmgInfo, boneindex, dir, hit) r
 input_list.spineartery = function(org, bone, dmg, dmgInfo, boneindex, dir, hit) return 0 end--hitArtery("spineartery", org, dmg, dmgInfo, boneindex, dir, hit) end
 input_list.eyeL = function(org, bone, dmg, dmgInfo)
 	local oldDmg = org.eyeL or 0
-	dmg = dmg * 3
+	dmg = dmg * 0.75
 	org.eyeL = math.min((org.eyeL or 0) + dmg, 1)
 
 	hg.AddHarmToAttacker(dmgInfo, dmg * 5, "Left eye damage harm")
@@ -376,7 +331,7 @@ end
 
 input_list.eyeR = function(org, bone, dmg, dmgInfo)
 	local oldDmg = org.eyeR or 0
-	dmg = dmg * 3
+	dmg = dmg * 0.75
 	org.eyeR = math.min((org.eyeR or 0) + dmg, 1)
 
 	hg.AddHarmToAttacker(dmgInfo, dmg * 5, "Right eye damage harm")
